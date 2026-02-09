@@ -1,0 +1,40 @@
+<?php
+
+namespace Modules\{{moduleName}}\Http\Controllers;
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+
+class {{controllerName}} extends Controller
+{
+    public function __construct()
+    {
+    }
+
+    public function index()
+    {
+        // Lógica para mostrar una lista de registros
+    }
+
+    public function store(Request $request)
+    {
+        // Lógica para almacenar un nuevo registro
+    }
+
+    public function show($id)
+    {
+        // Lógica para mostrar un registro específico
+    }
+
+    public function update(Request $request, $id)
+    {
+        // Lógica para actualizar un registro específico
+    }
+
+    public function destroy($id)
+    {
+        // Lógica para eliminar un registro específico
+    }
+
+    // Otros métodos del controlador
+}

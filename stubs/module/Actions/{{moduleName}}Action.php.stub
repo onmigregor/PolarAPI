@@ -1,0 +1,11 @@
+<?php
+
+namespace Modules\{{moduleName}}\Actions;
+
+class {{moduleName}}Action
+{
+     public function execute()
+        {
+           //
+        }
+}
