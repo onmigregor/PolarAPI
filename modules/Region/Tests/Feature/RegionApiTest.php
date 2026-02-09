@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Feature\Region;
+namespace Modules\Region\Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Modules\Region\Models\Region;
