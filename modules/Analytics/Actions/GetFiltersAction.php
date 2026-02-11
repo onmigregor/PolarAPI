@@ -21,12 +21,13 @@ class GetFiltersAction
                     'region_id' => $client->region_id,
                 ]),
 
-            'regions' => Region::select('id', 'name')
-                ->orderBy('name')
+            'regions' => Region::select('id', 'citCode', 'citName')
+                ->orderBy('citName')
                 ->get()
                 ->map(fn($region) => [
                     'id' => $region->id,
-                    'name' => $region->name,
+                    'code' => $region->citCode,
+                    'name' => $region->citName,
                 ]),
 
             'products' => MasterProduct::select('id', 'sku', 'name', 'category', 'brand')
