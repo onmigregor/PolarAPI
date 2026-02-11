@@ -43,6 +43,12 @@ class UserController extends Controller
         return $this->success(UserResource::collection($users), 'All users retrieved successfully');
     }
 
+    public function roles(): JsonResponse
+    {
+        $roles = \Modules\User\Models\Role::all();
+        return $this->success(\Modules\User\Http\Resources\RoleResource::collection($roles), 'Roles retrieved successfully');
+    }
+
     public function store(UserRequest $request): JsonResponse
     {
         $data = \Modules\User\DataTransferObjects\UserData::fromRequest($request);
@@ -60,6 +66,12 @@ class UserController extends Controller
         $data = \Modules\User\DataTransferObjects\UserData::fromRequest($request);
         $user = $this->updateAction->execute($user, $data);
         return $this->success(new UserResource($user), 'User updated successfully');
+    }
+
+    public function toggleStatus(User $user): JsonResponse
+    {
+        $user->update(['active' => !$user->active]);
+        return $this->success(new UserResource($user), 'User status updated');
     }
 
     public function destroy(User $user): JsonResponse

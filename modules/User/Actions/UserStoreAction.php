@@ -14,6 +14,7 @@ class UserStoreAction
             'name' => $data->name,
             'email' => $data->email,
             'password' => Hash::make($data->password),
+            'active' => $data->active,
         ]);
 
         if (!empty($data->roles)) {

@@ -32,6 +32,7 @@ class UserRequest extends FormRequest
             ],
             'roles' => 'required|array', // Expecting an array of role IDs
             'roles.*' => 'exists:roles,id',
+            'active' => 'sometimes|boolean',
         ];
 
         if ($this->isMethod('POST')) {

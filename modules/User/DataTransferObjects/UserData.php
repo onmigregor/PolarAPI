@@ -11,6 +11,7 @@ readonly class UserData
         public string $email,
         public ?string $password = null,
         public array $roles = [],
+        public bool $active = true,
     ) {}
 
     public static function fromRequest(Request $request): self
@@ -20,6 +21,7 @@ readonly class UserData
             email: $request->input('email'),
             password: $request->input('password'),
             roles: $request->input('roles', []),
+            active: $request->boolean('active', true),
         );
     }
 }

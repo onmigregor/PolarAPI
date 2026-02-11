@@ -13,6 +13,7 @@ class UserUpdateAction
         $updateData = [
             'name' => $data->name,
             'email' => $data->email,
+            'active' => $data->active,
         ];
 
         if (!empty($data->password)) {
