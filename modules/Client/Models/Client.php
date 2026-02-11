@@ -19,6 +19,11 @@ class Client extends Model
         'fiscal_address',
         'region_id',
         'db_name',
+        'is_active',
+    ];
+
+    protected $casts = [
+        'is_active' => 'boolean',
     ];
 
     public function region()

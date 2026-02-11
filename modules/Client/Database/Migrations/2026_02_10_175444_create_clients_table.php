@@ -18,6 +18,7 @@ return new class extends Migration
             $table->text('fiscal_address');
             $table->foreignId('region_id')->constrained('regions');
             $table->string('db_name')->unique();
+            $table->boolean('is_active')->default(true);
             $table->timestamps();
             $table->softDeletes();
         });
