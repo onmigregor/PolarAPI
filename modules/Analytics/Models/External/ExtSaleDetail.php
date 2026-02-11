@@ -25,6 +25,13 @@ class ExtSaleDetail extends ExternalModel
         'fecha' => 'date',
     ];
 
+    protected static function booted(): void
+    {
+        static::addGlobalScope('not_deleted', function ($query) {
+            $query->where('eliminado', 0);
+        });
+    }
+
     public function sale()
     {
         return $this->belongsTo(ExtSale::class, 'IdVenta', 'IdVenta');

@@ -31,6 +31,7 @@ class AnalyticsServiceProvider extends ServiceProvider
     {
         $this->commands([
             \Modules\Analytics\Console\SyncMasterProducts::class,
+            \Modules\Analytics\Console\TestReports::class,
         ]);
     }
 }

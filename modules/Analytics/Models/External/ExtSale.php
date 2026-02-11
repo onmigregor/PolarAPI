@@ -28,6 +28,13 @@ class ExtSale extends ExternalModel
         'tasa' => 'float',
     ];
 
+    protected static function booted(): void
+    {
+        static::addGlobalScope('not_deleted', function ($query) {
+            $query->where('eliminado', 0);
+        });
+    }
+
     public function details()
     {
         return $this->hasMany(ExtSaleDetail::class, 'IdVenta', 'IdVenta');
