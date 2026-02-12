@@ -9,6 +9,7 @@ use Modules\Analytics\Actions\SyncMasterProductsAction;
 use Modules\Analytics\Actions\GetSalesByProductAction;
 use Modules\Analytics\Actions\GetTopProductsAction;
 use Modules\Analytics\Actions\GetSalesTrendAction;
+use Modules\Analytics\Actions\GetDailySalesTrendAction;
 use Modules\Analytics\Actions\GetSalesByRouteAction;
 use Modules\Analytics\Http\Requests\ReportFilterRequest;
 use Modules\Analytics\DataTransferObjects\ReportFilterData;
@@ -91,6 +92,23 @@ class AnalyticsController extends Controller
     public function salesByRoute(
         ReportFilterRequest $request,
         GetSalesByRouteAction $action
+    ): JsonResponse {
+        $filters = ReportFilterData::fromRequest($request->validated());
+        $result = $action->execute($filters);
+
+        return response()->json([
+            'success' => true,
+            'data' => $result['data'],
+            'meta' => [
+                'clients_queried' => $result['clients_queried'],
+                'errors' => $result['errors'],
+            ],
+        ]);
+    }
+
+    public function dailySalesTrend(
+        ReportFilterRequest $request,
+        GetDailySalesTrendAction $action
     ): JsonResponse {
         $filters = ReportFilterData::fromRequest($request->validated());
         $result = $action->execute($filters);

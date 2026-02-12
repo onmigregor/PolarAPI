@@ -12,5 +12,6 @@ Route::middleware(['auth:sanctum'])->prefix('analytics')->group(function () {
     Route::post('/reports/sales-by-product', [AnalyticsController::class, 'salesByProduct']);
     Route::post('/reports/top-products', [AnalyticsController::class, 'topProducts']);
     Route::post('/reports/sales-trend', [AnalyticsController::class, 'salesTrend']);
+    Route::post('/reports/daily-sales-trend', [AnalyticsController::class, 'dailySalesTrend']);
     Route::post('/reports/sales-by-route', [AnalyticsController::class, 'salesByRoute']);
 });
