@@ -2,7 +2,7 @@
 
 namespace Modules\Analytics\Actions;
 
-use Modules\Client\Models\Client;
+use Modules\CompanyRoute\Models\CompanyRoute;
 use Modules\Region\Models\Region;
 use Modules\Analytics\Models\MasterProduct;
 
@@ -11,7 +11,7 @@ class GetFiltersAction
     public function execute(): array
     {
         return [
-            'clients' => Client::select('id', 'name', 'region_id')
+            'clients' => CompanyRoute::select('id', 'name', 'region_id')
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get()

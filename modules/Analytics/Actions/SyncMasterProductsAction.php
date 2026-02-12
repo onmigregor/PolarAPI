@@ -2,7 +2,7 @@
 
 namespace Modules\Analytics\Actions;
 
-use Modules\Client\Models\Client;
+use Modules\CompanyRoute\Models\CompanyRoute;
 use Modules\Analytics\Models\MasterProduct;
 use Modules\Analytics\Models\External\ExtProduct;
 use Modules\Analytics\DataTransferObjects\MasterProductData;
@@ -13,7 +13,7 @@ class SyncMasterProductsAction
 {
     public function execute(): array
     {
-        $clients = Client::where('is_active', true)->get();
+        $clients = CompanyRoute::where('is_active', true)->get();
         $syncedCount = 0;
         $errors = [];
 

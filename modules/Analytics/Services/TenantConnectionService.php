@@ -2,7 +2,7 @@
 
 namespace Modules\Analytics\Services;
 
-use Modules\Client\Models\Client;
+use Modules\CompanyRoute\Models\CompanyRoute;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
@@ -16,10 +16,10 @@ class TenantConnectionService
     public function resolveClients(?array $clientIds = null): Collection
     {
         if (empty($clientIds)) {
-            return Client::where('is_active', true)->get();
+            return CompanyRoute::where('is_active', true)->get();
         }
 
-        return Client::whereIn('id', $clientIds)
+        return CompanyRoute::whereIn('id', $clientIds)
             ->where('is_active', true)
             ->get();
     }
@@ -27,7 +27,7 @@ class TenantConnectionService
     /**
      * Connect to a tenant's database using the client's db_name.
      */
-    public function connect(Client $client): void
+    public function connect(CompanyRoute $client): void
     {
         Config::set('database.connections.tenant', [
             'driver' => 'mysql',
