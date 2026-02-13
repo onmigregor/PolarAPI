@@ -8,4 +8,5 @@ return [
     Modules\CompanyRoute\Providers\CompanyRouteServiceProvider::class,
     Modules\Analytics\Providers\AnalyticsServiceProvider::class,
     Modules\MasterGroup\Providers\MasterGroupServiceProvider::class,
+    Modules\MasterClient\Providers\MasterClientServiceProvider::class,
 ];
