@@ -13,6 +13,7 @@ use Modules\Analytics\Actions\GetDailySalesTrendAction;
 use Modules\Analytics\Actions\GetSalesByRouteAction;
 use Modules\Analytics\Actions\GetTopGroupsByLitersAction;
 use Modules\Analytics\Actions\GetTopGroupsByKilosAction;
+use Modules\Analytics\Actions\GetClientsByTenantAction;
 use Modules\Analytics\Http\Requests\ReportFilterRequest;
 use Modules\Analytics\DataTransferObjects\ReportFilterData;
 
@@ -158,6 +159,17 @@ class AnalyticsController extends Controller
                 'clients_queried' => $result['clients_queried'],
                 'errors' => $result['errors'],
             ],
+        ]);
+    }
+
+    public function clientsByTenant(GetClientsByTenantAction $action): JsonResponse
+    {
+        $result = $action->execute();
+
+        return response()->json([
+            'success' => true,
+            'data' => $result['data'],
+            'meta' => $result['meta'],
         ]);
     }
 }

@@ -16,4 +16,5 @@ Route::middleware(['auth:sanctum'])->prefix('analytics')->group(function () {
     Route::post('/reports/sales-by-route', [AnalyticsController::class, 'salesByRoute']);
     Route::post('/reports/top-groups-by-liters', [AnalyticsController::class, 'topGroupsByLiters']);
     Route::post('/reports/top-groups-by-kilos', [AnalyticsController::class, 'topGroupsByKilos']);
+    Route::get('/reports/clients-by-tenant', [AnalyticsController::class, 'clientsByTenant']);
 });
