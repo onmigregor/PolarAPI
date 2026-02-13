@@ -127,6 +127,12 @@ return [
             'path' => storage_path('logs/laravel.log'),
         ],
 
+        'auditoria' => [
+            'driver' => 'single',
+            'path' => storage_path('logs/productos-sin-grupo-' . date('Y-m-d') . '.log'),
+            'level' => 'info',
+        ],
+
     ],
 
 ];
