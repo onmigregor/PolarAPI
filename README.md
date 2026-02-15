@@ -57,7 +57,10 @@ docker exec -it polar_api php artisan db:seed --class="\Modules\CompanyRoute\Dat
 
 ## Sincronización de Datos
 
-Una vez configurado, utiliza los siguientes comandos para sincronizar la información desde las bases de datos externas de los clientes:
+Una vez configurado, utiliza los siguientes comandos para sincronizar la información desde las bases de datos externas de los clientes.
+
+> [!IMPORTANT]
+> Antes de ejecutar los comandos de sincronización, **debes asegurarte de que las bases de datos de los clientes estén cargadas en el servidor MySQL** (ej: `www_i0512`, `www_zanjili`), de lo contrario los comandos fallarán al intentar conectar con los tenants definidos en el seeder.
 
 ### 1. Sincronizar Grupos de Productos
 Captura los grupos únicos desde los diversos tenants:
