@@ -3,6 +3,9 @@
 namespace Modules\Analytics\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+use Modules\Region\Models\Region;
+use Modules\CompanyRoute\Models\CompanyRoute;
 
 class ReportFilterRequest extends FormRequest
 {
@@ -16,8 +19,10 @@ class ReportFilterRequest extends FormRequest
         return [
             'start_date' => ['required', 'date', 'date_format:Y-m-d'],
             'end_date' => ['required', 'date', 'date_format:Y-m-d', 'after_or_equal:start_date'],
+            'region_ids' => ['nullable', 'array'],
+            'region_ids.*' => ['integer', Rule::exists(Region::class, 'id')],
             'client_ids' => ['nullable', 'array'],
-            'client_ids.*' => ['integer', 'exists:clients,id'],
+            'client_ids.*' => ['integer', Rule::exists(CompanyRoute::class, 'id')],
             'product_skus' => ['nullable', 'array'],
             'product_skus.*' => ['string'],
             'routes' => ['nullable', 'array'],

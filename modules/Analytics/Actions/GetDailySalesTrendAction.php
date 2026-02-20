@@ -16,7 +16,7 @@ class GetDailySalesTrendAction
 
     public function execute(ReportFilterData $filters): array
     {
-        $clients = $this->tenantService->resolveClients($filters->client_ids);
+        $clients = $this->tenantService->resolveClients($filters->client_ids, $filters->region_ids);
 
         $aggregated = [];
 

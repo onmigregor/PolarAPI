@@ -13,14 +13,15 @@ class TenantConnectionService
      * Get the list of clients to query based on filter criteria.
      * If no client_ids provided, returns all active clients.
      */
-    public function resolveClients(?array $clientIds = null): Collection
+    public function resolveClients(?array $clientIds = null, ?array $regionIds = null): Collection
     {
-        if (empty($clientIds)) {
-            return CompanyRoute::where('is_active', true)->get();
-        }
-
-        return CompanyRoute::whereIn('id', $clientIds)
-            ->where('is_active', true)
+        return CompanyRoute::where('is_active', true)
+            ->when(!empty($clientIds), function ($query) use ($clientIds) {
+                return $query->whereIn('id', $clientIds);
+            })
+            ->when(!empty($regionIds) && empty($clientIds), function ($query) use ($regionIds) {
+                return $query->whereIn('region_id', $regionIds);
+            })
             ->get();
     }
 
