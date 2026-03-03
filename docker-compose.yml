@@ -21,6 +21,7 @@ services:
       - "8090:80"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+      - "api.polar.localhost:host-gateway"
     networks:
       - polar_network
       - appnet
