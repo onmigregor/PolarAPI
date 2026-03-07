@@ -45,6 +45,7 @@ class ExportSalesCsvAction
         // 2. Por cada tenant, obtener ventas + detalles + RJ
         $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $date, $dayOfWeek) {
             $routeCode = $client->code;
+            $cep = $client->cep ?? '';
             $tenantRows = [];
 
             // Query principal: ventaspxc → ventas_detalle → productos → clientes
@@ -84,7 +85,8 @@ class ExportSalesCsvAction
 
                 $tenantRows[] = [
                     'fq_redi'       => $routeCode,
-                    'fecha'         => $date->format('d.m.Y'),
+                    'cep'           => $cep,
+                    'fecha'         => $date->format('d-m-Y'),
                     'deudor'        => $row->IdCliente,
                     'doc_fq_redi'   => $row->IdVenta,
                     'material'      => $row->codigoSKU,
@@ -115,7 +117,8 @@ class ExportSalesCsvAction
             foreach ($clientesRJ as $clienteRJ) {
                 $tenantRows[] = [
                     'fq_redi'       => $routeCode,
-                    'fecha'         => $date->format('d.m.Y'),
+                    'cep'           => $cep,
+                    'fecha'         => $date->format('d-m-Y'),
                     'deudor'        => $clienteRJ->IdCliente,
                     'doc_fq_redi'   => '',
                     'material'      => '',

@@ -13,6 +13,7 @@ class CompanyRoute extends Model
 
     protected $fillable = [
         'code',
+        'cep',
         'name',
         'route_name',
         'rif',

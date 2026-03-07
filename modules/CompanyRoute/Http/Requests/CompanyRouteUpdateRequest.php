@@ -19,6 +19,7 @@ class CompanyRouteUpdateRequest extends FormRequest
 
         return [
             'code' => 'sometimes|required|string|max:255|unique:company_routes,code,' . $companyRouteId,
+            'cep' => 'sometimes|required|string|max:255',
             'name' => 'sometimes|required|string|max:255|unique:company_routes,name,' . $companyRouteId,
             'route_name' => 'nullable|string|max:255',
             'rif' => 'sometimes|required|string|max:20',

@@ -8,6 +8,7 @@ class CompanyRouteData
 {
     public function __construct(
         public readonly ?string $code,
+        public readonly ?string $cep,
         public readonly ?string $name,
         public readonly ?string $route_name,
         public readonly ?string $rif,
@@ -21,6 +22,7 @@ class CompanyRouteData
     {
         return new self(
             code: $request->input('code'),
+            cep: $request->input('cep'),
             name: $request->input('name'),
             route_name: $request->input('route_name'),
             rif: $request->input('rif'),
@@ -35,6 +37,7 @@ class CompanyRouteData
     {
         return array_filter([
             'code' => $this->code,
+            'cep' => $this->cep,
             'name' => $this->name,
             'route_name' => $this->route_name,
             'rif' => $this->rif,

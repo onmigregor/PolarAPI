@@ -15,6 +15,7 @@ class CompanyRouteStoreRequest extends FormRequest
     {
         return [
             'code' => 'required|string|max:255|unique:company_routes,code',
+            'cep' => 'required|string|max:255',
             'name' => 'required|string|max:255|unique:company_routes,name',
             'route_name' => 'nullable|string|max:255',
             'rif' => 'required|string|max:20',

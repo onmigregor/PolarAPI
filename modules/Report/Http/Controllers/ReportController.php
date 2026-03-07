@@ -23,6 +23,7 @@ class ReportController extends Controller
         // Cabeceras del CSV
         $headers = [
             'FQ/REDI',
+            'CEP',
             'Fecha Creacion',
             'Deudor',
             'Doc FQ/REDI',
@@ -40,6 +41,7 @@ class ReportController extends Controller
         foreach ($result['rows'] as $row) {
             $csvContent .= implode(';', [
                 $row['fq_redi'],
+                $row['cep'],
                 $row['fecha'],
                 $row['deudor'],
                 $row['doc_fq_redi'],

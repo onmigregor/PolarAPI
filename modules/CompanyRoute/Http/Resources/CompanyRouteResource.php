@@ -13,6 +13,7 @@ class CompanyRouteResource extends JsonResource
         return [
             'id' => $this->id,
             'code' => $this->code,
+            'cep' => $this->cep,
             'name' => $this->name,
             'route_name' => $this->route_name,
             'rif' => $this->rif,
