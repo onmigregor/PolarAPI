@@ -21,11 +21,13 @@ class ExtProduct extends ExternalModel
         'precioventa',
         'preciocompra',
         'producto_activo',
+        'unidadesporcaja',
     ];
 
     protected $casts = [
         'producto_activo' => 'boolean',
         'precioventa' => 'float',
         'preciocompra' => 'float',
+        'unidadesporcaja' => 'integer',
     ];
 }

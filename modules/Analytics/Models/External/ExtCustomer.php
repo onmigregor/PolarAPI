@@ -15,6 +15,7 @@ class ExtCustomer extends ExternalModel
         'email',
         'TipoCliente',
         'Activo',
+        'DiaDespacho1',
     ];
 
     protected $casts = [

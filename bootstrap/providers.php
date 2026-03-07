@@ -9,4 +9,5 @@ return [
     Modules\Analytics\Providers\AnalyticsServiceProvider::class,
     Modules\MasterGroup\Providers\MasterGroupServiceProvider::class,
     Modules\MasterClient\Providers\MasterClientServiceProvider::class,
+    Modules\Report\Providers\ReportServiceProvider::class,
 ];
