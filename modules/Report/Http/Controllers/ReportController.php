@@ -16,7 +16,7 @@ class ReportController extends Controller
     public function exportSalesCsv(
         ExportSalesCsvRequest $request,
         ExportSalesCsvAction $action
-    ): Response {
+    ): \Illuminate\Http\JsonResponse {
         $filters = ExportSalesCsvFilterData::fromRequest($request->validated());
         $result = $action->execute($filters);
 
@@ -56,9 +56,22 @@ class ReportController extends Controller
 
         $filename = 'ventas_' . $filters->date . '.csv';
 
-        return response($csvContent, 200, [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
-        ]);
+        try {
+            \Illuminate\Support\Facades\Storage::disk('sftp_reports')->put($filename, $csvContent);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Archivo $filename enviado correctamente al SFTP.",
+                'data' => [
+                    'filename' => $filename,
+                    'rows' => count($result['rows']),
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al enviar el archivo al SFTP: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 }

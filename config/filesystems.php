@@ -60,6 +60,16 @@ return [
             'report' => false,
         ],
 
+        'sftp_reports' => [
+            'driver' => 'sftp',
+            'host' => env('SFTP_HOST'),
+            'username' => env('SFTP_USERNAME'),
+            'password' => env('SFTP_PASSWORD'),
+            'port' => env('SFTP_PORT', 22),
+            'root' => env('SFTP_ROOT', '/'),
+            'timeout' => 30,
+        ],
+
     ],
 
     /*

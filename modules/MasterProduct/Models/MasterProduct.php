@@ -1,6 +1,6 @@
 <?php
 
-namespace Modules\Analytics\Models;
+namespace Modules\MasterProduct\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -14,6 +14,9 @@ class MasterProduct extends Model
         'name',
         'category',
         'brand',
+        'cl2_code',
+        'cl3_code',
+        'unt_code',
         'image',
         'is_active',
         'meta_data'

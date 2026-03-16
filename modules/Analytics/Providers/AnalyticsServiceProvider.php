@@ -30,7 +30,7 @@ class AnalyticsServiceProvider extends ServiceProvider
     protected function registerCommands(): void
     {
         $this->commands([
-            \Modules\Analytics\Console\SyncMasterProducts::class,
+            //
         ]);
     }
 }
