@@ -22,6 +22,7 @@ class CompanyRoute extends Model
         'region_id',
         'db_name',
         'is_active',
+        'is_available_to_sync',
     ];
 
     protected $casts = [

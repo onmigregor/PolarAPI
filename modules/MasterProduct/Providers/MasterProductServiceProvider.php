@@ -18,6 +18,7 @@ class MasterProductServiceProvider extends ServiceProvider
         $this->commands([
             \Modules\MasterProduct\Console\SyncMasterProducts::class,
             \Modules\MasterProduct\Console\SyncClientProducts::class,
+            \Modules\MasterProduct\Console\SyncMasterToClients::class,
         ]);
     }
 }
