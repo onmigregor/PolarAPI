@@ -53,6 +53,18 @@ class MasterClientBulkSyncAction
 
                 // B. Preparar para push a Tenant
                 if ($companyRoute && $companyRoute->db_name) {
+                    // Lógica de Días de Despacho (Fuera del array)
+                    $activeDays = [];
+                    if (isset($item['days'])) {
+                        if (($item['days']['monday'] ?? 0) > 0) $activeDays[] = 'LUNES';
+                        if (($item['days']['tuesday'] ?? 0) > 0) $activeDays[] = 'MARTES';
+                        if (($item['days']['wednesday'] ?? 0) > 0) $activeDays[] = 'MIERCOLES';
+                        if (($item['days']['thursday'] ?? 0) > 0) $activeDays[] = 'JUEVES';
+                        if (($item['days']['friday'] ?? 0) > 0) $activeDays[] = 'VIERNES';
+                        if (($item['days']['saturday'] ?? 0) > 0) $activeDays[] = 'SABADO';
+                        if (($item['days']['sunday'] ?? 0) > 0) $activeDays[] = 'DOMINGO';
+                    }
+
                     $groupedByRoute[$companyRoute->db_name][] = [
                         'cep' => $item['cus_code'],
                         'Cliente' => $item['cus_business_name'] ?? ($item['cus_name'] ?? ''),
@@ -65,12 +77,11 @@ class MasterClientBulkSyncAction
                         'longitud' => $item['longitude'] ?? '',
                         'PersonaContacto' => $item['contact_person'] ?? '',
                         'TelefonoContacto' => $item['phone'] ?? '',
-                        // Campos de texto obligatorios (vacíos por ahora)
                         'email' => '',
                         'instagram' => '',
-                        'DiaDespacho1' => '',
-                        'DiaDespacho2' => '',
-                        'DiaDespacho3' => '',
+                        'DiaDespacho1' => $activeDays[0] ?? '',
+                        'DiaDespacho2' => $activeDays[1] ?? '',
+                        'DiaDespacho3' => $activeDays[0] ?? '', // Se repite el primer día aquí
                         'FormaPago' => '',
                         'PIN' => '',
                         'vendedor' => '',
