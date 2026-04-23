@@ -18,6 +18,7 @@ class MasterClientServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 SyncMasterClients::class,
+                \Modules\MasterClient\Console\SyncOfficialCustomers::class,
             ]);
         }
     }

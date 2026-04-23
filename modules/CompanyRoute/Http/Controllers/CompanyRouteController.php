@@ -10,6 +10,7 @@ use Modules\CompanyRoute\Actions\CompanyRouteListAction;
 use Modules\CompanyRoute\Actions\CompanyRouteListAllAction;
 use Modules\CompanyRoute\Actions\CompanyRouteStoreAction;
 use Modules\CompanyRoute\Actions\CompanyRouteUpdateAction;
+use Modules\CompanyRoute\Actions\CompanyRouteBulkSyncAction;
 use Modules\CompanyRoute\DataTransferObjects\CompanyRouteData;
 use Modules\CompanyRoute\Http\Requests\CompanyRouteStoreRequest;
 use Modules\CompanyRoute\Http\Requests\CompanyRouteUpdateRequest;
@@ -26,7 +27,8 @@ class CompanyRouteController extends Controller
         protected CompanyRouteListAllAction $companyRouteListAllAction,
         protected CompanyRouteStoreAction $companyRouteStoreAction,
         protected CompanyRouteUpdateAction $companyRouteUpdateAction,
-        protected CompanyRouteDeleteAction $companyRouteDeleteAction
+        protected CompanyRouteDeleteAction $companyRouteDeleteAction,
+        protected CompanyRouteBulkSyncAction $companyRouteBulkSyncAction
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -89,5 +91,18 @@ class CompanyRouteController extends Controller
         $this->companyRouteDeleteAction->execute($companyRoute);
 
         return $this->success(null, 'Company Route deleted successfully');
+    }
+
+    public function bulkSync(Request $request): JsonResponse
+    {
+        $data = $request->input('data', []);
+        
+        if (empty($data)) {
+            return $this->error('No data provided', 400);
+        }
+
+        $results = $this->companyRouteBulkSyncAction->execute($data);
+
+        return $this->success($results, 'Synchronization completed successfully');
     }
 }

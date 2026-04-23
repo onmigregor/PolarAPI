@@ -19,4 +19,16 @@ class MasterClientController extends Controller
             'data' => $result,
         ]);
     }
+
+    public function syncPolar(\Illuminate\Http\Request $request, \Modules\MasterClient\Actions\MasterClientBulkSyncAction $action): JsonResponse
+    {
+        $data = $request->input('data', []);
+        $result = $action->execute($data);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Polar Client synchronization completed',
+            'data' => $result,
+        ]);
+    }
 }
