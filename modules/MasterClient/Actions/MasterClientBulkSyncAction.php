@@ -8,14 +8,33 @@ use Modules\CompanyRoute\Models\CompanyRoute;
 
 class MasterClientBulkSyncAction
 {
-    public function execute(array $data): array
+    public function execute(array $data, array $branches = []): array
     {
         $results = [
+            'branches_synced' => 0,
             'created' => 0,
             'updated' => 0,
             'pushed_to_tenants' => 0,
             'errors' => [],
         ];
+
+        // 0. Procesar Sucursales (Branches)
+        $branchesMap = [];
+        if (!empty($branches)) {
+            foreach ($branches as $branch) {
+                \Modules\MasterClient\Models\MasterClientBranch::updateOrCreate(
+                    ['tp2_code' => $branch['tp2_code']],
+                    ['tp2_name' => $branch['tp2_name']]
+                );
+                $branchesMap[$branch['tp2_code']] = $branch['tp2_name'];
+                $results['branches_synced']++;
+            }
+        }
+
+        // Si no vinieron branches en el payload, cargamos lo que tengamos en DB para el mapeo
+        if (empty($branchesMap)) {
+            $branchesMap = \Modules\MasterClient\Models\MasterClientBranch::pluck('tp2_name', 'tp2_code')->toArray();
+        }
 
         // 1. Agrupar datos por ruta para procesamiento eficiente
         $groupedByRoute = [];
@@ -86,7 +105,7 @@ class MasterClientBulkSyncAction
                         'PIN' => '',
                         'vendedor' => '',
                         'tipoclienteplantactico' => '',
-                        'TipoCliente' => '',
+                        'TipoCliente' => $branchesMap[$item['tp2_code'] ?? ''] ?? '',
                         'categoria' => '',
                         'licencialicor' => '',
                         'nota' => '',

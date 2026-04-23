@@ -23,7 +23,8 @@ class MasterClientController extends Controller
     public function syncPolar(\Illuminate\Http\Request $request, \Modules\MasterClient\Actions\MasterClientBulkSyncAction $action): JsonResponse
     {
         $data = $request->input('data', []);
-        $result = $action->execute($data);
+        $branches = $request->input('branches', []);
+        $result = $action->execute($data, $branches);
 
         return response()->json([
             'success' => true,
