@@ -24,7 +24,8 @@ class MasterClientController extends Controller
     {
         $data = $request->input('data', []);
         $branches = $request->input('branches', []);
-        $result = $action->execute($data, $branches);
+        $segments = $request->input('segments', []);
+        $result = $action->execute($data, $branches, $segments);
 
         return response()->json([
             'success' => true,

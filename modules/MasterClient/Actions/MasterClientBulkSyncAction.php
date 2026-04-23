@@ -8,17 +8,18 @@ use Modules\CompanyRoute\Models\CompanyRoute;
 
 class MasterClientBulkSyncAction
 {
-    public function execute(array $data, array $branches = []): array
+    public function execute(array $data, array $branches = [], array $segments = []): array
     {
         $results = [
             'branches_synced' => 0,
+            'segments_synced' => 0,
             'created' => 0,
             'updated' => 0,
             'pushed_to_tenants' => 0,
             'errors' => [],
         ];
 
-        // 0. Procesar Sucursales (Branches)
+        // 0a. Procesar Sucursales (Branches)
         $branchesMap = [];
         if (!empty($branches)) {
             foreach ($branches as $branch) {
@@ -31,9 +32,25 @@ class MasterClientBulkSyncAction
             }
         }
 
-        // Si no vinieron branches en el payload, cargamos lo que tengamos en DB para el mapeo
+        // 0b. Procesar Segmentos (Segments)
+        $segmentsMap = [];
+        if (!empty($segments)) {
+            foreach ($segments as $segment) {
+                \Modules\MasterClient\Models\MasterClientSegment::updateOrCreate(
+                    ['tp3_code' => $segment['tp3_code']],
+                    ['tp3_name' => $segment['tp3_name']]
+                );
+                $segmentsMap[$segment['tp3_code']] = $segment['tp3_name'];
+                $results['segments_synced']++;
+            }
+        }
+
+        // Si no vinieron datos en el payload, cargamos lo que tengamos en DB para el mapeo
         if (empty($branchesMap)) {
             $branchesMap = \Modules\MasterClient\Models\MasterClientBranch::pluck('tp2_name', 'tp2_code')->toArray();
+        }
+        if (empty($segmentsMap)) {
+            $segmentsMap = \Modules\MasterClient\Models\MasterClientSegment::pluck('tp3_name', 'tp3_code')->toArray();
         }
 
         // 1. Agrupar datos por ruta para procesamiento eficiente
@@ -109,7 +126,7 @@ class MasterClientBulkSyncAction
                         'categoria' => '',
                         'licencialicor' => '',
                         'nota' => '',
-                        'segmento' => '',
+                        'segmento' => $segmentsMap[$item['tp3_code'] ?? ''] ?? '',
                         'perfilUsuario' => '',
                         'perfilUsuarioApp' => '',
                         // Campos numéricos obligatorios
