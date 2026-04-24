@@ -11,7 +11,7 @@ use Modules\CompanyRoute\Models\CompanyRoute;
 class MasterDynamicPlanBulkSyncAction
 {
     private const CREATE_TENANT_TABLE_SQL = "
-        CREATE TABLE IF NOT EXISTS `dynamic_plans` (
+        CREATE TABLE IF NOT EXISTS `dynamics_plans` (
             `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             `cod_fq` varchar(255) DEFAULT NULL,
             `meta_cerveceria` double DEFAULT '0',
@@ -75,35 +75,43 @@ class MasterDynamicPlanBulkSyncAction
             $results['errors'][] = "Master Error: " . $e->getMessage();
         }
 
-        // 2. Obtener Tenants
-        $routes = CompanyRoute::whereNotNull('db_name')
-            ->where('is_active', 1)
-            ->get();
+        // 2. Obtener la data filtrada por CEP (Match con company_routes)
+        $recordsWithTenants = DB::table('master_dynamic_plans as mdp')
+            ->join('company_routes as routes', 'routes.cep', '=', 'mdp.cod_fq')
+            ->select('mdp.*', 'routes.db_name')
+            ->get()
+            ->groupBy('db_name');
         
-        Log::channel('single')->info("Tenants activos encontrados: " . $routes->count());
+        Log::channel('single')->info("Grupos de planes por tenant encontrados: " . count($recordsWithTenants));
 
-        // 3. Loop de Tenants
-        foreach ($routes as $route) {
-            $dbName = $route->db_name;
-            Log::channel('single')->info("Procesando Tenant: {$dbName}");
+        // 3. Loop de Tenants y distribución filtrada
+        foreach ($recordsWithTenants as $dbName => $records) {
+            Log::channel('single')->info("Procesando Tenant: {$dbName} (" . count($records) . " registros)");
 
             try {
                 Config::set('database.connections.tenant.database', $dbName);
                 DB::purge('tenant');
-                DB::connection('tenant')->reconnect(); // Forzamos reconexión limpia
-
+                
                 // A. Asegurar Tabla
                 DB::connection('tenant')->statement(self::CREATE_TENANT_TABLE_SQL);
 
-                // B. UPSERT
-                $affected = DB::connection('tenant')
-                    ->table('dynamic_plans')
-                    ->upsert($syncData, ['cod_fq'], $updateColumns);
+                // Limpiar data para el upsert (quitar db_name y el id de la master)
+                $cleanRecords = array_map(function($item) {
+                    $row = (array)$item;
+                    unset($row['id']);
+                    unset($row['db_name']);
+                    return $row;
+                }, $records->toArray());
 
-                $results['pushed_to_tenants'] += count($syncData);
+                // B. UPSERT filtrado
+                DB::connection('tenant')
+                    ->table('dynamics_plans')
+                    ->upsert($cleanRecords, ['cod_fq'], $updateColumns);
+
+                $results['pushed_to_tenants'] += count($cleanRecords);
                 $results['tenants_processed']++;
                 
-                Log::channel('single')->info("Tenant {$dbName}: Sincronización exitosa. Registros enviados: " . count($syncData));
+                Log::channel('single')->info("Tenant {$dbName}: Sincronización exitosa.");
 
             } catch (\Exception $e) {
                 Log::channel('single')->error("Error en Tenant {$dbName}: " . $e->getMessage());
