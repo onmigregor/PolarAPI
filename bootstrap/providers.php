@@ -11,4 +11,5 @@ return [
     Modules\MasterClient\Providers\MasterClientServiceProvider::class,
     Modules\MasterProduct\Providers\MasterProductServiceProvider::class,
     Modules\Report\Providers\ReportServiceProvider::class,
+    Modules\DynamicPlan\Providers\DynamicPlanServiceProvider::class,
 ];
