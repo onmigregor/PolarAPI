@@ -6,17 +6,18 @@ use Illuminate\Database\Eloquent\Model;
 
 class MasterAdcPolar extends Model
 {
-    protected $table = 'master_adc_polar';
+    protected $table = 'master_adc_datos_polar';
+    protected $primaryKey = 'id_adc';
 
     protected $fillable = [
-        'fq_redi',
         'cus_code',
-        'marca',
-        'no_serie',
-        'no_serial',
-        'no_activo',
-        'empresa',
-        'estado',
-        'tipo_activo',
+        'serial',
+        'modelo',
+        'condicion',
+        'descripcion',
+        'es_propio',
+        'pertenece_a',
+        'imagen',
+        'ubicacion_imagen',
     ];
 }
