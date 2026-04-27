@@ -19,6 +19,7 @@ class MasterProductServiceProvider extends ServiceProvider
             \Modules\MasterProduct\Console\SyncMasterProducts::class,
             \Modules\MasterProduct\Console\SyncClientProducts::class,
             \Modules\MasterProduct\Console\SyncMasterToClients::class,
+            \Modules\MasterProduct\Console\ImportProductsFromJson::class,
         ]);
     }
 }

@@ -11,6 +11,23 @@ class MasterProductController extends Controller
     {
     }
 
+    public function syncFromAdmin(\Modules\MasterProduct\Actions\SyncMasterProductsAction $action)
+    {
+        try {
+            $results = $action->execute();
+            return response()->json([
+                'success' => true,
+                'message' => 'Sincronización completada con éxito',
+                'results' => $results
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al sincronizar: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function index()
     {
         // Lógica para mostrar una lista de registros

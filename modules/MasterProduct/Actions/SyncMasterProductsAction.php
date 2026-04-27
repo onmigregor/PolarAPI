@@ -93,6 +93,16 @@ class SyncMasterProductsAction
                         'brand'     => $product->pro_organization,
                         'cl2_code'  => $product->cl2_code,
                         'cl3_code'  => $product->cl3_code,
+                        'cl4_code'  => $product->cl4_code,
+                        'brand_code' => $product->brand_code,
+                        'segment_code' => $product->segment_code,
+                        'barcode'   => $product->pro_barcode,
+                        'pro_short_name' => $product->pro_short_name,
+                        'pro_bom_code' => $product->pro_bom_code,
+                        'pro_return_allowed' => $product->pro_return_allowed,
+                        'pro_damage_returns_allowed' => $product->pro_damage_returns_allowed,
+                        'pro_available_for_sale' => $product->pro_available_for_sale,
+                        'pro_customer_inventory_allowed' => $product->pro_customer_inventory_allowed,
                         'unt_code'  => $product->unt_code,
                     ]);
                     
@@ -108,6 +118,7 @@ class SyncMasterProductsAction
                 MasterProductUnit::updateOrCreate(
                     ['pro_code' => $pu->pro_code, 'unt_code' => $pu->unt_code],
                     [
+                        'pru_multiply_by' => $pu->pru_multiply_by ?? null,
                         'pru_divide_by' => $pu->pru_divide_by ?? null,
                         'pru_bar_code'  => $pu->pru_bar_code ?? null,
                     ]
