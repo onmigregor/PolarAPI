@@ -6,5 +6,5 @@ namespace Modules\MasterGroup\routes;
 use Illuminate\Support\Facades\Route;
 use Modules\MasterGroup\Http\Controllers\MasterGroupController;
 
-Route::post('/sync', [MasterGroupController::class, 'sync']);
-Route::post('/audit', [MasterGroupController::class, 'audit']);
+Route::middleware('internal_key')->post('/sync', [MasterGroupController::class, 'sync']);
+Route::middleware('internal_key')->post('/audit', [MasterGroupController::class, 'audit']);

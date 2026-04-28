@@ -12,7 +12,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'role' => \Modules\Auth\Http\Middleware\CheckRole::class,
+            'role'         => \Modules\Auth\Http\Middleware\CheckRole::class,
+            'internal_key' => \App\Http\Middleware\InternalApiKey::class,
         ]);
 
         // Force JSON responses on API routes (prevents Sanctum redirect to login)

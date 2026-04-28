@@ -15,6 +15,7 @@ class MasterInvoiceController extends Controller
      */
     public function syncFromAdmin(Request $request)
     {
+        Log::info("MasterInvoiceController: syncFromAdmin hit.");
         try {
             $data = $request->input('data', []);
 

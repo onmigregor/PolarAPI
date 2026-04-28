@@ -123,4 +123,14 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Internal API Key (Service-to-Service)
+    |--------------------------------------------------------------------------
+    | Used to authenticate requests between internal services (Admin -> Hub).
+    | This is a static key that does NOT depend on the database or Sanctum.
+    | Set INTERNAL_API_KEY in your .env to the same value in both services.
+    */
+    'internal_api_key' => env('INTERNAL_API_KEY', ''),
+
 ];
