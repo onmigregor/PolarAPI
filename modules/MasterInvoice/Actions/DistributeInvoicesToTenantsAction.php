@@ -91,6 +91,7 @@ class DistributeInvoicesToTenantsAction
                             'enlace' => '',
                             'horaRegistro' => now()->format('Y-m-d H:i:s'),
                             'cep' => $firstLine['fq_redi'] ?? '',
+                            'idusuario' => 1, // Usuario del sistema para cargas automáticas
                             'eliminado' => 0,
                         ]
                     );
@@ -139,6 +140,7 @@ class DistributeInvoicesToTenantsAction
                                 'rentabilidad' => 0,
                                 'fideicomiso' => 0,
                                 'sync' => 1,
+                                'idusuario' => 1,
                                 'eliminado' => 0,
                             ]
                         );
