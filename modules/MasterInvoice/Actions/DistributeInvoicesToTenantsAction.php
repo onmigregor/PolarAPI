@@ -75,7 +75,7 @@ class DistributeInvoicesToTenantsAction
                             'montopendiente' => $totalFactura + $totalIvaAmount,
                             'iva' => $totalIvaAmount > 0 ? 1 : 0,
                             'ivaretenido' => 0,
-                            'nrocomprobante' => '',
+                            'nrocomprobante' => '0',
                             'fecharetencion' => $fecha,
                             'periodofiscal' => '',
                             'c' => 0,
@@ -89,12 +89,6 @@ class DistributeInvoicesToTenantsAction
                             'montodivisas' => $montoDivisas,
                             'totalpagarbs' => $totalFactura + $totalIvaAmount,
                             'enlace' => '',
-                            'horaRegistro' => now()->format('Y-m-d H:i:s'),
-                            'cep' => $firstLine['fq_redi'] ?? '',
-                            'idusuario' => 1,
-                            'idproveedor' => 0,
-                            'idvendedor' => 0,
-                            'descuento' => 0,
                             'eliminado' => 0,
                         ]
                     );
@@ -143,9 +137,6 @@ class DistributeInvoicesToTenantsAction
                                 'rentabilidad' => 0,
                                 'fideicomiso' => 0,
                                 'sync' => 1,
-                                'idusuario' => 1,
-                                'idvendedor' => 0,
-                                'iva' => ($line['iva'] ?? 0) > 0 ? 1 : 0,
                                 'eliminado' => 0,
                             ]
                         );
