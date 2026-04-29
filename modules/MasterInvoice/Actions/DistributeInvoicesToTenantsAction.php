@@ -36,6 +36,7 @@ class DistributeInvoicesToTenantsAction
             }
 
             $dbName = $company->db_name;
+            $routeName = $company->route_name ?? $zone; // Usar el nombre de la ruta
             
             try {
                 // Configurar conexión dinámica
@@ -52,18 +53,19 @@ class DistributeInvoicesToTenantsAction
                     $totalFactura = $lines->sum(fn($l) => ($l['cantidad'] ?? 0) * ($l['precio'] ?? 0));
                     $totalIvaAmount = $lines->sum(fn($l) => ($l['iva'] ?? 0) * ($l['cantidad'] ?? 1));
 
-                    // 1. Insertar Cabecera (compras) - Status PENDIENTE
+                    // Obtener info del proveedor
+                    $providerInfo = $this->getProviderInfo($firstLine['codigo_polar_negocio']);
                     $montoDivisas = $tasa > 0 ? (($totalFactura + $totalIvaAmount) / $tasa) : 0;
 
                     DB::connection('tenant')->table('compras')->updateOrInsert(
                         ['nrofactura' => $nroFactura],
                         [
-                            'idcompra_detalle' => 0,
+                            'idcompra_detalle' => 0, // Se actualizará abajo
                             'nrocontrol' => $firstLine['no_control'] ?? '',
                             'fecha' => $fecha,
                             'fechavencimiento' => $fecha,
-                            'ruta' => $zone,
-                            'proveedor' => $this->getProviderName($firstLine['codigo_polar_negocio']),
+                            'ruta' => $routeName,
+                            'proveedor' => $providerInfo['name'],
                             'tipofactura' => 'FAC',
                             'status' => 'PENDIENTE',
                             'aportes' => 0,
@@ -102,7 +104,7 @@ class DistributeInvoicesToTenantsAction
                             'horaRegistro' => now()->format('Y-m-d H:i:s'),
                             'cep' => $firstLine['fq_redi'] ?? '',
                             'idusuario' => 1,
-                            'idproveedor' => 0,
+                            'idproveedor' => $providerInfo['id'],
                             'eliminado' => 0,
                         ]
                     );
@@ -119,6 +121,11 @@ class DistributeInvoicesToTenantsAction
                     
                     $idCompraReal = $compra->idcompra;
 
+                    // Sincronizar idcompra_detalle con idcompra en la cabecera
+                    DB::connection('tenant')->table('compras')
+                        ->where('idcompra', $idCompraReal)
+                        ->update(['idcompra_detalle' => $idCompraReal]);
+
                     // 2. Insertar Detalles (compras_detalle)
                     foreach ($lines as $line) {
                         $material = $line['material'];
@@ -129,18 +136,20 @@ class DistributeInvoicesToTenantsAction
                             ->first();
                         
                         $idProductoReal = $product ? $product->idproducto : 0;
+                        $nombreProductoReal = $product ? $product->producto : $material;
+                        
                         $precioCompra = (float)($line['precio'] ?? 0);
                         $cantidad = (int)($line['cantidad'] ?? 0);
 
                         DB::connection('tenant')->table('compras_detalle')->updateOrInsert(
                             [
-                                'ruta' => $zone,
-                                'idcompra' => $idCompraReal, // Match perfecto con el PK de la cabecera
+                                'ruta' => $routeName,
+                                'idcompra' => $idCompraReal,
                                 'idproducto' => $idProductoReal,
                             ],
                             [
                                 'fecha' => $fecha,
-                                'producto' => $material,
+                                'producto' => $nombreProductoReal,
                                 'cantidad' => $cantidad,
                                 'preciocompra' => $precioCompra,
                                 'precioventa' => $precioCompra,
@@ -169,15 +178,15 @@ class DistributeInvoicesToTenantsAction
         }
     }
 
-    private function getProviderName($code)
+    private function getProviderInfo($code)
     {
         $mapping = [
-            'CYM' => 'CERVECERIA POLAR C.A.',
-            'PCV' => 'PEPSI-COLA VENEZUELA, C.A.',
-            'APC' => 'ALIMENTOS POLAR COMERCIAL, C.A.',
+            'CYM' => ['name' => 'CERVECERIA POLAR C.A.', 'id' => 11],
+            'PCV' => ['name' => 'PEPSI-COLA VENEZUELA, C.A.', 'id' => 12],
+            'APC' => ['name' => 'ALIMENTOS POLAR COMERCIAL, C.A.', 'id' => 13],
         ];
 
-        return $mapping[strtoupper($code)] ?? 'POLAR';
+        return $mapping[strtoupper($code)] ?? ['name' => 'POLAR', 'id' => 0];
     }
 
     private function switchToTenant($dbName)
