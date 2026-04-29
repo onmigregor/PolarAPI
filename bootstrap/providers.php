@@ -15,4 +15,5 @@ return [
     Modules\CustomerADC\Providers\CustomerADCServiceProvider::class,
     Modules\ProductsPrice\Providers\ProductsPriceServiceProvider::class,
     Modules\MasterInvoice\Providers\MasterInvoiceServiceProvider::class,
+    Modules\MasterGeneral\Providers\MasterGeneralServiceProvider::class,
 ];
