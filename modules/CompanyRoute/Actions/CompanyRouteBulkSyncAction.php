@@ -36,6 +36,7 @@ class CompanyRouteBulkSyncAction
                         'code' => $item['code'] ?? null,
                         'name' => $item['name'] ?? null,
                         'route_name' => $item['route_name'] ?? null,
+                        'zone' => $item['zone'] ?? null,
                         'db_name' => $item['db_name'] ?? null,
                         'is_active' => true,
                         'is_available_to_sync' => true,

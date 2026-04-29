@@ -16,6 +16,7 @@ class CompanyRoute extends Model
         'cep',
         'name',
         'route_name',
+        'zone',
         'rif',
         'description',
         'fiscal_address',

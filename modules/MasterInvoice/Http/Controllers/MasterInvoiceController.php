@@ -82,9 +82,18 @@ class MasterInvoiceController extends Controller
 
             DB::commit();
 
+            // 3. Distribuir a los tenants (compras y compras_detalle)
+            try {
+                $distributor = app(\Modules\MasterInvoice\Actions\DistributeInvoicesToTenantsAction::class);
+                $distributor->execute($data);
+            } catch (\Exception $e) {
+                Log::error("Error distribuyendo a tenants: " . $e->getMessage());
+                // No fallamos la respuesta principal si la distribución falla
+            }
+
             return response()->json([
                 'success' => true,
-                'message' => 'Sincronización completada. ' . count($data) . ' registros procesados en la base maestra.'
+                'message' => 'Sincronización completada. ' . count($data) . ' registros procesados en el Hub y distribuidos a los tenants.'
             ]);
 
         } catch (\Exception $e) {
