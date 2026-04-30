@@ -230,8 +230,9 @@ class SyncOfficialCustomersAction
                 $tenantDb = DB::connection('tenant');
 
                 $tenantDb->table('clientes')->updateOrInsert(
-                    ['cep' => $customer->cus_code],
+                    ['IdCliente' => (int)ltrim($customer->cus_code, '0')],
                     [
+                        'cep'           => $customer->cus_code,
                         'Cliente'       => $customer->cus_name ?? '',
                         'RIF'           => $customer->cus_tax_id1 ?? '',
                         'Direccion'     => ($customer->cus_street1 . ' ' . $customer->cus_street2 . ' ' . $customer->cus_street3),

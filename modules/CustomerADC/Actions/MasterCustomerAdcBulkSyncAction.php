@@ -129,7 +129,7 @@ class MasterCustomerAdcBulkSyncAction
             }
 
             $tenantRecords[] = [
-                'IdCliente'      => $clientMap[$cusCode],
+                'IdCliente'      => $clientMap[$cusCode], // Este valor ya será el CEP numérico gracias al cambio previo en Clientes
                 'serial'         => $record['serial'],
                 'modelo'         => $record['modelo'],
                 'condicion'      => 'FUNCIONAL',

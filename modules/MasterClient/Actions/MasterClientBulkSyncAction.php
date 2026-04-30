@@ -102,6 +102,7 @@ class MasterClientBulkSyncAction
                     }
 
                     $groupedByRoute[$companyRoute->db_name][] = [
+                        'IdCliente' => (int)ltrim($item['cus_code'], '0'),
                         'cep' => $item['cus_code'],
                         'Cliente' => $item['cus_business_name'] ?? ($item['cus_name'] ?? ''),
                         'Ruta' => $routeName,
@@ -171,7 +172,7 @@ class MasterClientBulkSyncAction
                     \Illuminate\Support\Facades\DB::connection('tenant')
                         ->table('clientes')
                         ->updateOrInsert(
-                            ['cep' => $clientData['cep']],
+                            ['IdCliente' => $clientData['IdCliente']],
                             $clientData
                         );
                     $results['pushed_to_tenants']++;
