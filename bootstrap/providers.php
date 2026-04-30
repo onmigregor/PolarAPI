@@ -17,4 +17,5 @@ return [
     Modules\MasterInvoice\Providers\MasterInvoiceServiceProvider::class,
     Modules\MasterGeneral\Providers\MasterGeneralServiceProvider::class,
     Modules\MasterCompany\Providers\MasterCompanyServiceProvider::class,
+    Modules\MasterPromotion\Providers\MasterPromotionServiceProvider::class,
 ];
