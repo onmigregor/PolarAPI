@@ -15,12 +15,14 @@ class SyncMasterProducts extends Command
         $this->info('Iniciando inyección de jerarquías y unidades desde MAESTRO...');
 
         $result = $action->execute();
+        $source = config('database.connections.productos_polar.database');
 
-        $this->info("Sincronización completada (origen: polar-productos_api):");
+        $this->info("Sincronización completada (origen: {$source}):");
         $this->line("- Unidades sincr.:     {$result['units']}");
         $this->line("- Familias (cl1):      {$result['families']}");
         $this->line("- Categorías (cl2):    {$result['categories']}");
         $this->line("- Clase 3 (cl3):       {$result['class3']}");
+        $this->line("- Clase 4 (cl4):       {$result['class4']}");
         $this->line("- Prod. enriquecidos:  {$result['products']}");
         $this->line("- Prod. Unidades:      {$result['product_units']}");
 

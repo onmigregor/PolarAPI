@@ -6,6 +6,7 @@ use Modules\MasterProduct\Models\MasterProduct;
 use Modules\MasterProduct\Models\MasterProductFamily;
 use Modules\MasterProduct\Models\MasterProductCategory;
 use Modules\MasterProduct\Models\MasterProductClass3;
+use Modules\MasterProduct\Models\MasterProductClass4;
 use Modules\MasterProduct\Models\MasterUnit;
 use Modules\MasterProduct\Models\MasterProductUnit;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,7 @@ class SyncMasterProductsAction
             'families'      => 0,
             'categories'    => 0,
             'class3'        => 0,
+            'class4'        => 0,
             'products'      => 0,
             'product_units' => 0,
             'errors'        => [],
@@ -82,33 +84,49 @@ class SyncMasterProductsAction
                 $results['class3']++;
             }
 
-            // 5. Sync Products (Enrich existing products only)
+            // 4.5. Sync Product Class 4 (cl4)
+            $class4s = $db->table('product_class4s')->get();
+            foreach ($class4s as $c4) {
+                if (empty($c4->cl4_code)) continue;
+                MasterProductClass4::updateOrCreate(
+                    ['cl4_code' => $c4->cl4_code],
+                    [
+                        'cl4_name'     => $c4->cl4_name,
+                        'brand_code'   => $c4->brand_code,
+                        'segment_code' => $c4->segment_code,
+                    ]
+                );
+                $results['class4']++;
+            }
+
+            // 5. Sync Products (Create or Update)
             $products = $db->table('products')->get();
             foreach ($products as $product) {
                 if (empty($product->pro_code)) continue;
                 
-                // Only update existing products created by the clients sync
-                $updated = MasterProduct::where('sku', $product->pro_code)
-                    ->update([
-                        'brand'     => $product->pro_organization,
-                        'cl2_code'  => $product->cl2_code,
-                        'cl3_code'  => $product->cl3_code,
-                        'cl4_code'  => $product->cl4_code,
+                MasterProduct::updateOrCreate(
+                    ['sku' => $product->pro_code],
+                    [
+                        'name'       => $product->pro_name,
+                        'brand'      => $product->pro_organization,
+                        'cl1_code'   => $product->cl1_code ?? null,
+                        'cl2_code'   => $product->cl2_code,
+                        'cl3_code'   => $product->cl3_code,
+                        'cl4_code'   => $product->cl4_code,
                         'brand_code' => $product->brand_code,
                         'segment_code' => $product->segment_code,
-                        'barcode'   => $product->pro_barcode,
+                        'barcode'    => $product->pro_barcode,
                         'pro_short_name' => $product->pro_short_name,
                         'pro_bom_code' => $product->pro_bom_code,
                         'pro_return_allowed' => $product->pro_return_allowed,
                         'pro_damage_returns_allowed' => $product->pro_damage_returns_allowed,
                         'pro_available_for_sale' => $product->pro_available_for_sale,
                         'pro_customer_inventory_allowed' => $product->pro_customer_inventory_allowed,
-                        'unt_code'  => $product->unt_code,
-                    ]);
-                    
-                if ($updated > 0) {
-                    $results['products']++;
-                }
+                        'unt_code'   => $product->unt_code,
+                    ]
+                );
+                
+                $results['products']++;
             }
 
             // 6. Sync Product Units

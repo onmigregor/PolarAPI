@@ -16,6 +16,7 @@ class MasterProduct extends Model
         'barcode',
         'category',
         'brand',
+        'cl1_code',
         'cl2_code',
         'cl3_code',
         'cl4_code',
