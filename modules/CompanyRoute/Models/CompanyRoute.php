@@ -24,6 +24,11 @@ class CompanyRoute extends Model
         'db_name',
         'is_active',
         'is_available_to_sync',
+        'address_street1',
+        'address_street2',
+        'address_street3',
+        'subregion_code',
+        'sale_zone',
     ];
 
     protected $casts = [
