@@ -11,14 +11,24 @@ class MasterProductController extends Controller
     {
     }
 
-    public function syncFromAdmin(\Modules\MasterProduct\Actions\SyncMasterProductsAction $action)
-    {
+    public function syncFromAdmin(
+        \Modules\MasterProduct\Actions\SyncMasterProductsAction $syncAction,
+        \Modules\MasterProduct\Actions\SyncMasterToClientsAction $pushAction
+    ) {
         try {
-            $results = $action->execute();
+            // 1. Sincronizar desde la BD Maestra al catálogo del Hub
+            $syncResults = $syncAction->execute();
+
+            // 2. Empujar los datos enriquecidos (clases, unidades) a todos los Tenants
+            $pushResults = $pushAction->execute();
+
             return response()->json([
                 'success' => true,
-                'message' => 'Sincronización completada con éxito',
-                'results' => $results
+                'message' => 'Sincronización completa: Maestro actualizado y datos distribuidos a Tenants.',
+                'results' => [
+                    'hub_sync' => $syncResults,
+                    'tenant_push' => $pushResults
+                ]
             ]);
         } catch (\Exception $e) {
             return response()->json([

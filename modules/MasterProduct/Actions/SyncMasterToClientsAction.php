@@ -17,9 +17,11 @@ class SyncMasterToClientsAction
      * Value: nombre de columna en master_products.
      */
     private const COLUMN_MAPPING = [
-        'brand'     => 'brand',
-        'cl2_code'  => 'cl2_code',
-        'cl3_code'  => 'cl3_code',
+        'marca'     => 'brand',
+        'familia'   => 'cl1_code',
+        'categoria' => 'cl2_code',
+        'grupo'     => 'cl3_code',
+        'segmento'  => 'cl4_code',
         'unt_code'  => 'unt_code',
     ];
 
@@ -38,7 +40,7 @@ class SyncMasterToClientsAction
         // Cargar solo los productos maestros que tienen datos enriquecidos
         $masterProducts = MasterProduct::whereNotNull('cl2_code')
             ->orWhereNotNull('unt_code')
-            ->get(['sku', 'brand', 'cl2_code', 'cl3_code', 'unt_code'])
+            ->get(['sku', 'brand', 'cl1_code', 'cl2_code', 'cl3_code', 'cl4_code', 'unt_code'])
             ->keyBy('sku');
 
         foreach ($clients as $client) {
@@ -48,14 +50,8 @@ class SyncMasterToClientsAction
                 DB::purge('tenant');
                 DB::reconnect('tenant');
 
-                // Asegurarse de que las columnas existen en la tabla del tenant solo si no se ha sincronizado antes
-                if (!$client->is_available_to_sync) {
-                    $this->ensureColumnsExist($client->db_name);
-                    
-                    // Marcar como disponible para futuras ejecuciones
-                    $client->is_available_to_sync = true;
-                    $client->save();
-                }
+                // Asegurarse de que las columnas existen en la tabla del tenant
+                $this->ensureColumnsExist($client->db_name);
 
                 $updatedCount = 0;
                 $skippedCount = 0;
@@ -63,7 +59,7 @@ class SyncMasterToClientsAction
                 // Obtener todos los SKUs activos de este tenant junto con sus valores actuales
                 $tenantProducts = DB::connection('tenant')
                     ->table('productos')
-                    ->select('idproducto', 'codigoSKU', 'brand', 'cl2_code', 'cl3_code', 'unt_code')
+                    ->select('idproducto', 'codigoSKU', 'marca', 'familia', 'categoria', 'grupo', 'segmento', 'unt_code')
                     ->whereNotNull('codigoSKU')
                     ->where('codigoSKU', '<>', '')
                     ->get();
@@ -80,9 +76,11 @@ class SyncMasterToClientsAction
 
                     // Optimización Delta: Solo actualizar si hay cambios reales
                     if (
-                        $tenantProduct->brand === $master->brand &&
-                        $tenantProduct->cl2_code === $master->cl2_code &&
-                        $tenantProduct->cl3_code === $master->cl3_code &&
+                        $tenantProduct->marca === $master->brand &&
+                        $tenantProduct->familia === $master->cl1_code &&
+                        $tenantProduct->categoria === $master->cl2_code &&
+                        $tenantProduct->grupo === $master->cl3_code &&
+                        $tenantProduct->segmento === $master->cl4_code &&
                         $tenantProduct->unt_code === $master->unt_code
                     ) {
                         $results['total_unchanged'] = ($results['total_unchanged'] ?? 0) + 1;
@@ -93,10 +91,12 @@ class SyncMasterToClientsAction
                         ->table('productos')
                         ->where('idproducto', $tenantProduct->idproducto)
                         ->update([
-                            'brand'    => $master->brand,
-                            'cl2_code' => $master->cl2_code,
-                            'cl3_code' => $master->cl3_code,
-                            'unt_code' => $master->unt_code,
+                            'marca'     => $master->brand,
+                            'familia'   => $master->cl1_code,
+                            'categoria' => $master->cl2_code,
+                            'grupo'     => $master->cl3_code,
+                            'segmento'  => $master->cl4_code,
+                            'unt_code'  => $master->unt_code,
                         ]);
 
                     $updatedCount++;
@@ -120,32 +120,29 @@ class SyncMasterToClientsAction
         return $results;
     }
 
-    /**
-     * Agrega dinámicamente las columnas al tenant si no existen.
-     */
     private function ensureColumnsExist(string $dbName): void
     {
         $columns = [
-            'brand'    => 'VARCHAR(255) NULL',
-            'cl2_code' => 'VARCHAR(50) NULL',
-            'cl3_code' => 'VARCHAR(60) NULL',
-            'unt_code' => 'VARCHAR(20) NULL',
+            'marca'     => 'VARCHAR(255) NULL',
+            'familia'   => 'VARCHAR(50) NULL',
+            'categoria' => 'VARCHAR(100) NULL',
+            'grupo'     => 'VARCHAR(100) NULL',
+            'segmento'  => 'VARCHAR(100) NULL',
+            'unt_code'  => 'VARCHAR(20) NULL',
         ];
 
         foreach ($columns as $column => $definition) {
-            $exists = DB::connection('tenant')
-                ->select("
-                    SELECT COUNT(*) as count
-                    FROM information_schema.COLUMNS
-                    WHERE TABLE_SCHEMA = ?
-                    AND TABLE_NAME = 'productos'
-                    AND COLUMN_NAME = ?
-                ", [$dbName, $column]);
+            $columnExists = DB::connection('tenant')
+                ->select("SHOW COLUMNS FROM `productos` LIKE '{$column}'");
 
-            if ($exists[0]->count === 0) {
-                DB::connection('tenant')
-                    ->statement("ALTER TABLE `productos` ADD COLUMN `{$column}` {$definition}");
-                Log::info("Columna `{$column}` agregada a `{$dbName}.productos`");
+            // Desactivar temporalmente el modo estricto para permitir ALTER con fechas 0000-00-00 existentes
+            DB::connection('tenant')->statement("SET SESSION sql_mode = ''");
+
+            if (empty($columnExists)) {
+                DB::connection('tenant')->statement("ALTER TABLE `productos` ADD COLUMN `{$column}` {$definition}");
+            } else {
+                // Forzar que sea NULLable para evitar errores de integridad con datos del HUB
+                DB::connection('tenant')->statement("ALTER TABLE `productos` MODIFY COLUMN `{$column}` {$definition}");
             }
         }
     }

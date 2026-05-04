@@ -178,9 +178,13 @@ class SyncOfficialCustomersAction
         foreach ($assignments as $assignment) {
             Log::info("SyncOfficialCustomers: Processing assignment for cus_code: {$assignment->cus_code}, rot_code: {$assignment->rot_code}");
             
-            $customer = $officialDb->table('customers')->where('cus_code', $assignment->cus_code)->first();
+            $customer = $officialDb->table('customers')
+                ->where('cus_code', $assignment->cus_code)
+                ->orWhere('cus_code', ltrim($assignment->cus_code, '0'))
+                ->first();
+            
             if (!$customer) {
-                Log::warning("SyncOfficialCustomers: Customer not found for cus_code: {$assignment->cus_code}");
+                Log::warning("SyncOfficialCustomers: Customer not found for cus_code: {$assignment->cus_code} (normalized: " . ltrim($assignment->cus_code, '0') . ")");
                 continue;
             }
 
@@ -273,6 +277,9 @@ class SyncOfficialCustomersAction
                         'perfilUsuario' => '',
                         'perfilUsuarioApp' => '',
                         'vendedor' => '',
+                        'imagen_negocio' => '',
+                        'ubicacion_imagen_negocio' => '',
+                        'requiere_pasos_visita' => 0,
                     ]
                 );
                 $summary['customers_pushed_tenants']++;
