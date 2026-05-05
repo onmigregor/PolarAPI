@@ -94,6 +94,7 @@ class SyncMasterProductsAction
                         'cl4_name'     => $c4->cl4_name,
                         'brand_code'   => $c4->brand_code,
                         'segment_code' => $c4->segment_code,
+                        'cl3_code'     => $c4->cl3_code ?? null,
                     ]
                 );
                 $results['class4']++;

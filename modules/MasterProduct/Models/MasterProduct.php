@@ -35,7 +35,11 @@ class MasterProduct extends Model
     ];
 
     protected $casts = [
-        'is_active' => 'boolean',
-        'meta_data' => 'array'
+        'is_active'                      => 'boolean',
+        'pro_return_allowed'             => 'boolean',
+        'pro_damage_returns_allowed'     => 'boolean',
+        'pro_available_for_sale'         => 'boolean',
+        'pro_customer_inventory_allowed' => 'boolean',
+        'meta_data'                      => 'array'
     ];
 }
