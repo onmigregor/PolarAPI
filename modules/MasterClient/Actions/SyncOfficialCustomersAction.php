@@ -73,6 +73,7 @@ class SyncOfficialCustomersAction
           `ctr_balance` varchar(50) DEFAULT NULL,
           `prc_code_for_sale` varchar(20) DEFAULT NULL,
           `con_code` varchar(50) DEFAULT NULL,
+          `brc_code` varchar(50) DEFAULT NULL,
           UNIQUE KEY `IdCliente` (`IdCliente`),
           UNIQUE KEY `idx_cep` (`cep`),
           KEY `idx_ruta` (`Ruta`),
@@ -197,6 +198,7 @@ class SyncOfficialCustomersAction
             'ctr_balance'        => 'VARCHAR(50) DEFAULT NULL',
             'prc_code_for_sale'  => 'VARCHAR(20) DEFAULT NULL',
             'con_code'           => 'VARCHAR(50) DEFAULT NULL',
+            'brc_code'           => 'VARCHAR(50) DEFAULT NULL',
         ];
 
         foreach ($toAdd as $col => $definition) {
@@ -341,6 +343,7 @@ class SyncOfficialCustomersAction
                         'ctr_balance'          => $ctrBalance,
                         'prc_code_for_sale'    => $prcCodeForSale,
                         'con_code'             => $conCode,
+                        'brc_code'             => $customer->brc_code,
                     ]
                 );
                 $summary['customers_pushed_tenants']++;
