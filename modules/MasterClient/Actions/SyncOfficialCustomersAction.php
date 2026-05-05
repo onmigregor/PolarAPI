@@ -6,6 +6,7 @@ namespace Modules\MasterClient\Actions;
 use Modules\CompanyRoute\Models\CompanyRoute;
 use Modules\MasterClient\Models\MasterClient;
 use Modules\MasterClient\Models\MasterCustomerPrice;
+use Modules\MasterClient\Models\MasterCustomerRoute;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
@@ -68,6 +69,10 @@ class SyncOfficialCustomersAction
           `requiere_pasos_visita` int(11) NOT NULL DEFAULT 0,
           `csp_for_sale` tinyint(1) NOT NULL DEFAULT 0,
           `csp_for_return` tinyint(1) NOT NULL DEFAULT 0,
+          `ctr_contact_person` varchar(100) DEFAULT NULL,
+          `ctr_balance` varchar(50) DEFAULT NULL,
+          `prc_code_for_sale` varchar(20) DEFAULT NULL,
+          `con_code` varchar(50) DEFAULT NULL,
           UNIQUE KEY `IdCliente` (`IdCliente`),
           UNIQUE KEY `idx_cep` (`cep`),
           KEY `idx_ruta` (`Ruta`),
@@ -107,6 +112,9 @@ class SyncOfficialCustomersAction
 
             // 3. Sync Customer Prices
             $this->syncCustomerPrices($officialDb, $summary);
+
+            // 4. Sync Customer Routes (Días de Visita + Contacto/Balance)
+            $this->syncCustomerRoutes($officialDb, $summary);
 
         } catch (\Exception $e) {
             Log::error('SyncOfficialCustomers General Exception: ' . $e->getMessage());
@@ -182,11 +190,19 @@ class SyncOfficialCustomersAction
         $columns = DB::connection($connection)->select("SHOW COLUMNS FROM clientes");
         $existingColumns = array_column($columns, 'Field');
 
-        if (!in_array('csp_for_sale', $existingColumns)) {
-            DB::connection($connection)->statement("ALTER TABLE clientes ADD COLUMN csp_for_sale TINYINT(1) NOT NULL DEFAULT 0");
-        }
-        if (!in_array('csp_for_return', $existingColumns)) {
-            DB::connection($connection)->statement("ALTER TABLE clientes ADD COLUMN csp_for_return TINYINT(1) NOT NULL DEFAULT 0");
+        $toAdd = [
+            'csp_for_sale'       => 'TINYINT(1) NOT NULL DEFAULT 0',
+            'csp_for_return'     => 'TINYINT(1) NOT NULL DEFAULT 0',
+            'ctr_contact_person' => 'VARCHAR(100) DEFAULT NULL',
+            'ctr_balance'        => 'VARCHAR(50) DEFAULT NULL',
+            'prc_code_for_sale'  => 'VARCHAR(20) DEFAULT NULL',
+            'con_code'           => 'VARCHAR(50) DEFAULT NULL',
+        ];
+
+        foreach ($toAdd as $col => $definition) {
+            if (!in_array($col, $existingColumns)) {
+                DB::connection($connection)->statement("ALTER TABLE clientes ADD COLUMN `{$col}` {$definition}");
+            }
         }
     }
 
@@ -253,10 +269,20 @@ class SyncOfficialCustomersAction
                 // Fetch csp flags for this customer on this route
                 $cspFlags = MasterCustomerPrice::where('rot_code', $assignment->rot_code)
                     ->where('cus_code', $customer->cus_code)
-                    ->orderByDesc('csp_for_sale') // Prefer 1 if multiple exist
+                    ->orderByDesc('csp_for_sale')
                     ->first();
-                $cspForSale = $cspFlags ? $cspFlags->csp_for_sale : 0;
+                $cspForSale   = $cspFlags ? $cspFlags->csp_for_sale   : 0;
                 $cspForReturn = $cspFlags ? $cspFlags->csp_for_return : 0;
+
+                // Fetch route contact/balance fields for this customer
+                // Note: master_customer_routes stores cus_code as-is from the provider (padded zeros)
+                $routeFlags = MasterCustomerRoute::where('rot_code', $assignment->rot_code)
+                    ->where('cus_code', $assignment->cus_code)
+                    ->first();
+                $ctrContactPerson = $routeFlags ? $routeFlags->ctr_contact_person : null;
+                $ctrBalance       = $routeFlags ? $routeFlags->ctr_balance        : null;
+                $prcCodeForSale   = $routeFlags ? $routeFlags->prc_code_for_sale  : null;
+                $conCode          = $routeFlags ? $routeFlags->con_code           : null;
 
                 Config::set('database.connections.tenant.database', $companyRoute->db_name);
                 DB::purge('tenant');
@@ -309,8 +335,12 @@ class SyncOfficialCustomersAction
                         'imagen_negocio' => '',
                         'ubicacion_imagen_negocio' => '',
                         'requiere_pasos_visita' => 0,
-                        'csp_for_sale' => $cspForSale,
-                        'csp_for_return' => $cspForReturn,
+                        'csp_for_sale'        => $cspForSale,
+                        'csp_for_return'       => $cspForReturn,
+                        'ctr_contact_person'   => $ctrContactPerson,
+                        'ctr_balance'          => $ctrBalance,
+                        'prc_code_for_sale'    => $prcCodeForSale,
+                        'con_code'             => $conCode,
                     ]
                 );
                 $summary['customers_pushed_tenants']++;
@@ -348,5 +378,44 @@ class SyncOfficialCustomersAction
         
         $summary['customer_prices_synced_master'] = $synced;
         Log::info("SyncOfficialCustomers: Finished syncing $synced customer prices.");
+    }
+
+    private function syncCustomerRoutes($officialDb, array &$summary): void
+    {
+        Log::info('SyncOfficialCustomers: Starting sync of customer routes.');
+
+        $routes = $officialDb->table('customer_routes')->get();
+        $synced = 0;
+
+        foreach ($routes as $route) {
+            try {
+                MasterCustomerRoute::updateOrCreate(
+                    [
+                        'rot_code' => $route->rot_code,
+                        'cus_code' => $route->cus_code,
+                    ],
+                    [
+                        'fre_code'           => $route->fre_code,
+                        'ctr_monday'         => $route->ctr_monday,
+                        'ctr_tuesday'        => $route->ctr_tuesday,
+                        'ctr_wednesday'      => $route->ctr_wednesday,
+                        'ctr_thursday'       => $route->ctr_thursday,
+                        'ctr_friday'         => $route->ctr_friday,
+                        'ctr_saturday'       => $route->ctr_saturday,
+                        'ctr_sunday'         => $route->ctr_sunday,
+                        'ctr_contact_person' => $route->ctr_contact_person,
+                        'ctr_balance'        => $route->ctr_balance,
+                        'prc_code_for_sale'  => $route->prc_code_for_sale,
+                        'con_code'           => $route->con_code,
+                    ]
+                );
+                $synced++;
+            } catch (\Exception $e) {
+                $summary['errors'][] = "Error syncing customer route for cus_code {$route->cus_code}: " . $e->getMessage();
+            }
+        }
+
+        $summary['customer_routes_synced_master'] = $synced;
+        Log::info("SyncOfficialCustomers: Finished syncing $synced customer routes.");
     }
 }
