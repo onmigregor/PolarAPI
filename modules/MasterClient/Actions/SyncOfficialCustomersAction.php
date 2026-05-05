@@ -5,6 +5,7 @@ namespace Modules\MasterClient\Actions;
 
 use Modules\CompanyRoute\Models\CompanyRoute;
 use Modules\MasterClient\Models\MasterClient;
+use Modules\MasterClient\Models\MasterCustomerPrice;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
@@ -65,6 +66,8 @@ class SyncOfficialCustomersAction
           `imagen_negocio` varchar(50) NOT NULL,
           `ubicacion_imagen_negocio` varchar(150) NOT NULL,
           `requiere_pasos_visita` int(11) NOT NULL DEFAULT 0,
+          `csp_for_sale` tinyint(1) NOT NULL DEFAULT 0,
+          `csp_for_return` tinyint(1) NOT NULL DEFAULT 0,
           UNIQUE KEY `IdCliente` (`IdCliente`),
           UNIQUE KEY `idx_cep` (`cep`),
           KEY `idx_ruta` (`Ruta`),
@@ -101,6 +104,9 @@ class SyncOfficialCustomersAction
 
             // 2. Sync Master and Tenants (Unified Loop)
             $this->syncData($officialDb, $summary);
+
+            // 3. Sync Customer Prices
+            $this->syncCustomerPrices($officialDb, $summary);
 
         } catch (\Exception $e) {
             Log::error('SyncOfficialCustomers General Exception: ' . $e->getMessage());
@@ -149,6 +155,8 @@ class SyncOfficialCustomersAction
                 if (empty($tableExists)) {
                     Log::info("SyncOfficialCustomers: Creating 'clientes' table in {$dbName}");
                     DB::connection('tenant')->statement(self::CREATE_CLIENTES_TABLE_SQL);
+                } else {
+                    $this->ensureCustomerPriceColumnsExist('tenant');
                 }
             } catch (\Exception $e) {
                 // If it fails but table exists, ignore
@@ -166,6 +174,19 @@ class SyncOfficialCustomersAction
             Log::error("SyncOfficialCustomers: Infrastructure error for {$rot_code}: " . $e->getMessage());
             $summary['errors'][] = "Infra for {$rot_code}: " . $e->getMessage();
             return false;
+        }
+    }
+
+    private function ensureCustomerPriceColumnsExist(string $connection): void
+    {
+        $columns = DB::connection($connection)->select("SHOW COLUMNS FROM clientes");
+        $existingColumns = array_column($columns, 'Field');
+
+        if (!in_array('csp_for_sale', $existingColumns)) {
+            DB::connection($connection)->statement("ALTER TABLE clientes ADD COLUMN csp_for_sale TINYINT(1) NOT NULL DEFAULT 0");
+        }
+        if (!in_array('csp_for_return', $existingColumns)) {
+            DB::connection($connection)->statement("ALTER TABLE clientes ADD COLUMN csp_for_return TINYINT(1) NOT NULL DEFAULT 0");
         }
     }
 
@@ -229,6 +250,14 @@ class SyncOfficialCustomersAction
 
             // B. Push to Tenant
             try {
+                // Fetch csp flags for this customer on this route
+                $cspFlags = MasterCustomerPrice::where('rot_code', $assignment->rot_code)
+                    ->where('cus_code', $customer->cus_code)
+                    ->orderByDesc('csp_for_sale') // Prefer 1 if multiple exist
+                    ->first();
+                $cspForSale = $cspFlags ? $cspFlags->csp_for_sale : 0;
+                $cspForReturn = $cspFlags ? $cspFlags->csp_for_return : 0;
+
                 Config::set('database.connections.tenant.database', $companyRoute->db_name);
                 DB::purge('tenant');
                 $tenantDb = DB::connection('tenant');
@@ -280,6 +309,8 @@ class SyncOfficialCustomersAction
                         'imagen_negocio' => '',
                         'ubicacion_imagen_negocio' => '',
                         'requiere_pasos_visita' => 0,
+                        'csp_for_sale' => $cspForSale,
+                        'csp_for_return' => $cspForReturn,
                     ]
                 );
                 $summary['customers_pushed_tenants']++;
@@ -287,5 +318,35 @@ class SyncOfficialCustomersAction
                 $summary['errors'][] = "Error pushing {$customer->cus_code} to tenant {$companyRoute->db_name}: " . $e->getMessage();
             }
         }
+    }
+
+    private function syncCustomerPrices($officialDb, array &$summary): void
+    {
+        Log::info('SyncOfficialCustomers: Starting sync of customer prices.');
+        
+        $prices = $officialDb->table('customer_prices')->get();
+        $synced = 0;
+        
+        foreach ($prices as $price) {
+            try {
+                MasterCustomerPrice::updateOrCreate(
+                    [
+                        'rot_code' => $price->rot_code,
+                        'cus_code' => $price->cus_code,
+                        'prc_code' => $price->prc_code,
+                    ],
+                    [
+                        'csp_for_sale'   => $price->csp_for_sale,
+                        'csp_for_return' => $price->csp_for_return,
+                    ]
+                );
+                $synced++;
+            } catch (\Exception $e) {
+                $summary['errors'][] = "Error syncing customer price for cus_code {$price->cus_code}: " . $e->getMessage();
+            }
+        }
+        
+        $summary['customer_prices_synced_master'] = $synced;
+        Log::info("SyncOfficialCustomers: Finished syncing $synced customer prices.");
     }
 }
