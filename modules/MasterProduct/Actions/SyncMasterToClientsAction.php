@@ -23,6 +23,13 @@ class SyncMasterToClientsAction
         'grupo'     => 'cl3_code',
         'segmento'  => 'cl4_code',
         'unt_code'  => 'unt_code',
+        'proshortname' => 'pro_short_name',
+        'probarcode'   => 'barcode',
+        'bomcode'      => 'pro_bom_code',
+        'proreturnallowed' => 'pro_return_allowed',
+        'prodamegereturnsallowed' => 'pro_damage_returns_allowed',
+        'proavailableforsale' => 'pro_available_for_sale',
+        'procustomerinventoryallowed' => 'pro_customer_inventory_allowed',
     ];
 
     public function execute(): array
@@ -40,7 +47,11 @@ class SyncMasterToClientsAction
         // Cargar solo los productos maestros que tienen datos enriquecidos
         $masterProducts = MasterProduct::whereNotNull('cl2_code')
             ->orWhereNotNull('unt_code')
-            ->get(['sku', 'brand', 'cl1_code', 'cl2_code', 'cl3_code', 'cl4_code', 'unt_code'])
+            ->get([
+                'sku', 'brand', 'cl1_code', 'cl2_code', 'cl3_code', 'cl4_code', 'unt_code',
+                'pro_short_name', 'barcode', 'pro_bom_code', 'pro_return_allowed',
+                'pro_damage_returns_allowed', 'pro_available_for_sale', 'pro_customer_inventory_allowed'
+            ])
             ->keyBy('sku');
 
         foreach ($clients as $client) {
@@ -59,7 +70,11 @@ class SyncMasterToClientsAction
                 // Obtener todos los SKUs activos de este tenant junto con sus valores actuales
                 $tenantProducts = DB::connection('tenant')
                     ->table('productos')
-                    ->select('idproducto', 'codigoSKU', 'marca', 'familia', 'categoria', 'grupo', 'segmento', 'unt_code')
+                    ->select(
+                        'idproducto', 'codigoSKU', 'marca', 'familia', 'categoria', 'grupo', 'segmento', 'unt_code',
+                        'proshortname', 'probarcode', 'bomcode', 'proreturnallowed', 
+                        'prodamegereturnsallowed', 'proavailableforsale', 'procustomerinventoryallowed'
+                    )
                     ->whereNotNull('codigoSKU')
                     ->where('codigoSKU', '<>', '')
                     ->get();
@@ -81,7 +96,14 @@ class SyncMasterToClientsAction
                         $tenantProduct->categoria === $master->cl2_code &&
                         $tenantProduct->grupo === $master->cl3_code &&
                         $tenantProduct->segmento === $master->cl4_code &&
-                        $tenantProduct->unt_code === $master->unt_code
+                        $tenantProduct->unt_code === $master->unt_code &&
+                        $tenantProduct->proshortname === $master->pro_short_name &&
+                        $tenantProduct->probarcode === $master->barcode &&
+                        $tenantProduct->bomcode === $master->pro_bom_code &&
+                        (int)$tenantProduct->proreturnallowed === (int)$master->pro_return_allowed &&
+                        (int)$tenantProduct->prodamegereturnsallowed === (int)$master->pro_damage_returns_allowed &&
+                        (int)$tenantProduct->proavailableforsale === (int)$master->pro_available_for_sale &&
+                        (int)$tenantProduct->procustomerinventoryallowed === (int)$master->pro_customer_inventory_allowed
                     ) {
                         $results['total_unchanged'] = ($results['total_unchanged'] ?? 0) + 1;
                         continue;
@@ -97,6 +119,13 @@ class SyncMasterToClientsAction
                             'grupo'     => $master->cl3_code,
                             'segmento'  => $master->cl4_code,
                             'unt_code'  => $master->unt_code,
+                            'proshortname' => $master->pro_short_name,
+                            'probarcode'   => $master->barcode,
+                            'bomcode'      => $master->pro_bom_code,
+                            'proreturnallowed' => $master->pro_return_allowed,
+                            'prodamegereturnsallowed' => $master->pro_damage_returns_allowed,
+                            'proavailableforsale' => $master->pro_available_for_sale,
+                            'procustomerinventoryallowed' => $master->pro_customer_inventory_allowed,
                         ]);
 
                     $updatedCount++;
@@ -129,6 +158,13 @@ class SyncMasterToClientsAction
             'grupo'     => 'VARCHAR(100) NULL',
             'segmento'  => 'VARCHAR(100) NULL',
             'unt_code'  => 'VARCHAR(20) NULL',
+            'proshortname' => 'VARCHAR(255) NULL',
+            'probarcode'   => 'VARCHAR(50) NULL',
+            'bomcode'      => 'VARCHAR(20) NULL',
+            'proreturnallowed' => 'TINYINT(1) DEFAULT 0',
+            'prodamegereturnsallowed' => 'TINYINT(1) DEFAULT 0',
+            'proavailableforsale' => 'TINYINT(1) DEFAULT 1',
+            'procustomerinventoryallowed' => 'TINYINT(1) DEFAULT 0',
         ];
 
         foreach ($columns as $column => $definition) {
