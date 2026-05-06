@@ -27,8 +27,8 @@ class MasterProductsPriceBulkSyncAction
         // 1. Mapear data del Admin a la estructura de la Maestra Central
         $syncData = array_map(function($item) {
             return [
-                'lgnstreet1'                 => $item['lgnstreet1'] ?? null,
-                'material'                   => $item['material'] ?? null,
+                'lgnstreet1'                 => isset($item['lgnstreet1']) ? trim($item['lgnstreet1']) : null,
+                'material'                   => isset($item['material']) ? trim($item['material']) : null,
                 'descripcion'                => $item['descripcion'] ?? null,
                 'precio_compra_caja_con_iva' => $item['precio_compra_caja_con_iva'] ?? null,
                 'created_at'                 => now(),

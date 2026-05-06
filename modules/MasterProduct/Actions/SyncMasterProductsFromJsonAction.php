@@ -38,9 +38,10 @@ class SyncMasterProductsFromJsonAction
 
         // 1. Sync Class 4 Lookup Table
         foreach ($class4Data as $c4) {
-            $breakdown = $this->breakdownCl4Code($c4['cl4code']);
-            \Modules\MasterProduct\Models\MasterProductClass4::updateOrCreate(
-                ['cl4_code' => $c4['cl4code']],
+            $cl4Code = trim($c4['cl4code']);
+            $breakdown = $this->breakdownCl4Code($cl4Code);
+            \Modules\MasterProduct\Models\MasterProductClass4::withTrashed()->updateOrCreate(
+                ['cl4_code' => $cl4Code],
                 [
                     'cl4_name'     => $c4['cl4name'],
                     'brand_code'   => $breakdown['brand_code'],
@@ -67,8 +68,11 @@ class SyncMasterProductsFromJsonAction
         foreach (array_chunk($unitsData, 200) as $unitChunk) {
             DB::transaction(function () use ($unitChunk) {
                 foreach ($unitChunk as $u) {
-                    \Modules\MasterProduct\Models\MasterProductUnit::updateOrCreate(
-                        ['pro_code' => (string)$u['proCode'], 'unt_code' => (string)$u['untCode']],
+                    $proCode = trim((string)$u['proCode']);
+                    $untCode = trim((string)$u['untCode']);
+                    
+                    \Modules\MasterProduct\Models\MasterProductUnit::withTrashed()->updateOrCreate(
+                        ['pro_code' => $proCode, 'unt_code' => $untCode],
                         [
                             'pru_multiply_by' => !empty($u['pruMultiplyBy']) ? (float)$u['pruMultiplyBy'] : null,
                             'pru_divide_by'   => !empty($u['pruDivideBy']) ? (float)$u['pruDivideBy'] : null,
@@ -84,7 +88,7 @@ class SyncMasterProductsFromJsonAction
 
     private function processProduct(array $p, array &$results): void
     {
-        $sku = (string) $p['proCode'];
+        $sku = trim((string) $p['proCode']);
         if (empty($sku)) return;
 
         // 1. Clean Boolean values ("X" -> true, "" -> false)
@@ -120,7 +124,7 @@ class SyncMasterProductsFromJsonAction
                 'multiplicity'   => $multiplicity,
                 'is_active'      => $isActive,
                 'brand'          => $p['proOrganization'] ?? null,
-                'unt_code'       => $p['untCode'] ?? null,
+                'unt_code'       => trim($p['untCode'] ?? ''),
             ]
         );
 

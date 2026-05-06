@@ -34,9 +34,9 @@ class SyncMasterProductsAction
             // 1. Sync Units
             $units = $db->table('units')->get();
             foreach ($units as $unit) {
-                if (empty($unit->unt_code)) continue;
+                $untCode = trim($unit->unt_code);
                 MasterUnit::updateOrCreate(
-                    ['unt_code' => $unit->unt_code],
+                    ['unt_code' => $untCode],
                     [
                         'unt_name' => $unit->unt_name,
                         'unt_nick' => $unit->unt_nick ?? null,
@@ -48,9 +48,9 @@ class SyncMasterProductsAction
             // 2. Sync Product Families (cl1)
             $families = $db->table('product_families')->get();
             foreach ($families as $family) {
-                if (empty($family->cl1_code)) continue;
+                $cl1Code = trim($family->cl1_code);
                 MasterProductFamily::updateOrCreate(
-                    ['cl1_code' => $family->cl1_code],
+                    ['cl1_code' => $cl1Code],
                     ['cl1_name' => $family->cl1_name]
                 );
                 $results['families']++;
@@ -59,11 +59,11 @@ class SyncMasterProductsAction
             // 3. Sync Product Categories (cl2)
             $categories = $db->table('product_categories')->get();
             foreach ($categories as $category) {
-                if (empty($category->cl2_code)) continue;
+                $cl2Code = trim($category->cl2_code);
                 MasterProductCategory::updateOrCreate(
-                    ['cl2_code' => $category->cl2_code],
+                    ['cl2_code' => $cl2Code],
                     [
-                        'cl1_code' => $category->cl1_code,
+                        'cl1_code' => trim($category->cl1_code),
                         'cl2_name' => $category->cl2_name,
                     ]
                 );
@@ -73,11 +73,11 @@ class SyncMasterProductsAction
             // 4. Sync Product Class 3 (cl3)
             $class3s = $db->table('product_class_3')->get();
             foreach ($class3s as $c3) {
-                if (empty($c3->cl3_code)) continue;
+                $cl3Code = trim($c3->cl3_code);
                 MasterProductClass3::updateOrCreate(
-                    ['cl3_code' => $c3->cl3_code],
+                    ['cl3_code' => $cl3Code],
                     [
-                        'cl2_code' => $c3->cl2_code,
+                        'cl2_code' => trim($c3->cl2_code),
                         'cl3_name' => $c3->cl3_name,
                     ]
                 );
@@ -87,14 +87,14 @@ class SyncMasterProductsAction
             // 4.5. Sync Product Class 4 (cl4)
             $class4s = $db->table('product_class4s')->get();
             foreach ($class4s as $c4) {
-                if (empty($c4->cl4_code)) continue;
-                MasterProductClass4::updateOrCreate(
-                    ['cl4_code' => $c4->cl4_code],
+                $cl4Code = trim($c4->cl4_code);
+                MasterProductClass4::withTrashed()->updateOrCreate(
+                    ['cl4_code' => $cl4Code],
                     [
                         'cl4_name'     => $c4->cl4_name,
-                        'brand_code'   => $c4->brand_code,
-                        'segment_code' => $c4->segment_code,
-                        'cl3_code'     => $c4->cl3_code ?? null,
+                        'brand_code'   => trim($c4->brand_code),
+                        'segment_code' => trim($c4->segment_code),
+                        'cl3_code'     => trim($c4->cl3_code ?? ''),
                     ]
                 );
                 $results['class4']++;
@@ -103,27 +103,26 @@ class SyncMasterProductsAction
             // 5. Sync Products (Create or Update)
             $products = $db->table('products')->get();
             foreach ($products as $product) {
-                if (empty($product->pro_code)) continue;
-                
+                $sku = trim($product->pro_code);
                 MasterProduct::updateOrCreate(
-                    ['sku' => $product->pro_code],
+                    ['sku' => $sku],
                     [
                         'name'       => $product->pro_name,
                         'brand'      => $product->pro_organization,
-                        'cl1_code'   => $product->cl1_code ?? null,
-                        'cl2_code'   => $product->cl2_code,
-                        'cl3_code'   => $product->cl3_code,
-                        'cl4_code'   => $product->cl4_code,
-                        'brand_code' => $product->brand_code,
-                        'segment_code' => $product->segment_code,
-                        'barcode'    => $product->pro_barcode,
+                        'cl1_code'   => trim($product->cl1_code ?? ''),
+                        'cl2_code'   => trim($product->cl2_code ?? ''),
+                        'cl3_code'   => trim($product->cl3_code ?? ''),
+                        'cl4_code'   => trim($product->cl4_code ?? ''),
+                        'brand_code' => trim($product->brand_code ?? ''),
+                        'segment_code' => trim($product->segment_code ?? ''),
+                        'barcode'    => trim($product->pro_barcode ?? ''),
                         'pro_short_name' => $product->pro_short_name,
                         'pro_bom_code' => $product->pro_bom_code,
                         'pro_return_allowed' => $product->pro_return_allowed,
                         'pro_damage_returns_allowed' => $product->pro_damage_returns_allowed,
                         'pro_available_for_sale' => $product->pro_available_for_sale,
                         'pro_customer_inventory_allowed' => $product->pro_customer_inventory_allowed,
-                        'unt_code'   => $product->unt_code,
+                        'unt_code'   => trim($product->unt_code ?? ''),
                     ]
                 );
                 
@@ -133,9 +132,10 @@ class SyncMasterProductsAction
             // 6. Sync Product Units
             $productUnits = $db->table('product_units')->get();
             foreach ($productUnits as $pu) {
-                if (empty($pu->pro_code) || empty($pu->unt_code)) continue;
-                MasterProductUnit::updateOrCreate(
-                    ['pro_code' => $pu->pro_code, 'unt_code' => $pu->unt_code],
+                $proCode = trim($pu->pro_code);
+                $untCode = trim($pu->unt_code);
+                MasterProductUnit::withTrashed()->updateOrCreate(
+                    ['pro_code' => $proCode, 'unt_code' => $untCode],
                     [
                         'pru_multiply_by' => $pu->pru_multiply_by ?? null,
                         'pru_divide_by' => $pu->pru_divide_by ?? null,
