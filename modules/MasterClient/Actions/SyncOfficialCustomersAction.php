@@ -199,6 +199,8 @@ class SyncOfficialCustomersAction
             'prc_code_for_sale'  => 'VARCHAR(20) DEFAULT NULL',
             'con_code'           => 'VARCHAR(50) DEFAULT NULL',
             'brc_code'           => 'VARCHAR(50) DEFAULT NULL',
+            'cus_credit_limit'   => 'VARCHAR(50) DEFAULT NULL',
+            'cus_balance'        => 'VARCHAR(50) DEFAULT NULL',
         ];
 
         foreach ($toAdd as $col => $definition) {
@@ -262,6 +264,9 @@ class SyncOfficialCustomersAction
                     'prc_code_for_return'=> $customer->prc_code_for_return,
                     'cus_contact_person'=> $customer->cus_contact_person,
                     'cus_email'         => $customer->cus_email,
+                    'con_code'          => $customer->con_code ?? null,
+                    'cus_credit_limit'  => $customer->cus_credit_limit ?? null,
+                    'cus_balance'       => $customer->cus_balance ?? null,
                 ]
             );
             $summary['customers_synced_master']++;
@@ -342,8 +347,10 @@ class SyncOfficialCustomersAction
                         'ctr_contact_person'   => $ctrContactPerson,
                         'ctr_balance'          => $ctrBalance,
                         'prc_code_for_sale'    => $prcCodeForSale,
-                        'con_code'             => $conCode,
+                        'con_code'             => $customer->con_code ?? $conCode,
                         'brc_code'             => $customer->brc_code,
+                        'cus_credit_limit'     => $customer->cus_credit_limit,
+                        'cus_balance'          => $customer->cus_balance,
                     ]
                 );
                 $summary['customers_pushed_tenants']++;

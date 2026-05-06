@@ -35,6 +35,9 @@ class MasterClient extends Model
         'prc_code_for_return',
         'cus_contact_person',
         'cus_email',
+        'con_code',
+        'cus_credit_limit',
+        'cus_balance',
     ];
 
     public function companyRoute()
