@@ -66,14 +66,16 @@ try {
         
         echo " - Productos en catálogo: $productosCount\n";
             
-            // Simular el JOIN del reporte de Ventas
+            // Simular el JOIN del reporte de Ventas CON FILTROS
             $joinVentas = DB::connection('tenant')
                 ->table('ventaspxc as v')
                 ->join('ventas_detalle as vd', 'v.IdVenta', '=', 'vd.IdVenta')
                 ->join('productos as p', 'vd.idproducto', '=', 'p.idproducto')
+                ->where('p.codigoSKU', 'NOT LIKE', '%OBS%')
+                ->where('vd.producto', 'NOT LIKE', '%OBSEQUIO%')
                 ->count();
             
-            echo " - Registros que pasan el filtro de Ventas (JOIN): $joinVentas\n";
+            echo " - Registros que pasan el filtro de Ventas (CON FILTROS TEXTO): $joinVentas\n";
 
             // Verificar Plan Táctico (Obsequios)
             $hasRpt = \Illuminate\Support\Facades\Schema::connection('tenant')->hasTable('recepcion_plan_tactico');
