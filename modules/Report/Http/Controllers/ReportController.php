@@ -30,6 +30,13 @@ class ReportController extends Controller
         \Illuminate\Support\Facades\Log::error(" - Ventas encontradas: " . count($ventasRows));
         \Illuminate\Support\Facades\Log::error(" - Obsequios encontrados: " . count($obsqRows));
 
+        // LOG DE ERRORES DE TENANTS (Si los hay)
+        if (isset($salesAction->errors) && count($salesAction->errors) > 0) {
+            foreach ($salesAction->errors as $error) {
+                \Illuminate\Support\Facades\Log::error(" !!! ERROR EN TENANT [{$error['client']}]: {$error['error']}");
+            }
+        }
+
         // Cabeceras del CSV
         $headers = [
             'FQ/REDI',

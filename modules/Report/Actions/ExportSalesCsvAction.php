@@ -7,6 +7,7 @@ use Modules\Report\DataTransferObjects\ExportSalesCsvFilterData;
 use Modules\Analytics\Services\TenantConnectionService;
 use Modules\CompanyRoute\Models\CompanyRoute;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 class ExportSalesCsvAction
@@ -26,12 +27,15 @@ class ExportSalesCsvAction
 
     private const GENERIC_CEP_CODE = 'PV12345678';
 
+    public array $errors = [];
+
     public function __construct(
         private TenantConnectionService $tenantService
     ) {}
 
     public function execute(ExportSalesCsvFilterData $filters): array
     {
+        $this->errors = [];
         // 1. Resolver rutas: por code específico o todas las activas
         if ($filters->route_code) {
             $clients = CompanyRoute::where('is_active', true)
@@ -54,31 +58,42 @@ class ExportSalesCsvAction
             $cep = $client->cep ?? '';
             $tenantRows = [];
 
-            // Query principal: ventaspxc → ventas_detalle → productos → clientes
-            $query = DB::connection('tenant')
+            // PASO 1: Join Base (Venta + Detalle + Producto)
+            $queryBase = DB::connection('tenant')
                 ->table('ventaspxc as v')
                 ->join('ventas_detalle as vd', 'v.IdVenta', '=', 'vd.IdVenta')
                 ->join('productos as p', 'vd.idproducto', '=', 'p.idproducto')
-                ->leftJoin('clientes as c', 'v.IdCliente', '=', 'c.IdCliente')
-                ->where('vd.eliminado', 0)
+                ->leftJoin('clientes as c', 'v.IdCliente', '=', 'c.IdCliente');
+            
+            $countBase = (clone $queryBase)->count();
+            Log::error("      [DETECTIVE] Cliente $routeCode - Join Base: $countBase registros.");
+
+            // PASO 2: Filtros de Eliminado y Texto
+            $queryBase->where('vd.eliminado', 0)
+                ->where('v.eliminado', 0)
                 ->where('p.codigoSKU', 'NOT LIKE', '%OBS%')
                 ->where('vd.producto', 'NOT LIKE', '%OBSEQUIO%');
+            
+            $countFiltros = (clone $queryBase)->count();
+            Log::error("      [DETECTIVE] Cliente $routeCode - Tras Filtros Eliminado/Texto: $countFiltros registros.");
+
+            // PASO 3: Filtro de Fecha
+            if ($isRange) {
+                $queryBase->whereBetween('v.Fecha', [$filters->start_date, $filters->end_date]);
+            } else {
+                $queryBase->whereDate('v.Fecha', $filters->start_date);
+            }
+
+            $countFinal = (clone $queryBase)->count();
+            Log::error("      [DETECTIVE] Cliente $routeCode - TRAS FILTRO FECHA: $countFinal registros.");
 
             // Left join con lotes_distribucion_entregas si la tabla existe
             $hasDistTable = Schema::connection('tenant')->hasTable('lotes_distribucion_entregas');
             if ($hasDistTable) {
-                $query->leftJoin('lotes_distribucion_entregas as lde', 'v.IdVenta', '=', 'lde.IdVenta');
+                $queryBase->leftJoin('lotes_distribucion_entregas as lde', 'v.IdVenta', '=', 'lde.IdVenta');
             }
 
-            $query->where('v.eliminado', 0);
-
-            if ($isRange) {
-                $query->whereBetween('v.Fecha', [$filters->start_date, $filters->end_date]);
-            } else {
-                $query->whereDate('v.Fecha', $filters->start_date);
-            }
-
-            $salesData = $query->select(
+            $queryBase->select(
                     'v.IdVenta',
                     'v.Fecha',
                     'v.IdCliente',
@@ -92,10 +107,10 @@ class ExportSalesCsvAction
                 );
 
             if ($hasDistTable) {
-                $query->addSelect('lde.reaCode');
+                $queryBase->addSelect('lde.reaCode');
             }
 
-            $salesData = $query->get();
+            $salesData = $queryBase->get();
 
             foreach ($salesData as $row) {
                 // UM: unidadesporcaja = 1 → UND, > 1 → CJS
@@ -169,6 +184,7 @@ class ExportSalesCsvAction
         });
 
         // 3. Consolidar todas las filas
+        $this->errors = $tenantResults['errors'];
         $allRows = [];
         foreach ($tenantResults['results'] as $tenantResult) {
             if (!empty($tenantResult['data'])) {

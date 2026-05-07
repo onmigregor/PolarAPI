@@ -6,11 +6,14 @@ use Modules\Analytics\Services\TenantConnectionService;
 use Modules\Report\DataTransferObjects\ExportSalesCsvFilterData;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class ExportObsequiosCsvAction
 {
     private const GENERIC_CEP_CODE = 'PV12345678';
+
+    public array $errors = [];
 
     public function __construct(
         private TenantConnectionService $tenantService
@@ -25,6 +28,7 @@ class ExportObsequiosCsvAction
 
         $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $isRange) {
             $cep = $client->cep ?? '';
+            $routeCode = $client->codigo ?? 'N/A';
             $tenantRows = [];
 
             // Solo procesar si existe la tabla de plan táctico
@@ -32,26 +36,39 @@ class ExportObsequiosCsvAction
                 return [];
             }
 
-            $query = DB::connection('tenant')
+            // PASO 1: Join Base (Gifts + Sales + Details + Products)
+            $queryBase = DB::connection('tenant')
                 ->table('recepcion_plan_tactico as rpt')
                 ->join('ventaspxc as v', 'rpt.IdVenta', '=', 'v.IdVenta')
                 ->join('ventas_detalle as vd', 'v.IdVenta', '=', 'vd.IdVenta')
                 ->join('productos as p', 'vd.idproducto', '=', 'p.idproducto')
-                ->leftJoin('clientes as c', 'v.IdCliente', '=', 'c.IdCliente')
                 ->where('vd.eliminado', 0)
-                ->where('v.eliminado', 0)
-                ->where(function($q) {
+                ->where('v.eliminado', 0);
+            
+            $countBase = (clone $queryBase)->count();
+            Log::error("      [DETECTIVE-OBS] Cliente $routeCode - Join Base: $countBase registros.");
+
+            // PASO 2: Filtros de Obsequio (Texto)
+            $queryBase->where(function($q) {
                     $q->where('p.codigoSKU', 'LIKE', '%OBS%')
                       ->orWhere(DB::raw('UPPER(vd.producto)'), 'LIKE', '%OBSEQUIO%');
                 });
+            
+            $countObsq = (clone $queryBase)->count();
+            Log::error("      [DETECTIVE-OBS] Cliente $routeCode - Tras Filtro Texto Obsequio: $countObsq registros.");
 
+            // PASO 3: Filtro de Fecha
             if ($isRange) {
-                $query->whereBetween('rpt.fecha', [$filters->start_date, $filters->end_date]);
+                $queryBase->whereBetween('rpt.fecha', [$filters->start_date, $filters->end_date]);
             } else {
-                $query->whereDate('rpt.fecha', $filters->start_date);
+                $queryBase->whereDate('rpt.fecha', $filters->start_date);
             }
 
-            $results = $query->select(
+            $countFinal = (clone $queryBase)->count();
+            Log::error("      [DETECTIVE-OBS] Cliente $routeCode - TRAS FILTRO FECHA: $countFinal registros.");
+
+            $results = $queryBase->leftJoin('clientes as c', 'v.IdCliente', '=', 'c.IdCliente')
+            ->select(
                 'v.IdVenta',
                 'rpt.fecha as rpt_fecha',
                 'rpt.obsequios as rpt_cantidad',
