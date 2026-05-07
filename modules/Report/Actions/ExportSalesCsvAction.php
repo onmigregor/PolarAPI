@@ -85,7 +85,7 @@ class ExportSalesCsvAction
 
             // PASO 3: Filtro de Fecha
             if ($isRange) {
-                $queryBase->whereBetween('v.Fecha', [$filters->start_date, $filters->end_date]);
+                $queryBase->whereBetween('v.Fecha', [$filters->start_date . ' 00:00:00', $filters->end_date . ' 23:59:59']);
             } else {
                 $queryBase->whereDate('v.Fecha', $filters->start_date);
             }

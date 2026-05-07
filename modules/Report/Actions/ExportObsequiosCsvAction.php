@@ -50,7 +50,7 @@ class ExportObsequiosCsvAction
 
             // PASO 3: Filtro de Fecha
             if ($isRange) {
-                $queryBase->whereBetween('rpt.fecha', [$filters->start_date, $filters->end_date]);
+                $queryBase->whereBetween('rpt.fecha', [$filters->start_date . ' 00:00:00', $filters->end_date . ' 23:59:59']);
             } else {
                 $queryBase->whereDate('rpt.fecha', $filters->start_date);
             }
