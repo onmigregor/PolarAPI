@@ -73,7 +73,7 @@ class ExportSalesCsvAction
             $query->where('v.eliminado', 0);
 
             if ($isRange) {
-                $query->whereBetween('v.Fecha', [$filters->start_date . ' 00:00:00', $filters->end_date . ' 23:59:59']);
+                $query->whereBetween('v.Fecha', [$filters->start_date, $filters->end_date]);
             } else {
                 $query->whereDate('v.Fecha', $filters->start_date);
             }

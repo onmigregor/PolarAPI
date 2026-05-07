@@ -46,7 +46,7 @@ class ExportObsequiosCsvAction
                 });
 
             if ($isRange) {
-                $query->whereBetween('rpt.fecha', [$filters->start_date . ' 00:00:00', $filters->end_date . ' 23:59:59']);
+                $query->whereBetween('rpt.fecha', [$filters->start_date, $filters->end_date]);
             } else {
                 $query->whereDate('rpt.fecha', $filters->start_date);
             }
