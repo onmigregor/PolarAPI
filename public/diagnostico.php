@@ -1,116 +1,117 @@
 <?php
 /**
- * DIAGNOSTICO DE REPORTES VIA WEB - HUB POLAR
+ * SUPER DIAGNOSTICO DE REPORTES - HUB POLAR
+ * Analiza paso a paso el embudo de datos para encontrar el error.
  */
 
 use Modules\Analytics\Services\TenantConnectionService;
 use Modules\CompanyRoute\Models\CompanyRoute;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 require __DIR__ . '/../vendor/autoload.php';
 $app = require_once __DIR__ . '/../bootstrap/app.php';
 $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 $kernel->bootstrap();
 
+header('Content-Type: text/plain');
+echo "==========================================================\n";
+echo "       SUPER DIAGNOSTICO DE INTEGRIDAD - HUB POLAR        \n";
+echo "==========================================================\n\n";
+
 $tenantService = app(TenantConnectionService::class);
 
-header('Content-Type: text/plain');
+// 1. HUB CHECK
+echo "1. VERIFICACION DEL HUB:\n";
+$activeClients = CompanyRoute::where('is_active', true)->get();
+echo " - Rutas activas encontradas: " . $activeClients->count() . "\n\n";
 
-echo "==========================================\n";
-echo "   DIAGNOSTICO DE REPORTES - HUB POLAR    \n";
-echo "==========================================\n\n";
-
-// 1. Verificar Rutas en el HUB
-try {
-    $totalRoutes = CompanyRoute::count();
-    $activeRoutes = CompanyRoute::where('is_active', true)->count();
-
-    echo "1. ESTADO DE RUTAS EN EL HUB:\n";
-    echo " - Total de rutas registradas: $totalRoutes\n";
-    echo " - Rutas marcadas como ACTIVAS (is_active=1): $activeRoutes\n";
-
-    if ($activeRoutes == 0) {
-        echo " !!! ALERTA: No hay rutas activas. El reporte SIEMPRE saldrá vacío.\n";
-    }
-} catch (\Exception $e) {
-    echo "ERROR al consultar rutas: " . $e->getMessage() . "\n";
+if ($activeClients->isEmpty()) {
+    echo "!!! ERROR CRITICO: No hay rutas activas en la tabla company_routes.\n";
+    exit;
 }
-echo "\n";
 
-// 2. Analizar Clientes/Tenants
-echo "2. ANALISIS DE TENANTS (Primeros 5 activos):\n";
-try {
-    $clients = CompanyRoute::where('is_active', true)->take(5)->get();
-
-    if ($clients->isEmpty()) {
-        echo " - No hay clientes activos para analizar.\n";
-    }
-
-    foreach ($clients as $client) {
-        echo "------------------------------------------\n";
-        echo "Tenant: {$client->db_name} (Ruta: {$client->code})\n";
+// 2. TENANT CHECK
+echo "2. ANALISIS DETALLADO POR TENANT:\n";
+foreach ($activeClients->take(3) as $client) {
+    echo "----------------------------------------------------------\n";
+    echo "CLIENTE: {$client->name} | DB: {$client->db_name}\n";
+    
+    try {
+        $tenantService->connect($client);
         
-        try {
-            $tenantService->connect($client);
-            
-            $ventasCount = DB::connection('tenant')->table('ventaspxc')->count();
-        $productosCount = DB::connection('tenant')->table('productos')->count();
+        // PASO A: Base
+        $totalVentas = DB::connection('tenant')->table('ventaspxc')->count();
+        echo " [PASO A] Ventas brutas en ventaspxc: $totalVentas\n";
         
-        echo " - Ventas en la tabla ventaspxc: $ventasCount\n";
-        
-        if ($ventasCount > 0) {
-            $minDate = DB::connection('tenant')->table('ventaspxc')->min('Fecha');
-            $maxDate = DB::connection('tenant')->table('ventaspxc')->max('Fecha');
-            echo "   * RANGO DE FECHAS EN DB: Desde [$minDate] hasta [$maxDate]\n";
+        if ($totalVentas == 0) {
+            echo "          - No hay ventas registradas para este cliente.\n";
+            continue;
         }
+
+        // PASO B: Filtro Eliminado
+        $ventasNoEliminadas = DB::connection('tenant')->table('ventaspxc')->where('eliminado', 0)->count();
+        echo " [PASO B] Ventas con eliminado=0: $ventasNoEliminadas\n";
+        if ($ventasNoEliminadas == 0) {
+            echo "          !!! TODAS las ventas están marcadas como eliminadas.\n";
+        }
+
+        // PASO C: Filtro de Fecha (Abril 2026 como ejemplo)
+        $ventasAbril = DB::connection('tenant')->table('ventaspxc')
+            ->whereBetween('Fecha', ['2026-04-01', '2026-04-30'])
+            ->count();
+        echo " [PASO C] Ventas en el rango 2026-04-01 al 2026-04-30: $ventasAbril\n";
         
-        echo " - Productos en catálogo: $productosCount\n";
-            
-            // Simular el JOIN del reporte de Ventas CON FILTROS
-            $joinVentas = DB::connection('tenant')
-                ->table('ventaspxc as v')
-                ->join('ventas_detalle as vd', 'v.IdVenta', '=', 'vd.IdVenta')
-                ->join('productos as p', 'vd.idproducto', '=', 'p.idproducto')
-                ->where('p.codigoSKU', 'NOT LIKE', '%OBS%')
-                ->where('vd.producto', 'NOT LIKE', '%OBSEQUIO%')
+        if ($ventasAbril == 0) {
+            $lastVenta = DB::connection('tenant')->table('ventaspxc')->max('Fecha');
+            echo "          - No hay ventas en Abril. La última venta registrada es del: [$lastVenta]\n";
+        }
+
+        // PASO D: Integridad con Detalles y Productos
+        $joinBase = DB::connection('tenant')
+            ->table('ventaspxc as v')
+            ->join('ventas_detalle as vd', 'v.IdVenta', '=', 'vd.IdVenta')
+            ->join('productos as p', 'vd.idproducto', '=', 'p.idproducto')
+            ->count();
+        echo " [PASO D] Registros que pasan el JOIN (Venta+Detalle+Producto): $joinBase\n";
+        
+        $rawDetalles = DB::connection('tenant')->table('ventas_detalle')->count();
+        if ($joinBase < $rawDetalles && $rawDetalles > 0) {
+            echo "          !!! Hay " . ($rawDetalles - $joinBase) . " detalles que no encuentran su Producto. Posible falla de sincronización.\n";
+        }
+
+        // PASO E: Filtros de Texto (OBS)
+        $conFiltrosTexto = DB::connection('tenant')
+            ->table('ventaspxc as v')
+            ->join('ventas_detalle as vd', 'v.IdVenta', '=', 'vd.IdVenta')
+            ->join('productos as p', 'vd.idproducto', '=', 'p.idproducto')
+            ->where('p.codigoSKU', 'NOT LIKE', '%OBS%')
+            ->where('vd.producto', 'NOT LIKE', '%OBSEQUIO%')
+            ->count();
+        echo " [PASO E] Registros tras filtros de texto (NOT LIKE %OBS%): $conFiltrosTexto\n";
+
+        // PASO F: Análisis de Obsequios
+        echo " [PASO F] Analizando Obsequios:\n";
+        $obsqTotal = DB::connection('tenant')->table('recepcion_plan_tactico')->count();
+        echo "          - Registros en recepcion_plan_tactico: $obsqTotal\n";
+        
+        if ($obsqTotal > 0) {
+            $obsqJoin = DB::connection('tenant')
+                ->table('recepcion_plan_tactico as rpt')
+                ->join('ventaspxc as v', 'rpt.IdVenta', '=', 'v.IdVenta')
                 ->count();
+            echo "          - Obsequios que encuentran su Venta Padre: $obsqJoin\n";
             
-            echo " - Registros que pasan el filtro de Ventas (CON FILTROS TEXTO): $joinVentas\n";
-
-            // Verificar Plan Táctico (Obsequios)
-            $hasRpt = \Illuminate\Support\Facades\Schema::connection('tenant')->hasTable('recepcion_plan_tactico');
-            echo " - Tabla recepcion_plan_tactico: " . ($hasRpt ? "EXISTE" : "NO EXISTE") . "\n";
-            
-            if ($hasRpt) {
-                $rptCount = DB::connection('tenant')->table('recepcion_plan_tactico')->count();
-                echo " - Registros en Plan Táctico: $rptCount\n";
-                
-                $joinObsq = DB::connection('tenant')
-                    ->table('recepcion_plan_tactico as rpt')
-                    ->join('ventaspxc as v', 'rpt.IdVenta', '=', 'v.IdVenta')
-                    ->join('ventas_detalle as vd', 'v.IdVenta', '=', 'vd.IdVenta')
-                    ->join('productos as p', 'vd.idproducto', '=', 'p.idproducto')
-                    ->count();
-                echo " - Obsequios que pasan el JOIN completo: $joinObsq\n";
-
-                if ($joinObsq == 0 && $rptCount > 0) {
-                    echo " !!! ANALISIS DE DESFASE EN OBSEQUIOS:\n";
-                    $sampleRpts = DB::connection('tenant')->table('recepcion_plan_tactico')->take(3)->get();
-                    foreach ($sampleRpts as $sr) {
-                        $existsInVentas = DB::connection('tenant')->table('ventaspxc')->where('IdVenta', $sr->IdVenta)->exists();
-                        $existsInDetalle = DB::connection('tenant')->table('ventas_detalle')->where('IdVenta', $sr->IdVenta)->exists();
-                        echo "   * ID Venta [{$sr->IdVenta}]: En Ventas: " . ($existsInVentas ? "SI" : "NO") . " | En Detalle: " . ($existsInDetalle ? "SI" : "NO") . "\n";
-                    }
-                }
+            if ($obsqJoin < $obsqTotal) {
+                echo "          !!! ERROR: Hay " . ($obsqTotal - $obsqJoin) . " obsequios huérfanos (IdVenta no existe en ventaspxc).\n";
             }
-
-        } catch (\Exception $e) {
-            echo " - ERROR de conexión: " . $e->getMessage() . "\n";
         }
+
+    } catch (\Exception $e) {
+        echo " !!! ERROR DE CONEXION/SQL: " . $e->getMessage() . "\n";
     }
-} catch (\Exception $e) {
-    echo "ERROR general de diagnóstico: " . $e->getMessage() . "\n";
 }
 
-echo "\n==========================================\n";
-echo "FIN DEL DIAGNOSTICO\n";
+echo "\n==========================================================\n";
+echo "               FIN DEL SUPER DIAGNOSTICO                  \n";
+echo "==========================================================\n";
