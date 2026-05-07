@@ -152,7 +152,7 @@ class ExportSalesCsvAction
                     ->table('clientes')
                     ->where('DiaDespacho1', $dayOfWeek)
                     ->whereNotIn('IdCliente', $clientesConVenta)
-                    ->select('IdCliente', 'RIF', 'cep as client_cep', 'tp1_code as tp1code')
+                    ->select('IdCliente', 'RIF', 'cep as client_cep')
                     ->get();
 
                 foreach ($clientesRJ as $clienteRJ) {
@@ -173,7 +173,6 @@ class ExportSalesCsvAction
                         'rif_ci_clte'   => $clienteRJ->RIF ?? '',
                         'cl_doc'        => '',
                         'motivo'        => 'RJ',
-                        'tp1code'       => $clienteRJ->tp1code ?? '',
                     ];
                 }
             }

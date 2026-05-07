@@ -117,7 +117,6 @@ class ReportController extends Controller
                 $row['rif_ci_clte'],
                 $row['cl_doc'],
                 $row['motivo'],
-                $row['tp1code'],
             ]) . "\r\n";
         }
         return $csvContent;
