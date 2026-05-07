@@ -36,14 +36,33 @@ class SyncMasterProductsFromJsonAction
         $class4Data = $data[0]['value']['class4'] ?? [];
         $results['total_in_json'] = count($products);
 
+        $logDate = now()->format('Y-m-d');
+        $classLogFile = storage_path("logs/class_sync_issues_{$logDate}.log");
+
         // 1. Sync Class 4 Lookup Table
         foreach ($class4Data as $c4) {
             $cl4Code = trim($c4['cl4code']);
+            $cl4Name = trim($c4['cl4name']);
+            
+            // Auditoría de Calidad de Datos
+            $issues = [];
+            if (str_starts_with($cl4Code, 'NAACFHC')) {
+                $issues[] = "Código con prefijo sospechoso (NAACFHC)";
+            }
+            if (in_array(strtoupper($cl4Name), ['BASES', 'AGREGADAS', 'PRINCIPALES', 'NO SELECCIONADO', ''])) {
+                $issues[] = "Nombre genérico o vacío ('{$cl4Name}')";
+            }
+
+            if (!empty($issues)) {
+                $msg = "[{$logDate}] INCIDENCIA Class4 | Código: {$cl4Code} | Nombre: {$cl4Name} | Problemas: " . implode(', ', $issues) . PHP_EOL;
+                file_put_contents($classLogFile, $msg, FILE_APPEND);
+            }
+
             $breakdown = $this->breakdownCl4Code($cl4Code);
             \Modules\MasterProduct\Models\MasterProductClass4::withTrashed()->updateOrCreate(
                 ['cl4_code' => $cl4Code],
                 [
-                    'cl4_name'     => $c4['cl4name'],
+                    'cl4_name'     => $cl4Name,
                     'brand_code'   => $breakdown['brand_code'],
                     'segment_code' => $breakdown['segment_code'],
                 ]

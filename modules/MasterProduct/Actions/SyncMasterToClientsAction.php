@@ -51,15 +51,42 @@ class SyncMasterToClientsAction
             'errors'            => [],
         ];
 
-        // Cargar solo los productos maestros que tienen datos enriquecidos
+        // 2. Definir valores por defecto para campos legacy obligatorios del Tenant
+        $legacyDefaults = [
+            'ruta'               => 'S/R',
+            'descripcion1'       => '',
+            'descripcion2'       => '',
+            'imagen'             => 'no-image.png',
+            'er'                 => 0,
+            'tipo'               => 'PRODUCTO',
+            'unidadesporcaja'    => 1,
+            'montoganancia'      => 0,
+            'porcentajeganancia' => 0,
+            'fechaprecio'        => now()->format('Y-m-d'),
+            'baseimponible'      => 0,
+            'iva'                => 0,
+            'excento_iva'        => 0,
+            'grupo_precio'       => 'GENERAL',
+            'producto_destacado' => 0,
+            'producto_destacado2'=> 0,
+            'producto_en_promocion'=> 0,
+            'producto_activo'    => 1,
+            'codigobarras'       => '',
+            'textvoice'          => '',
+            'graficar'           => 1,
+        ];
+
+        // 3. Cargar todos los productos maestros que tienen datos enriquecidos
         $masterProducts = MasterProduct::whereNotNull('cl2_code')
             ->orWhereNotNull('unt_code')
             ->get([
-                'sku', 'brand', 'cl1_code', 'cl2_code', 'cl3_code', 'cl4_code', 'unt_code',
+                'sku', 'name', 'brand', 'cl1_code', 'cl2_code', 'cl3_code', 'cl4_code', 'unt_code',
                 'pro_short_name', 'barcode', 'pro_bom_code', 'pro_return_allowed',
                 'pro_damage_returns_allowed', 'pro_available_for_sale', 'pro_customer_inventory_allowed'
-            ])
-            ->keyBy('sku');
+            ]);
+
+        $logDate = now()->format('Y-m-d');
+        $logFile = storage_path("logs/product_sync_errors_{$logDate}.log");
 
         foreach ($clients as $client) {
             try {
@@ -72,74 +99,79 @@ class SyncMasterToClientsAction
                 $this->ensureColumnsExist($client->db_name);
 
                 $updatedCount = 0;
+                $insertedCount = 0;
                 $skippedCount = 0;
 
-                // Obtener todos los SKUs activos de este tenant junto con sus valores actuales
-                $tenantProducts = DB::connection('tenant')
+                // Obtener mapeo de SKUs existentes en el tenant para decidir entre Insert o Update
+                $tenantProductsMap = DB::connection('tenant')
                     ->table('productos')
-                    ->select(
-                        'idproducto', 'codigoSKU', 'marca', 'class1', 'class2', 'class3', 'class4', 'unt_code',
-                        'proshortname', 'probarcode', 'bomcode', 'proreturnallowed', 
-                        'prodamegereturnsallowed', 'proavailableforsale', 'procustomerinventoryallowed'
-                    )
                     ->whereNotNull('codigoSKU')
                     ->where('codigoSKU', '<>', '')
-                    ->get();
+                    ->pluck('idproducto', 'codigoSKU');
 
-                foreach ($tenantProducts as $tenantProduct) {
-                    $sku = $tenantProduct->codigoSKU;
+                // Obtener columnas existentes en este tenant para filtrar el insert/update
+                $existingColumns = collect(DB::connection('tenant')->select("SHOW COLUMNS FROM `productos`"))
+                    ->pluck('Field')
+                    ->toArray();
 
-                    if (!isset($masterProducts[$sku])) {
+                foreach ($masterProducts as $master) {
+                    $sku = $master->sku;
+
+                    // Datos a sincronizar (mapeo HUB -> Tenant)
+                    $syncData = [
+                        'marca'     => $master->brand,
+                        'class1'    => $master->cl1_code,
+                        'class2'    => $master->cl2_code,
+                        'class3'    => $master->cl3_code,
+                        'class4'    => $master->cl4_code,
+                        'unt_code'  => $master->unt_code,
+                        'proshortname' => $master->pro_short_name,
+                        'probarcode'   => $master->barcode,
+                        'bomcode'      => $master->pro_bom_code,
+                        'proreturnallowed' => $master->pro_return_allowed,
+                        'prodamegereturnsallowed' => $master->pro_damage_returns_allowed,
+                        'proavailableforsale' => $master->pro_available_for_sale,
+                        'procustomerinventoryallowed' => $master->pro_customer_inventory_allowed,
+                    ];
+
+                    // Filtrar solo las columnas que existen en este tenant
+                    $filteredSyncData = array_intersect_key($syncData, array_flip($existingColumns));
+
+                    try {
+                        if (isset($tenantProductsMap[$sku])) {
+                            // UPDATE
+                            DB::connection('tenant')
+                                ->table('productos')
+                                ->where('idproducto', $tenantProductsMap[$sku])
+                                ->update($filteredSyncData);
+                            $updatedCount++;
+                        } else {
+                            // INSERT: Combinar con valores por defecto obligatorios existentes
+                            $filteredDefaults = array_intersect_key($legacyDefaults, array_flip($existingColumns));
+                            
+                            $insertData = array_merge($filteredDefaults, $filteredSyncData, [
+                                'codigoSKU' => $sku,
+                                'producto'  => $master->name,
+                            ]);
+                            
+                            // Asegurar que codigoSKU y producto existen (son obligatorios)
+                            $insertData = array_intersect_key($insertData, array_flip($existingColumns));
+
+                            DB::connection('tenant')
+                                ->table('productos')
+                                ->insert($insertData);
+                            $insertedCount++;
+                        }
+                    } catch (\Exception $e) {
+                        $errorMessage = "[{$logDate}] ERROR Tenant: {$client->db_name} | SKU: {$sku} | Motivo: " . $e->getMessage() . PHP_EOL;
+                        file_put_contents($logFile, $errorMessage, FILE_APPEND);
                         $skippedCount++;
-                        continue;
                     }
-
-                    $master = $masterProducts[$sku];
-
-                    // Optimización Delta: Solo actualizar si hay cambios reales
-                    if (
-                        $tenantProduct->marca === $master->brand &&
-                        $tenantProduct->class1 === $master->cl1_code &&
-                        $tenantProduct->class2 === $master->cl2_code &&
-                        $tenantProduct->class3 === $master->cl3_code &&
-                        $tenantProduct->class4 === $master->cl4_code &&
-                        $tenantProduct->unt_code === $master->unt_code &&
-                        $tenantProduct->proshortname === $master->pro_short_name &&
-                        $tenantProduct->probarcode === $master->barcode &&
-                        $tenantProduct->bomcode === $master->pro_bom_code &&
-                        (int)$tenantProduct->proreturnallowed === (int)$master->pro_return_allowed &&
-                        (int)$tenantProduct->prodamegereturnsallowed === (int)$master->pro_damage_returns_allowed &&
-                        (int)$tenantProduct->proavailableforsale === (int)$master->pro_available_for_sale &&
-                        (int)$tenantProduct->procustomerinventoryallowed === (int)$master->pro_customer_inventory_allowed
-                    ) {
-                        $results['total_unchanged'] = ($results['total_unchanged'] ?? 0) + 1;
-                        continue;
-                    }
-
-                    DB::connection('tenant')
-                        ->table('productos')
-                        ->where('idproducto', $tenantProduct->idproducto)
-                        ->update([
-                            'marca'     => $master->brand,
-                            'class1'    => $master->cl1_code,
-                            'class2'    => $master->cl2_code,
-                            'class3'    => $master->cl3_code,
-                            'class4'    => $master->cl4_code,
-                            'unt_code'  => $master->unt_code,
-                            'proshortname' => $master->pro_short_name,
-                            'probarcode'   => $master->barcode,
-                            'bomcode'      => $master->pro_bom_code,
-                            'proreturnallowed' => $master->pro_return_allowed,
-                            'prodamegereturnsallowed' => $master->pro_damage_returns_allowed,
-                            'proavailableforsale' => $master->pro_available_for_sale,
-                            'procustomerinventoryallowed' => $master->pro_customer_inventory_allowed,
-                        ]);
-
-                    $updatedCount++;
                 }
 
                 $results['clients_processed']++;
                 $results['total_updated'] += $updatedCount;
+                $results['total_inserted'] = ($results['total_inserted'] ?? 0) + $insertedCount;
                 $results['total_skipped'] += $skippedCount;
 
                 DB::disconnect('tenant');
@@ -149,7 +181,7 @@ class SyncMasterToClientsAction
                     'client' => $client->name,
                     'error'  => $e->getMessage(),
                 ];
-                Log::error("Error en SyncMasterToClients para cliente {$client->name}: " . $e->getMessage());
+                Log::error("Error crítico en SyncMasterToClients para cliente {$client->name}: " . $e->getMessage());
             }
         }
 
