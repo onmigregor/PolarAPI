@@ -11,5 +11,6 @@ class MasterPromotionRoute extends Model
     protected $fillable = [
         'rot_code',
         'prm_code',
+        'extended_fields',
     ];
 }

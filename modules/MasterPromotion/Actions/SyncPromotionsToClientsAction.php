@@ -43,6 +43,9 @@ class SyncPromotionsToClientsAction
             `tp3code` varchar(50) DEFAULT NULL COMMENT 'Clase de producto (filtro por jerarquía)',
             `pdl_minimum` decimal(15,3) DEFAULT NULL COMMENT 'Mínimo requerido para activar',
             `unt_code_required` varchar(50) DEFAULT NULL COMMENT 'Unidad requerida',
+            `pdl_order` int(11) DEFAULT NULL COMMENT 'Orden del detalle',
+            `pdl_scalable` tinyint(1) DEFAULT 0 COMMENT 'Es escalable',
+            `pdl_accumulable` tinyint(1) DEFAULT 0 COMMENT 'Es acumulable',
             `prm_can_be_disabled` varchar(10) DEFAULT NULL COMMENT 'Si el vendedor puede desactivarla',
             `prm_enabled_value_on` varchar(10) DEFAULT NULL COMMENT 'Valor por defecto de activación',
             `prm_valid_to_sale` varchar(10) DEFAULT NULL COMMENT 'Válida para venta directa',
@@ -71,10 +74,32 @@ class SyncPromotionsToClientsAction
             `cl4code` varchar(50) DEFAULT NULL COMMENT 'Clase 4 (Segmento)',
             `prp_required` varchar(10) DEFAULT NULL COMMENT 'Es producto requerido para activar promo',
             `prp_free` varchar(10) DEFAULT NULL COMMENT 'Es producto regalo/gratis',
-            `prp_quantity1` decimal(15,3) DEFAULT NULL COMMENT 'Cantidad mínima requerida',
-            `prp_min_percentage1` decimal(15,3) DEFAULT NULL COMMENT 'Porcentaje mínimo 1',
-            `prp_min_percentage2` decimal(15,3) DEFAULT NULL COMMENT 'Porcentaje mínimo 2',
-            `prp_min_free1` decimal(15,3) DEFAULT NULL COMMENT 'Cantidad gratis otorgada',
+            `prp_valid_for_base_percentage` tinyint(1) DEFAULT 0,
+            `prp_quantity` tinyint(1) DEFAULT 0,
+            `prp_quantity1` decimal(15,3) DEFAULT NULL,
+            `prp_quantity2` decimal(15,3) DEFAULT NULL,
+            `prp_quantity3` decimal(15,3) DEFAULT NULL,
+            `prp_quantity4` decimal(15,3) DEFAULT NULL,
+            `prp_quantity5` decimal(15,3) DEFAULT NULL,
+            `prp_min_percentage1` decimal(15,3) DEFAULT NULL,
+            `prp_min_percentage2` decimal(15,3) DEFAULT NULL,
+            `prp_min_percentage3` decimal(15,3) DEFAULT NULL,
+            `prp_min_percentage4` decimal(15,3) DEFAULT NULL,
+            `prp_min_percentage5` decimal(15,3) DEFAULT NULL,
+            `prp_max_percentage2` decimal(15,3) DEFAULT NULL,
+            `prp_max_percentage3` decimal(15,3) DEFAULT NULL,
+            `prp_max_percentage4` decimal(15,3) DEFAULT NULL,
+            `prp_max_percentage5` decimal(15,3) DEFAULT NULL,
+            `prp_min_free1` decimal(15,3) DEFAULT NULL,
+            `prp_min_free2` decimal(15,3) DEFAULT NULL,
+            `prp_min_free3` decimal(15,3) DEFAULT NULL,
+            `prp_min_free4` decimal(15,3) DEFAULT NULL,
+            `prp_min_free5` decimal(15,3) DEFAULT NULL,
+            `prp_max_free1` decimal(15,3) DEFAULT NULL,
+            `prp_max_free2` decimal(15,3) DEFAULT NULL,
+            `prp_max_free3` decimal(15,3) DEFAULT NULL,
+            `prp_max_free4` decimal(15,3) DEFAULT NULL,
+            `unt_code_free` varchar(50) DEFAULT NULL,
             `synced_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Última sincronización',
             PRIMARY KEY (`prp_code`),
             KEY `idx_pdl_code` (`pdl_code`),
@@ -126,7 +151,7 @@ class SyncPromotionsToClientsAction
         foreach ($tenants as $tenant) {
             try {
                 // Extraer el rot_code del code del tenant (ej: "C001/C3_V09101" → "09101")
-                $rotCode = $this->extractRotCode($tenant->code);
+                $rotCode = $this->extractRotCode($tenant->code, $tenant->db_name);
 
                 if (!$rotCode) {
                     Log::warning("SyncPromotionsToClients: No se pudo extraer rot_code de '{$tenant->code}', saltando");
@@ -199,6 +224,9 @@ class SyncPromotionsToClientsAction
                         'tp3code'               => $detail->tp3code,
                         'pdl_minimum'           => $detail->pdl_minimum,
                         'unt_code_required'     => $detail->unt_code_required,
+                        'pdl_order'             => $detail->pdl_order,
+                        'pdl_scalable'          => $detail->pdl_scalable,
+                        'pdl_accumulable'       => $detail->pdl_accumulable,
                         'prm_can_be_disabled'   => $promotion->prm_can_be_disabled,
                         'prm_enabled_value_on'  => $promotion->prm_enabled_value_on,
                         'prm_valid_to_sale'     => $promotion->prm_valid_to_sale,
@@ -221,10 +249,32 @@ class SyncPromotionsToClientsAction
                             'cl4code'            => $product->cl4code,
                             'prp_required'       => $product->prp_required,
                             'prp_free'           => $product->prp_free,
+                            'prp_valid_for_base_percentage' => $product->prp_valid_for_base_percentage,
+                            'prp_quantity'       => $product->prp_quantity,
                             'prp_quantity1'      => $product->prp_quantity1,
+                            'prp_quantity2'      => $product->prp_quantity2,
+                            'prp_quantity3'      => $product->prp_quantity3,
+                            'prp_quantity4'      => $product->prp_quantity4,
+                            'prp_quantity5'      => $product->prp_quantity5,
                             'prp_min_percentage1'=> $product->prp_min_percentage1,
                             'prp_min_percentage2'=> $product->prp_min_percentage2,
+                            'prp_min_percentage3'=> $product->prp_min_percentage3,
+                            'prp_min_percentage4'=> $product->prp_min_percentage4,
+                            'prp_min_percentage5'=> $product->prp_min_percentage5,
+                            'prp_max_percentage2'=> $product->prp_max_percentage2,
+                            'prp_max_percentage3'=> $product->prp_max_percentage3,
+                            'prp_max_percentage4'=> $product->prp_max_percentage4,
+                            'prp_max_percentage5'=> $product->prp_max_percentage5,
                             'prp_min_free1'      => $product->prp_min_free1,
+                            'prp_min_free2'      => $product->prp_min_free2,
+                            'prp_min_free3'      => $product->prp_min_free3,
+                            'prp_min_free4'      => $product->prp_min_free4,
+                            'prp_min_free5'      => $product->prp_min_free5,
+                            'prp_max_free1'      => $product->prp_max_free1,
+                            'prp_max_free2'      => $product->prp_max_free2,
+                            'prp_max_free3'      => $product->prp_max_free3,
+                            'prp_max_free4'      => $product->prp_max_free4,
+                            'unt_code_free'      => $product->unt_code_free,
                             'synced_at'          => $now,
                         ]);
                         $productCount++;
@@ -255,16 +305,26 @@ class SyncPromotionsToClientsAction
      * Extrae el rot_code del código del CompanyRoute.
      * Ejemplo: "C001/C3_V09101" → "09101"
      */
-    private function extractRotCode(string $code): ?string
+    private function extractRotCode(string $code, ?string $dbName = null): ?string
     {
         // Patrón: *_V{rot_code} → extraer lo que está después de _V
         if (preg_match('/_V(\d+)$/i', $code, $matches)) {
             return $matches[1];
         }
 
+        // Patrón: v{rot_code} (común en nuevos tenants)
+        if (preg_match('/^v(\d+)$/i', $code, $matches)) {
+            return $matches[1];
+        }
+
         // Si el código es directamente un número (formato legacy)
         if (preg_match('/^\d+$/', $code)) {
             return $code;
+        }
+
+        // Si todo falla, intentar extraer de db_name (www_v{rot_code}p)
+        if ($dbName && preg_match('/www_v(\d+)p/i', $dbName, $matches)) {
+            return $matches[1];
         }
 
         return null;
@@ -275,22 +335,50 @@ class SyncPromotionsToClientsAction
      */
     private function ensureTables(string $dbName): void
     {
-        $tablesCreated = [];
+        $conn = DB::connection('tenant');
 
-        $promoExists = DB::connection('tenant')->select("SHOW TABLES LIKE 'promociones_polar'");
+        // 1. promociones_polar
+        $promoExists = $conn->select("SHOW TABLES LIKE 'promociones_polar'");
         if (empty($promoExists)) {
-            DB::connection('tenant')->statement(self::CREATE_PROMOCIONES_TABLE);
-            $tablesCreated[] = 'promociones_polar';
+            $conn->statement(self::CREATE_PROMOCIONES_TABLE);
+        } else {
+            // Verificar columnas faltantes
+            $columns = collect($conn->select("SHOW COLUMNS FROM `promociones_polar`"))->pluck('Field')->toArray();
+            $required = ['pdl_order', 'pdl_scalable', 'pdl_accumulable'];
+            foreach ($required as $col) {
+                if (!in_array($col, $columns)) {
+                    $type = ($col === 'pdl_order') ? "int(11) DEFAULT NULL" : "tinyint(1) DEFAULT 0";
+                    $conn->statement("ALTER TABLE `promociones_polar` ADD COLUMN `$col` $type AFTER `unt_code_required` ");
+                }
+            }
         }
 
-        $productsExists = DB::connection('tenant')->select("SHOW TABLES LIKE 'promociones_polar_productos'");
+        // 2. promociones_polar_productos
+        $productsExists = $conn->select("SHOW TABLES LIKE 'promociones_polar_productos'");
         if (empty($productsExists)) {
-            DB::connection('tenant')->statement(self::CREATE_PRODUCTOS_TABLE);
-            $tablesCreated[] = 'promociones_polar_productos';
-        }
+            $conn->statement(self::CREATE_PRODUCTOS_TABLE);
+        } else {
+            // Verificar columnas faltantes
+            $columns = collect($conn->select("SHOW COLUMNS FROM `promociones_polar_productos`"))->pluck('Field')->toArray();
+            $required = [
+                'prp_valid_for_base_percentage', 'prp_quantity', 'prp_quantity2', 'prp_quantity3', 
+                'prp_quantity4', 'prp_quantity5', 'prp_min_percentage3', 'prp_min_percentage4', 
+                'prp_min_percentage5', 'prp_max_percentage2', 'prp_max_percentage3', 
+                'prp_max_percentage4', 'prp_max_percentage5', 'prp_min_free2', 'prp_min_free3', 
+                'prp_min_free4', 'prp_min_free5', 'prp_max_free1', 'prp_max_free2', 
+                'prp_max_free3', 'prp_max_free4', 'unt_code_free'
+            ];
+            foreach ($required as $col) {
+                if (!in_array($col, $columns)) {
+                    $type = (strpos($col, 'code') !== false) ? "varchar(50) DEFAULT NULL" : 
+                            ((strpos($col, 'percentage') !== false || strpos($col, 'free') !== false || strpos($col, 'quantity') !== false && !in_array($col, ['prp_quantity'])) ? "decimal(15,3) DEFAULT NULL" : "tinyint(1) DEFAULT 0");
+                    
+                    // Ajuste fino para tipos específicos
+                    if ($col === 'prp_quantity') $type = "tinyint(1) DEFAULT 0";
 
-        if (!empty($tablesCreated)) {
-            Log::info("SyncPromotionsToClients: Tablas creadas en {$dbName}: " . implode(', ', $tablesCreated));
+                    $conn->statement("ALTER TABLE `promociones_polar_productos` ADD COLUMN `$col` $type");
+                }
+            }
         }
     }
 }

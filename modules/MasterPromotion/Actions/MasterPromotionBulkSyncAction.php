@@ -25,53 +25,67 @@ class MasterPromotionBulkSyncAction
             'errors' => [],
         ];
 
+        // Mapeo de claves del JSON a las claves esperadas por la acción (basadas en el payload del Admin)
+        // Si el payload viene directamente de la estructura del JSON "value", ajustamos las claves.
+        $promotionsData = $payload['promotions'] ?? $payload['promotion'] ?? [];
+        $detailsData    = $payload['details']    ?? $payload['promotionDetail'] ?? [];
+        $productsData   = $payload['products']   ?? $payload['promotionDetailProduct'] ?? [];
+        $routesData     = $payload['routes']     ?? $payload['promotionRoute'] ?? [];
+        $teamsData      = $payload['teams']      ?? $payload['promotionTeam'] ?? [];
+
         try {
             DB::beginTransaction();
 
             // 1. Sync Promotions (Headers)
-            if (!empty($payload['promotions'])) {
+            if (!empty($promotionsData)) {
                 $fillable = (new MasterPromotion())->getFillable();
-                $data = $this->filterData($payload['promotions'], $fillable);
+                $data = $this->filterAndMap($promotionsData, $fillable);
                 MasterPromotion::upsert($data, ['prm_code'], array_diff($fillable, ['prm_code']));
                 $results['promotions'] = count($data);
             }
 
             // 2. Sync Details
-            if (!empty($payload['details'])) {
+            if (!empty($detailsData)) {
                 $fillable = (new MasterPromotionDetail())->getFillable();
-                $data = $this->filterData($payload['details'], $fillable);
+                $data = $this->filterAndMap($detailsData, $fillable);
                 MasterPromotionDetail::upsert($data, ['pdl_code'], array_diff($fillable, ['pdl_code', 'prm_code']));
                 $results['details'] = count($data);
             }
 
             // 3. Sync Products
-            if (!empty($payload['products'])) {
+            if (!empty($productsData)) {
+                // REQUERIMIENTO ESPECIAL: Filtrar solo prpRequired == true
+                $filteredProducts = array_filter($productsData, function ($item) {
+                    return isset($item['prpRequired']) && $item['prpRequired'] === true;
+                });
+
                 $fillable = (new MasterPromotionDetailProduct())->getFillable();
-                $data = $this->filterData($payload['products'], $fillable);
-                MasterPromotionDetailProduct::upsert($data, ['prp_code'], array_diff($fillable, ['prp_code', 'pdl_code', 'prm_code']));
-                $results['products'] = count($data);
+                $data = $this->filterAndMap($filteredProducts, $fillable);
+                
+                if (!empty($data)) {
+                    MasterPromotionDetailProduct::upsert($data, ['prp_code'], array_diff($fillable, ['prp_code', 'pdl_code', 'prm_code']));
+                    $results['products'] = count($data);
+                }
             }
 
             // 4. Sync Routes (Delete and Re-insert)
-            if (!empty($payload['routes'])) {
-                $prmCodes = collect($payload['routes'])->pluck('prm_code')->unique()->toArray();
+            if (!empty($routesData)) {
+                $mappedRoutes = $this->filterAndMap($routesData, (new MasterPromotionRoute())->getFillable());
+                $prmCodes = collect($mappedRoutes)->pluck('prm_code')->unique()->toArray();
                 MasterPromotionRoute::whereIn('prm_code', $prmCodes)->delete();
                 
-                $fillable = (new MasterPromotionRoute())->getFillable();
-                $data = $this->filterData($payload['routes'], $fillable);
-                MasterPromotionRoute::insert($data);
-                $results['routes'] = count($data);
+                MasterPromotionRoute::insert($mappedRoutes);
+                $results['routes'] = count($mappedRoutes);
             }
 
             // 5. Sync Teams (Delete and Re-insert)
-            if (!empty($payload['teams'])) {
-                $prmCodes = collect($payload['teams'])->pluck('prm_code')->unique()->toArray();
+            if (!empty($teamsData)) {
+                $mappedTeams = $this->filterAndMap($teamsData, (new MasterPromotionTeam())->getFillable());
+                $prmCodes = collect($mappedTeams)->pluck('prm_code')->unique()->toArray();
                 MasterPromotionTeam::whereIn('prm_code', $prmCodes)->delete();
                 
-                $fillable = (new MasterPromotionTeam())->getFillable();
-                $data = $this->filterData($payload['teams'], $fillable);
-                MasterPromotionTeam::insert($data);
-                $results['teams'] = count($data);
+                MasterPromotionTeam::insert($mappedTeams);
+                $results['teams'] = count($mappedTeams);
             }
 
             DB::commit();
@@ -79,21 +93,51 @@ class MasterPromotionBulkSyncAction
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::channel('single')->error("Error en Espejo de Promociones: " . $e->getMessage());
+            Log::channel('single')->error("Error en Espejo de Promociones: " . $e->getMessage() . " en " . $e->getFile() . ":" . $e->getLine());
             $results['errors'][] = $e->getMessage();
         }
 
         return $results;
     }
 
-    private function filterData(array $items, array $fillable): array
+    /**
+     * Filtra los datos para que solo contengan campos del fillable
+     * y mapea camelCase a snake_case si es necesario.
+     */
+    private function filterAndMap(array $items, array $fillable): array
     {
         $now = now();
-        return array_map(function ($item) use ($fillable, $now) {
-            $filtered = array_intersect_key($item, array_flip($fillable));
-            $filtered['created_at'] = $now;
-            $filtered['updated_at'] = $now;
-            return $filtered;
-        }, $items);
+        $mappedItems = [];
+
+        foreach ($items as $item) {
+            $newItem = [];
+            foreach ($item as $key => $value) {
+                // Convertir camelCase a snake_case
+                $snakeKey = strtolower(preg_replace('/(?<!^)[A-Z]/', '_$0', $key));
+                
+                if (in_array($snakeKey, $fillable)) {
+                    // Limpieza básica de strings (algunos decimales vienen con espacios)
+                    if (is_string($value)) {
+                        $value = trim($value);
+                        if ($value === "") $value = null;
+                    }
+                    
+                    // Manejo de booleanos que vienen como true/false pero en DB son string/int
+                    if (is_bool($value)) {
+                        $value = $value ? 1 : 0;
+                    }
+
+                    $newItem[$snakeKey] = $value;
+                }
+            }
+            
+            if (!empty($newItem)) {
+                $newItem['created_at'] = $now;
+                $newItem['updated_at'] = $now;
+                $mappedItems[] = $newItem;
+            }
+        }
+
+        return $mappedItems;
     }
 }

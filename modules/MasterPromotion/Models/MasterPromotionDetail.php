@@ -22,5 +22,8 @@ class MasterPromotionDetail extends Model
         'tp3code',
         'pdl_minimum',
         'unt_code_required',
+        'pdl_order',
+        'pdl_scalable',
+        'pdl_accumulable',
     ];
 }
