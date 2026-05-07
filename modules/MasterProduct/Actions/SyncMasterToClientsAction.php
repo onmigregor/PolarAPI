@@ -11,6 +11,10 @@ use Illuminate\Support\Facades\Schema;
 
 class SyncMasterToClientsAction
 {
+    public function __construct(
+        private SyncLookupTablesToClientsAction $syncLookupTables
+    ) {}
+
     /**
      * Columnas a agregar/actualizar en los tenants.
      * Key: nombre de columna en la tabla `productos` del tenant.
@@ -34,6 +38,9 @@ class SyncMasterToClientsAction
 
     public function execute(): array
     {
+        // 1. Sincronizar tablas de búsqueda primero (familias, categorías, etc.)
+        $lookupResults = $this->syncLookupTables->execute();
+
         $clients = CompanyRoute::where('is_active', true)->get();
 
         $results = [

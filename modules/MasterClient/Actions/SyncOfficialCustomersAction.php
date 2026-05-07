@@ -23,6 +23,7 @@ class SyncOfficialCustomersAction
           `cep` varchar(20) DEFAULT NULL,
           `Cliente` varchar(255) NOT NULL,
           `RIF` varchar(50) NOT NULL,
+          `tp1_code` varchar(20) DEFAULT NULL,
           `PIN` varchar(100) NOT NULL,
           `Direccion` text NOT NULL,
           `email` varchar(30) NOT NULL,
@@ -201,6 +202,7 @@ class SyncOfficialCustomersAction
             'brc_code'           => 'VARCHAR(50) DEFAULT NULL',
             'cus_credit_limit'   => 'VARCHAR(50) DEFAULT NULL',
             'cus_balance'        => 'VARCHAR(50) DEFAULT NULL',
+            'tp1_code'           => 'VARCHAR(20) DEFAULT NULL',
         ];
 
         foreach ($toAdd as $col => $definition) {
@@ -301,6 +303,7 @@ class SyncOfficialCustomersAction
                         'cep'           => $customer->cus_code,
                         'Cliente'       => $customer->cus_name ?? '',
                         'RIF'           => $customer->cus_tax_id1 ?? '',
+                        'tp1_code'      => $customer->tp1_code ?? '',
                         'Direccion'     => ($customer->cus_street1 . ' ' . $customer->cus_street2 . ' ' . $customer->cus_street3),
                         'email'         => $customer->cus_email ?? '',
                         'Ruta'          => $assignment->rot_code,

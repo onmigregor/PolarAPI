@@ -5,6 +5,7 @@ namespace Modules\Report\Http\Controllers;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 use Modules\Report\Actions\ExportSalesCsvAction;
+use Modules\Report\Actions\ExportObsequiosCsvAction;
 use Modules\Report\Http\Requests\ExportSalesCsvRequest;
 use Modules\Report\DataTransferObjects\ExportSalesCsvFilterData;
 
@@ -15,10 +16,14 @@ class ReportController extends Controller
      */
     public function exportSalesCsv(
         ExportSalesCsvRequest $request,
-        ExportSalesCsvAction $action
+        ExportSalesCsvAction $salesAction,
+        ExportObsequiosCsvAction $obsqAction
     ): \Illuminate\Http\JsonResponse {
         $filters = ExportSalesCsvFilterData::fromRequest($request->validated());
-        $result = $action->execute($filters);
+
+        // Ejecutar acciones por separado
+        $ventasRows = $salesAction->execute($filters);
+        $obsqRows = $obsqAction->execute($filters);
 
         // Cabeceras del CSV
         $headers = [
@@ -33,12 +38,62 @@ class ReportController extends Controller
             'RIF_CI_CLTE',
             'Cl. Doc',
             'Motivo',
+            'Cadena(TP1)',
         ];
 
-        // Construir contenido CSV con separador ;
-        $csvContent = implode(';', $headers) . "\n";
 
-        foreach ($result['rows'] as $row) {
+        $dateLabel = $filters->start_date;
+        if (!empty($filters->start_date) && !empty($filters->end_date)) {
+            $dateLabel = "{$filters->start_date}_to_{$filters->end_date}";
+        }
+
+        $ventasFilename = "ventas_{$dateLabel}.csv";
+        $obsqFilename = "obsequios_{$dateLabel}.csv";
+
+        $ventasCsv = $this->generateCsvContent($headers, $ventasRows);
+        $obsqCsv = $this->generateCsvContent($headers, $obsqRows);
+
+        try {
+            if (config('app.env') === 'local') {
+                // Asegurar que el directorio existe
+                if (!file_exists(storage_path('ftp'))) {
+                    mkdir(storage_path('ftp'), 0777, true);
+                }
+                // Guardar localmente solo en LOCAL
+                file_put_contents(storage_path("ftp/{$ventasFilename}"), $ventasCsv);
+                file_put_contents(storage_path("ftp/{$obsqFilename}"), $obsqCsv);
+            } else {
+                // Subir al SFTP de Polar solo en PRODUCCIÓN (u otros)
+                \Illuminate\Support\Facades\Storage::disk('sftp_reports')->put($ventasFilename, $ventasCsv);
+                \Illuminate\Support\Facades\Storage::disk('sftp_reports')->put($obsqFilename, $obsqCsv);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => config('app.env') === 'local'
+                    ? "Reportes generados localmente en storage/ftp."
+                    : "Reportes generados y subidos al SFTP correctamente.",
+                'data' => [
+                    'ventas_file' => $ventasFilename,
+                    'ventas_count' => count($ventasRows),
+                    'obsq_file' => $obsqFilename,
+                    'obsq_count' => count($obsqRows),
+                    'destination' => config('app.env') === 'local' ? 'Local Storage' : 'SFTP Polar',
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Error en reporte: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => "Error al procesar archivos o subir al SFTP: " . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    private function generateCsvContent(array $headers, array $rows): string
+    {
+        $csvContent = implode(';', $headers) . "\r\n";
+        foreach ($rows as $row) {
             $csvContent .= implode(';', [
                 $row['fq_redi'],
                 $row['cep'],
@@ -51,27 +106,9 @@ class ReportController extends Controller
                 $row['rif_ci_clte'],
                 $row['cl_doc'],
                 $row['motivo'],
-            ]) . ";\n";
+                $row['tp1code'],
+            ]) . "\r\n";
         }
-
-        $filename = 'ventas_' . $filters->date . '.csv';
-
-        try {
-            \Illuminate\Support\Facades\Storage::disk('sftp_reports')->put($filename, $csvContent);
-
-            return response()->json([
-                'success' => true,
-                'message' => "Archivo $filename enviado correctamente al SFTP.",
-                'data' => [
-                    'filename' => $filename,
-                    'rows' => count($result['rows']),
-                ]
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al enviar el archivo al SFTP: ' . $e->getMessage(),
-            ], 500);
-        }
+        return $csvContent;
     }
 }

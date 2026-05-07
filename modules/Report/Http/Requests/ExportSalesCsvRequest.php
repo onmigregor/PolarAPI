@@ -16,7 +16,9 @@ class ExportSalesCsvRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'date' => ['required', 'date', 'date_format:Y-m-d'],
+            'date'       => ['required_without:start_date', 'nullable', 'date', 'date_format:Y-m-d'],
+            'start_date' => ['required_without:date', 'nullable', 'date', 'date_format:Y-m-d'],
+            'end_date'   => ['nullable', 'date', 'date_format:Y-m-d', 'after_or_equal:start_date'],
             'route_code' => ['nullable', 'string', Rule::exists(CompanyRoute::class, 'code')],
         ];
     }
@@ -24,9 +26,10 @@ class ExportSalesCsvRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'date.required' => 'La fecha es obligatoria.',
-            'date.date_format' => 'La fecha debe tener el formato YYYY-MM-DD.',
-            'route_code.exists' => 'El código de ruta no existe.',
+            'date.required_without'       => 'Debe proporcionar una fecha o un rango (start_date).',
+            'start_date.required_without' => 'Debe proporcionar una fecha de inicio si no usa el parámetro date.',
+            'end_date.after_or_equal'     => 'La fecha final debe ser posterior o igual a la inicial.',
+            'route_code.exists'           => 'El código de ruta no existe.',
         ];
     }
 }
