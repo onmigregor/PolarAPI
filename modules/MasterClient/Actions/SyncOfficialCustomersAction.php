@@ -7,6 +7,7 @@ use Modules\CompanyRoute\Models\CompanyRoute;
 use Modules\MasterClient\Models\MasterClient;
 use Modules\MasterClient\Models\MasterCustomerPrice;
 use Modules\MasterClient\Models\MasterCustomerRoute;
+use Modules\MasterClient\Models\MasterCustomerFrequency;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Log;
@@ -75,6 +76,11 @@ class SyncOfficialCustomersAction
           `prc_code_for_sale` varchar(20) DEFAULT NULL,
           `con_code` varchar(50) DEFAULT NULL,
           `brc_code` varchar(50) DEFAULT NULL,
+          `fre_week1` varchar(10) DEFAULT NULL,
+          `fre_week2` varchar(10) DEFAULT NULL,
+          `fre_week3` varchar(10) DEFAULT NULL,
+          `fre_week4` varchar(10) DEFAULT NULL,
+          `fre_customer` varchar(10) DEFAULT NULL,
           UNIQUE KEY `IdCliente` (`IdCliente`),
           UNIQUE KEY `idx_cep` (`cep`),
           KEY `idx_ruta` (`Ruta`),
@@ -88,6 +94,7 @@ class SyncOfficialCustomersAction
             'tenants_processed' => 0,
             'customers_synced_master' => 0,
             'customers_pushed_tenants' => 0,
+            'customer_frequencies_synced_master' => 0,
             'errors' => [],
         ];
 
@@ -117,6 +124,9 @@ class SyncOfficialCustomersAction
 
             // 4. Sync Customer Routes (Días de Visita + Contacto/Balance)
             $this->syncCustomerRoutes($officialDb, $summary);
+
+            // 5. Sync Customer Frequencies (Semanas de Visita)
+            $this->syncCustomerFrequencies($officialDb, $summary);
 
         } catch (\Exception $e) {
             Log::error('SyncOfficialCustomers General Exception: ' . $e->getMessage());
@@ -203,6 +213,11 @@ class SyncOfficialCustomersAction
             'cus_credit_limit'   => 'VARCHAR(50) DEFAULT NULL',
             'cus_balance'        => 'VARCHAR(50) DEFAULT NULL',
             'tp1_code'           => 'VARCHAR(20) DEFAULT NULL',
+            'fre_week1'          => 'VARCHAR(10) DEFAULT NULL',
+            'fre_week2'          => 'VARCHAR(10) DEFAULT NULL',
+            'fre_week3'          => 'VARCHAR(10) DEFAULT NULL',
+            'fre_week4'          => 'VARCHAR(10) DEFAULT NULL',
+            'fre_customer'       => 'VARCHAR(10) DEFAULT NULL',
         ];
 
         foreach ($toAdd as $col => $definition) {
@@ -214,8 +229,16 @@ class SyncOfficialCustomersAction
 
     private function syncData($officialDb, array &$summary): void
     {
-        // Get all customer-route assignments
-        $assignments = $officialDb->table('customer_routes')->get();
+        // Get all customer-route assignments with frequency info
+        $assignments = $officialDb->table('customer_routes')
+            ->leftJoin('customer_frequencies', 'customer_routes.fre_code', '=', 'customer_frequencies.fre_code')
+            ->select('customer_routes.*', 
+                     'customer_frequencies.fre_week1', 
+                     'customer_frequencies.fre_week2', 
+                     'customer_frequencies.fre_week3', 
+                     'customer_frequencies.fre_week4', 
+                     'customer_frequencies.fre_customer')
+            ->get();
         Log::info('SyncOfficialCustomers: Found ' . $assignments->count() . ' assignments in official customer_routes.');
         
         foreach ($assignments as $assignment) {
@@ -269,6 +292,11 @@ class SyncOfficialCustomersAction
                     'con_code'          => $customer->con_code ?? null,
                     'cus_credit_limit'  => $customer->cus_credit_limit ?? null,
                     'cus_balance'       => $customer->cus_balance ?? null,
+                    'fre_week1'         => $assignment->fre_week1,
+                    'fre_week2'         => $assignment->fre_week2,
+                    'fre_week3'         => $assignment->fre_week3,
+                    'fre_week4'         => $assignment->fre_week4,
+                    'fre_customer'      => $assignment->fre_customer,
                 ]
             );
             $summary['customers_synced_master']++;
@@ -354,6 +382,11 @@ class SyncOfficialCustomersAction
                         'brc_code'             => $customer->brc_code,
                         'cus_credit_limit'     => $customer->cus_credit_limit,
                         'cus_balance'          => $customer->cus_balance,
+                        'fre_week1'            => $assignment->fre_week1,
+                        'fre_week2'            => $assignment->fre_week2,
+                        'fre_week3'            => $assignment->fre_week3,
+                        'fre_week4'            => $assignment->fre_week4,
+                        'fre_customer'         => $assignment->fre_customer,
                     ]
                 );
                 $summary['customers_pushed_tenants']++;
@@ -430,5 +463,37 @@ class SyncOfficialCustomersAction
 
         $summary['customer_routes_synced_master'] = $synced;
         Log::info("SyncOfficialCustomers: Finished syncing $synced customer routes.");
+    }
+
+    private function syncCustomerFrequencies($officialDb, array &$summary): void
+    {
+        Log::info('SyncOfficialCustomers: Starting sync of customer frequencies.');
+
+        $frequencies = $officialDb->table('customer_frequencies')->get();
+        $synced = 0;
+
+        foreach ($frequencies as $freq) {
+            try {
+                MasterCustomerFrequency::updateOrCreate(
+                    [
+                        'fre_code' => $freq->fre_code,
+                    ],
+                    [
+                        'fre_name'     => $freq->fre_name,
+                        'fre_week1'    => $freq->fre_week1,
+                        'fre_week2'    => $freq->fre_week2,
+                        'fre_week3'    => $freq->fre_week3,
+                        'fre_week4'    => $freq->fre_week4,
+                        'fre_customer' => $freq->fre_customer,
+                    ]
+                );
+                $synced++;
+            } catch (\Exception $e) {
+                $summary['errors'][] = "Error syncing customer frequency for fre_code {$freq->fre_code}: " . $e->getMessage();
+            }
+        }
+
+        $summary['customer_frequencies_synced_master'] = $synced;
+        Log::info("SyncOfficialCustomers: Finished syncing $synced customer frequencies.");
     }
 }

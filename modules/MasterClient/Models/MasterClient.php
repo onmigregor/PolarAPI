@@ -38,6 +38,11 @@ class MasterClient extends Model
         'con_code',
         'cus_credit_limit',
         'cus_balance',
+        'fre_week1',
+        'fre_week2',
+        'fre_week3',
+        'fre_week4',
+        'fre_customer',
     ];
 
     public function companyRoute()
