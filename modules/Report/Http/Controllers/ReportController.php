@@ -25,6 +25,11 @@ class ReportController extends Controller
         $ventasRows = $salesAction->execute($filters);
         $obsqRows = $obsqAction->execute($filters);
 
+        // Auditoría/Diagnóstico en el Log del HUB (Nivel Error para forzar visibilidad)
+        \Illuminate\Support\Facades\Log::error("AUDITORIA REPORTE - Filtros: " . json_encode($filters));
+        \Illuminate\Support\Facades\Log::error(" - Ventas encontradas: " . count($ventasRows));
+        \Illuminate\Support\Facades\Log::error(" - Obsequios encontrados: " . count($obsqRows));
+
         // Cabeceras del CSV
         $headers = [
             'FQ/REDI',
