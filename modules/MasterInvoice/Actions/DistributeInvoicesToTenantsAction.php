@@ -46,21 +46,46 @@ class DistributeInvoicesToTenantsAction
                 $groupedByInvoice = $items->groupBy('no_factura');
 
                 foreach ($groupedByInvoice as $nroFactura => $lines) {
+                    $validLines = [];
                     $firstLine = $lines->first();
                     $fecha = $this->formatDate($firstLine['fecha_creacion']);
                     $tasa = (float)($firstLine['tasa'] ?? 0);
-                    
-                    $totalFactura = $lines->sum(fn($l) => ($l['cantidad'] ?? 0) * ($l['precio'] ?? 0));
-                    $totalIvaAmount = $lines->sum(fn($l) => ($l['iva'] ?? 0) * ($l['cantidad'] ?? 1));
+
+                    // 1. Validar qué líneas tienen productos existentes
+                    foreach ($lines as $line) {
+                        $material = $line['material'];
+                        $product = DB::connection('tenant')->table('productos')
+                            ->where('codigoSKU', $material)
+                            ->first();
+
+                        if ($product) {
+                            $validLines[] = [
+                                'line' => $line,
+                                'product' => $product
+                            ];
+                        } else {
+                            Log::warning("DistributeInvoicesToTenantsAction: SKU $material no encontrado en tenant $dbName. Saltando linea.");
+                        }
+                    }
+
+                    if (empty($validLines)) {
+                        Log::warning("DistributeInvoicesToTenantsAction: La factura $nroFactura no tiene ningun producto valido en tenant $dbName. Saltando factura completa.");
+                        continue;
+                    }
+
+                    // 2. Calcular totales solo con lineas validas
+                    $totalFactura = collect($validLines)->sum(fn($vl) => ($vl['line']['cantidad'] ?? 0) * ($vl['line']['precio'] ?? 0));
+                    $totalIvaAmount = collect($validLines)->sum(fn($vl) => ($vl['line']['iva'] ?? 0) * ($vl['line']['cantidad'] ?? 1));
 
                     // Obtener info del proveedor
                     $providerInfo = $this->getProviderInfo($firstLine['codigo_polar_negocio']);
                     $montoDivisas = $tasa > 0 ? (($totalFactura + $totalIvaAmount) / $tasa) : 0;
 
+                    // 3. Crear/Actualizar Cabecera
                     DB::connection('tenant')->table('compras')->updateOrInsert(
                         ['nrofactura' => $nroFactura],
                         [
-                            'idcompra_detalle' => 0, // Se actualizará abajo
+                            'idcompra_detalle' => 0,
                             'nrocontrol' => $firstLine['no_control'] ?? '',
                             'fecha' => $fecha,
                             'fechavencimiento' => $fecha,
@@ -109,35 +134,18 @@ class DistributeInvoicesToTenantsAction
                         ]
                     );
 
-                    // 1.5 Obtener el idcompra generado (o existente)
-                    $compra = DB::connection('tenant')->table('compras')
+                    $idCompraReal = DB::connection('tenant')->table('compras')
                         ->where('nrofactura', $nroFactura)
-                        ->first();
-                        
-                    if (!$compra) {
-                        Log::error("No se pudo obtener el idcompra para la factura $nroFactura en tenant $dbName");
-                        continue;
-                    }
-                    
-                    $idCompraReal = $compra->idcompra;
+                        ->value('idcompra');
 
-                    // Sincronizar idcompra_detalle con idcompra en la cabecera
                     DB::connection('tenant')->table('compras')
                         ->where('idcompra', $idCompraReal)
                         ->update(['idcompra_detalle' => $idCompraReal]);
 
-                    // 2. Insertar Detalles (compras_detalle)
-                    foreach ($lines as $line) {
-                        $material = $line['material'];
-                        
-                        // BUSQUEDA DE IDPRODUCTO REAL POR SKU
-                        $product = DB::connection('tenant')->table('productos')
-                            ->where('codigoSKU', $material)
-                            ->first();
-                        
-                        $idProductoReal = $product ? $product->idproducto : 0;
-                        $nombreProductoReal = $product ? $product->producto : $material;
-                        
+                    // 4. Insertar Detalles
+                    foreach ($validLines as $vl) {
+                        $line = $vl['line'];
+                        $product = $vl['product'];
                         $precioCompra = (float)($line['precio'] ?? 0);
                         $cantidad = (int)($line['cantidad'] ?? 0);
 
@@ -145,17 +153,17 @@ class DistributeInvoicesToTenantsAction
                             [
                                 'ruta' => $routeName,
                                 'idcompra' => $idCompraReal,
-                                'idproducto' => $idProductoReal,
+                                'idproducto' => $product->idproducto,
                             ],
                             [
                                 'fecha' => $fecha,
-                                'producto' => $nombreProductoReal,
+                                'producto' => $product->producto,
                                 'cantidad' => $cantidad,
                                 'preciocompra' => $precioCompra,
                                 'precioventa' => $precioCompra,
                                 'tasa' => $tasa,
                                 'fecha_tasa' => $fecha,
-                                'montodivisas' => $cantidad * $precioCompra, // Cantidad * Precio
+                                'montodivisas' => $cantidad * $precioCompra,
                                 'porcentaje_rentab' => 0,
                                 'rentabilidad' => 0,
                                 'fideicomiso' => 0,
