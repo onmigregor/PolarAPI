@@ -48,15 +48,6 @@ class ExportObsequiosCsvAction
             $countBase = (clone $queryBase)->count();
             Log::error("      [DETECTIVE-OBS] Cliente $routeCode - Join Base: $countBase registros.");
 
-            // PASO 2: Filtros de Obsequio (Texto)
-            $queryBase->where(function($q) {
-                    $q->where('p.codigoSKU', 'LIKE', '%OBS%')
-                      ->orWhere(DB::raw('UPPER(vd.producto)'), 'LIKE', '%OBSEQUIO%');
-                });
-            
-            $countObsq = (clone $queryBase)->count();
-            Log::error("      [DETECTIVE-OBS] Cliente $routeCode - Tras Filtro Texto Obsequio: $countObsq registros.");
-
             // PASO 3: Filtro de Fecha
             if ($isRange) {
                 $queryBase->whereBetween('rpt.fecha', [$filters->start_date, $filters->end_date]);

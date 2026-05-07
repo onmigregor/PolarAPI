@@ -68,14 +68,20 @@ class ExportSalesCsvAction
             $countBase = (clone $queryBase)->count();
             Log::error("      [DETECTIVE] Cliente $routeCode - Join Base: $countBase registros.");
 
-            // PASO 2: Filtros de Eliminado y Texto
+            // PASO 2: Filtros de Eliminado y Texto (Eliminados filtros de texto OBS por solicitud)
             $queryBase->where('vd.eliminado', 0)
-                ->where('v.eliminado', 0)
-                ->where('p.codigoSKU', 'NOT LIKE', '%OBS%')
-                ->where('vd.producto', 'NOT LIKE', '%OBSEQUIO%');
+                ->where('v.eliminado', 0);
+
+            // EXCLUIR OBSEQUIOS: Si el IdVenta está en la tabla de planes tácticos, no es una venta normal
+            if (Schema::connection('tenant')->hasTable('recepcion_plan_tactico')) {
+                $obsequioIds = DB::connection('tenant')->table('recepcion_plan_tactico')->pluck('IdVenta')->toArray();
+                if (!empty($obsequioIds)) {
+                    $queryBase->whereNotIn('v.IdVenta', $obsequioIds);
+                }
+            }
             
             $countFiltros = (clone $queryBase)->count();
-            Log::error("      [DETECTIVE] Cliente $routeCode - Tras Filtros Eliminado/Texto: $countFiltros registros.");
+            Log::error("      [DETECTIVE] Cliente $routeCode - Tras Filtros Eliminado/Excluir Obsequios: $countFiltros registros.");
 
             // PASO 3: Filtro de Fecha
             if ($isRange) {
