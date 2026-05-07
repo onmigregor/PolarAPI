@@ -141,11 +141,11 @@ class SyncOfficialCustomersAction
         try {
             // A. Ensure record in company_routes
             CompanyRoute::updateOrCreate(
-                ['code' => $rot_code],
+                ['db_name' => $dbName],
                 [
+                    'code'       => $rot_code,
                     'name'       => $rot_code,
                     'route_name' => $rot_code,
-                    'db_name'    => $dbName,
                     'is_active'  => true,
                 ]
             );
@@ -222,6 +222,7 @@ class SyncOfficialCustomersAction
 
         foreach ($toAdd as $col => $definition) {
             if (!in_array($col, $existingColumns)) {
+                Log::info("SyncOfficialCustomers: Adding column {$col} to table clientes in connection {$connection}");
                 DB::connection($connection)->statement("ALTER TABLE clientes ADD COLUMN `{$col}` {$definition}");
             }
         }
@@ -241,6 +242,10 @@ class SyncOfficialCustomersAction
             ->get();
         Log::info('SyncOfficialCustomers: Found ' . $assignments->count() . ' assignments in official customer_routes.');
         
+        if ($assignments->count() === 0) {
+            Log::warning('SyncOfficialCustomers: No assignments found to sync!');
+        }
+        
         foreach ($assignments as $assignment) {
             Log::info("SyncOfficialCustomers: Processing assignment for cus_code: {$assignment->cus_code}, rot_code: {$assignment->rot_code}");
             
@@ -254,9 +259,17 @@ class SyncOfficialCustomersAction
                 continue;
             }
 
-            $companyRoute = CompanyRoute::where('code', $assignment->rot_code)->first();
-            if (!$companyRoute) {
-                Log::warning("SyncOfficialCustomers: CompanyRoute not found for rot_code: {$assignment->rot_code}");
+            $rotCode = $assignment->rot_code;
+            $companyRoute = CompanyRoute::where('route_name', $rotCode)
+                ->orWhere('route_name', 'v' . $rotCode)
+                ->orWhere('route_name', ltrim($rotCode, 'v'))
+                ->first();
+
+            if ($companyRoute) {
+                Log::info("SyncOfficialCustomers: Routing to Tenant DB: {$companyRoute->db_name} for route {$rotCode}");
+                $this->ensureInfrastructure($companyRoute->route_name, $companyRoute->db_name, $summary);
+            } else {
+                Log::warning("SyncOfficialCustomers: CompanyRoute NOT FOUND for rot_code: {$rotCode}");
                 continue;
             }
 
@@ -325,28 +338,39 @@ class SyncOfficialCustomersAction
                 DB::purge('tenant');
                 $tenantDb = DB::connection('tenant');
 
-                $tenantDb->table('clientes')->updateOrInsert(
-                    ['IdCliente' => (int)ltrim($customer->cus_code, '0')],
-                    [
-                        'cep'           => $customer->cus_code,
-                        'Cliente'       => $customer->cus_name ?? '',
-                        'RIF'           => $customer->cus_tax_id1 ?? '',
-                        'tp1_code'      => $customer->tp1_code ?? '',
-                        'Direccion'     => ($customer->cus_street1 . ' ' . $customer->cus_street2 . ' ' . $customer->cus_street3),
-                        'email'         => $customer->cus_email ?? '',
-                        'Ruta'          => $assignment->rot_code,
-                        'latitud'       => $customer->cus_latitude ?? '',
-                        'longitud'      => $customer->cus_longitude ?? '',
-                        'status'        => 'Activo',
-                        // ... set defaults for other required fields if needed
-                        'PIN'           => '',
-                        'instagram'     => '',
-                        'DiaDespacho1'  => '',
-                        'DiaDespacho2'  => '',
-                        'DiaDespacho3'  => '',
-                        'FormaPago'     => '',
-                        'diasCredito'   => 0,
-                        'MontoCredito'  => 0,
+                        // Lógica de Días de Despacho (Visit Days)
+                        $activeDays = [];
+                        if ($routeFlags) {
+                            if ((int)$routeFlags->ctr_monday > 0) $activeDays[] = 'LUNES';
+                            if ((int)$routeFlags->ctr_tuesday > 0) $activeDays[] = 'MARTES';
+                            if ((int)$routeFlags->ctr_wednesday > 0) $activeDays[] = 'MIERCOLES';
+                            if ((int)$routeFlags->ctr_thursday > 0) $activeDays[] = 'JUEVES';
+                            if ((int)$routeFlags->ctr_friday > 0) $activeDays[] = 'VIERNES';
+                            if ((int)$routeFlags->ctr_saturday > 0) $activeDays[] = 'SABADO';
+                            if ((int)$routeFlags->ctr_sunday > 0) $activeDays[] = 'DOMINGO';
+                        }
+
+                        $tenantDb->table('clientes')->updateOrInsert(
+                            ['IdCliente' => (int)ltrim($customer->cus_code, '0')],
+                            [
+                                'cep'           => $customer->cus_code,
+                                'Cliente'       => $customer->cus_name ?? '',
+                                'RIF'           => $customer->cus_tax_id1 ?? '',
+                                'tp1_code'      => $customer->tp1_code ?? '',
+                                'Direccion'     => ($customer->cus_street1 . ' ' . $customer->cus_street2 . ' ' . $customer->cus_street3),
+                                'email'         => $customer->cus_email ?? '',
+                                'Ruta'          => $assignment->rot_code,
+                                'latitud'       => $customer->cus_latitude ?? '',
+                                'longitud'      => $customer->cus_longitude ?? '',
+                                'status'        => 'Activo',
+                                'PIN'           => '',
+                                'instagram'     => '',
+                                'DiaDespacho1'  => $activeDays[0] ?? '',
+                                'DiaDespacho2'  => $activeDays[1] ?? '',
+                                'DiaDespacho3'  => $activeDays[0] ?? '',
+                                'FormaPago'     => '',
+                                'diasCredito'   => 0,
+                                'MontoCredito'  => 0,
                         'Activo'        => 1,
                         'PorcentajeAcuerdoComercial' => 0,
                         'tipoclienteplantactico' => '',

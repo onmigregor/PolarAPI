@@ -22,10 +22,10 @@ class SyncMasterToClientsAction
      */
     private const COLUMN_MAPPING = [
         'marca'     => 'brand',
-        'familia'   => 'cl1_code',
-        'categoria' => 'cl2_code',
-        'grupo'     => 'cl3_code',
-        'segmento'  => 'cl4_code',
+        'class1'    => 'cl1_code',
+        'class2'    => 'cl2_code',
+        'class3'    => 'cl3_code',
+        'class4'    => 'cl4_code',
         'unt_code'  => 'unt_code',
         'proshortname' => 'pro_short_name',
         'probarcode'   => 'barcode',
@@ -78,7 +78,7 @@ class SyncMasterToClientsAction
                 $tenantProducts = DB::connection('tenant')
                     ->table('productos')
                     ->select(
-                        'idproducto', 'codigoSKU', 'marca', 'familia', 'categoria', 'grupo', 'segmento', 'unt_code',
+                        'idproducto', 'codigoSKU', 'marca', 'class1', 'class2', 'class3', 'class4', 'unt_code',
                         'proshortname', 'probarcode', 'bomcode', 'proreturnallowed', 
                         'prodamegereturnsallowed', 'proavailableforsale', 'procustomerinventoryallowed'
                     )
@@ -99,10 +99,10 @@ class SyncMasterToClientsAction
                     // Optimización Delta: Solo actualizar si hay cambios reales
                     if (
                         $tenantProduct->marca === $master->brand &&
-                        $tenantProduct->familia === $master->cl1_code &&
-                        $tenantProduct->categoria === $master->cl2_code &&
-                        $tenantProduct->grupo === $master->cl3_code &&
-                        $tenantProduct->segmento === $master->cl4_code &&
+                        $tenantProduct->class1 === $master->cl1_code &&
+                        $tenantProduct->class2 === $master->cl2_code &&
+                        $tenantProduct->class3 === $master->cl3_code &&
+                        $tenantProduct->class4 === $master->cl4_code &&
                         $tenantProduct->unt_code === $master->unt_code &&
                         $tenantProduct->proshortname === $master->pro_short_name &&
                         $tenantProduct->probarcode === $master->barcode &&
@@ -121,10 +121,10 @@ class SyncMasterToClientsAction
                         ->where('idproducto', $tenantProduct->idproducto)
                         ->update([
                             'marca'     => $master->brand,
-                            'familia'   => $master->cl1_code,
-                            'categoria' => $master->cl2_code,
-                            'grupo'     => $master->cl3_code,
-                            'segmento'  => $master->cl4_code,
+                            'class1'    => $master->cl1_code,
+                            'class2'    => $master->cl2_code,
+                            'class3'    => $master->cl3_code,
+                            'class4'    => $master->cl4_code,
                             'unt_code'  => $master->unt_code,
                             'proshortname' => $master->pro_short_name,
                             'probarcode'   => $master->barcode,
@@ -160,10 +160,10 @@ class SyncMasterToClientsAction
     {
         $columns = [
             'marca'     => 'VARCHAR(255) NULL',
-            'familia'   => 'VARCHAR(50) NULL',
-            'categoria' => 'VARCHAR(100) NULL',
-            'grupo'     => 'VARCHAR(100) NULL',
-            'segmento'  => 'VARCHAR(100) NULL',
+            'class1'    => 'VARCHAR(50) NULL',
+            'class2'    => 'VARCHAR(100) NULL',
+            'class3'    => 'VARCHAR(100) NULL',
+            'class4'    => 'VARCHAR(100) NULL',
             'unt_code'  => 'VARCHAR(20) NULL',
             'proshortname' => 'VARCHAR(255) NULL',
             'probarcode'   => 'VARCHAR(50) NULL',
