@@ -54,10 +54,17 @@ try {
             $tenantService->connect($client);
             
             $ventasCount = DB::connection('tenant')->table('ventaspxc')->count();
-            $productosCount = DB::connection('tenant')->table('productos')->count();
-            
-            echo " - Ventas en la tabla ventaspxc: $ventasCount\n";
-            echo " - Productos en catálogo: $productosCount\n";
+        $productosCount = DB::connection('tenant')->table('productos')->count();
+        
+        echo " - Ventas en la tabla ventaspxc: $ventasCount\n";
+        
+        if ($ventasCount > 0) {
+            $minDate = DB::connection('tenant')->table('ventaspxc')->min('Fecha');
+            $maxDate = DB::connection('tenant')->table('ventaspxc')->max('Fecha');
+            echo "   * RANGO DE FECHAS EN DB: Desde [$minDate] hasta [$maxDate]\n";
+        }
+        
+        echo " - Productos en catálogo: $productosCount\n";
             
             // Simular el JOIN del reporte de Ventas
             $joinVentas = DB::connection('tenant')
@@ -82,7 +89,17 @@ try {
                     ->join('ventas_detalle as vd', 'v.IdVenta', '=', 'vd.IdVenta')
                     ->join('productos as p', 'vd.idproducto', '=', 'p.idproducto')
                     ->count();
-                echo " - Obsequios que pasan el JOIN: $joinObsq\n";
+                echo " - Obsequios que pasan el JOIN completo: $joinObsq\n";
+
+                if ($joinObsq == 0 && $rptCount > 0) {
+                    echo " !!! ANALISIS DE DESFASE EN OBSEQUIOS:\n";
+                    $sampleRpts = DB::connection('tenant')->table('recepcion_plan_tactico')->take(3)->get();
+                    foreach ($sampleRpts as $sr) {
+                        $existsInVentas = DB::connection('tenant')->table('ventaspxc')->where('IdVenta', $sr->IdVenta)->exists();
+                        $existsInDetalle = DB::connection('tenant')->table('ventas_detalle')->where('IdVenta', $sr->IdVenta)->exists();
+                        echo "   * ID Venta [{$sr->IdVenta}]: En Ventas: " . ($existsInVentas ? "SI" : "NO") . " | En Detalle: " . ($existsInDetalle ? "SI" : "NO") . "\n";
+                    }
+                }
             }
 
         } catch (\Exception $e) {
