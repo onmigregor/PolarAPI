@@ -76,9 +76,10 @@ class ExportObsequiosCsvAction
                 'p.unidadesporcaja',
                 'c.RIF',
                 'c.cep as client_cep',
-                'c.tp1_code as tp1code',
                 'v.IdCliente'
-            )->get();
+            );
+
+            $results = $results->get();
 
             foreach ($results as $row) {
                 $um = ((int)$row->unidadesporcaja === 1) ? 'UND' : 'CJS';
@@ -100,7 +101,6 @@ class ExportObsequiosCsvAction
                     'rif_ci_clte'   => $row->RIF ?? '',
                     'cl_doc'        => 'OBSQ',
                     'motivo'        => '',
-                    'tp1code'       => $row->tp1code ?? '',
                 ];
             }
 

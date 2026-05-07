@@ -102,8 +102,7 @@ class ExportSalesCsvAction
                     'p.producto',
                     'p.unidadesporcaja',
                     'c.RIF',
-                    'c.cep as client_cep',
-                    'c.tp1_code as tp1code'
+                    'c.cep as client_cep'
                 );
 
             if ($hasDistTable) {
@@ -136,7 +135,6 @@ class ExportSalesCsvAction
                     'rif_ci_clte'   => $row->RIF ?? '',
                     'cl_doc'        => $clDoc,
                     'motivo'        => $row->reaCode ?? '',
-                    'tp1code'       => $row->tp1code ?? '',
                 ];
             }
 

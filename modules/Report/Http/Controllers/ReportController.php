@@ -50,7 +50,6 @@ class ReportController extends Controller
             'RIF_CI_CLTE',
             'Cl. Doc',
             'Motivo',
-            'Cadena(TP1)',
         ];
 
 
