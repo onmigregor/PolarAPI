@@ -69,6 +69,26 @@ return [
             'root' => env('SFTP_ROOT', '/'),
             'timeout' => 30,
         ],
+        
+        'sftp_ventas' => [
+            'driver' => 'sftp',
+            'host' => env('SFTP_HOST'),
+            'username' => env('SFTP_USERNAME'),
+            'password' => env('SFTP_PASSWORD'),
+            'port' => (int) env('SFTP_PORT', 22),
+            'root' => env('SFTP_ROOT_VENTAS', '/'),
+            'timeout' => 30,
+        ],
+
+        'sftp_obsequios' => [
+            'driver' => 'sftp',
+            'host' => env('SFTP_HOST'),
+            'username' => env('SFTP_USERNAME'),
+            'password' => env('SFTP_PASSWORD'),
+            'port' => (int) env('SFTP_PORT', 22),
+            'root' => env('SFTP_ROOT_OBSEQUIOS', '/'),
+            'timeout' => 30,
+        ],
 
     ],
 

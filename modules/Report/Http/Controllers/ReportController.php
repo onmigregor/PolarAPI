@@ -64,6 +64,9 @@ class ReportController extends Controller
         $ventasCsv = $this->generateCsvContent($headers, $ventasRows);
         $obsqCsv = $this->generateCsvContent($headers, $obsqRows);
 
+        $ventasZipFilename = str_replace('.csv', '.zip', $ventasFilename);
+        $obsqZipFilename = str_replace('.csv', '.zip', $obsqFilename);
+
         try {
             if (config('app.env') === 'local') {
                 // Asegurar que el directorio existe
@@ -74,9 +77,13 @@ class ReportController extends Controller
                 file_put_contents(storage_path("ftp/{$ventasFilename}"), $ventasCsv);
                 file_put_contents(storage_path("ftp/{$obsqFilename}"), $obsqCsv);
             } else {
-                // Subir al SFTP de Polar solo en PRODUCCIÓN (u otros)
-                \Illuminate\Support\Facades\Storage::disk('sftp_reports')->put($ventasFilename, $ventasCsv);
-                \Illuminate\Support\Facades\Storage::disk('sftp_reports')->put($obsqFilename, $obsqCsv);
+                // Generar ZIPs en memoria para PRODUCCIÓN
+                $ventasZipContent = $this->createZipContent($ventasFilename, $ventasCsv);
+                $obsqZipContent = $this->createZipContent($obsqFilename, $obsqCsv);
+
+                // Subir al SFTP en sus respectivas carpetas
+                \Illuminate\Support\Facades\Storage::disk('sftp_ventas')->put($ventasZipFilename, $ventasZipContent);
+                \Illuminate\Support\Facades\Storage::disk('sftp_obsequios')->put($obsqZipFilename, $obsqZipContent);
             }
 
             return response()->json([
@@ -85,11 +92,11 @@ class ReportController extends Controller
                     ? "Reportes generados localmente en storage/ftp."
                     : "Reportes generados y subidos al SFTP correctamente.",
                 'data' => [
-                    'ventas_file' => $ventasFilename,
+                    'ventas_file' => config('app.env') === 'local' ? $ventasFilename : $ventasZipFilename,
                     'ventas_count' => count($ventasRows),
-                    'obsq_file' => $obsqFilename,
+                    'obsq_file' => config('app.env') === 'local' ? $obsqFilename : $obsqZipFilename,
                     'obsq_count' => count($obsqRows),
-                    'destination' => config('app.env') === 'local' ? 'Local Storage' : 'SFTP Polar',
+                    'destination' => config('app.env') === 'local' ? 'Local Storage' : 'SFTP Polar (Zipped)',
                 ]
             ]);
         } catch (\Exception $e) {
@@ -120,5 +127,25 @@ class ReportController extends Controller
             ]) . "\r\n";
         }
         return $csvContent;
+    }
+
+    /**
+     * Crea un archivo ZIP en memoria y retorna su contenido binario.
+     */
+    private function createZipContent(string $filenameInZip, string $content): string
+    {
+        $tempFile = tempnam(sys_get_temp_dir(), 'zip');
+        $zip = new \ZipArchive();
+        
+        if ($zip->open($tempFile, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) === true) {
+            $zip->addFromString($filenameInZip, $content);
+            $zip->close();
+            
+            $zipContent = file_get_contents($tempFile);
+            unlink($tempFile);
+            return $zipContent;
+        }
+
+        throw new \Exception("No se pudo crear el archivo ZIP temporal.");
     }
 }
