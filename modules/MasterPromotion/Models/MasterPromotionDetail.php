@@ -25,5 +25,6 @@ class MasterPromotionDetail extends Model
         'pdl_order',
         'pdl_scalable',
         'pdl_accumulable',
+        'pdl_extended_file',
     ];
 }

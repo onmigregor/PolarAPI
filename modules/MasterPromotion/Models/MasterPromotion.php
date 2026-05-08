@@ -17,5 +17,6 @@ class MasterPromotion extends Model
         'prm_can_be_disabled',
         'prm_enabled_value_on',
         'prm_valid_to_sale',
+        'prm_extended_file',
     ];
 }

@@ -49,6 +49,8 @@ class SyncPromotionsToClientsAction
             `prm_can_be_disabled` varchar(10) DEFAULT NULL COMMENT 'Si el vendedor puede desactivarla',
             `prm_enabled_value_on` varchar(10) DEFAULT NULL COMMENT 'Valor por defecto de activación',
             `prm_valid_to_sale` varchar(10) DEFAULT NULL COMMENT 'Válida para venta directa',
+            `prm_extended_file` text DEFAULT NULL COMMENT 'JSON con campos extendidos de cabecera',
+            `pdl_extended_file` text DEFAULT NULL COMMENT 'JSON con campos extendidos de detalle',
             `synced_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Última sincronización',
             PRIMARY KEY (`pdl_code`),
             KEY `idx_prm_code` (`prm_code`),
@@ -202,17 +204,17 @@ class SyncPromotionsToClientsAction
 
                 Log::info("SyncPromotionsToClients: Limpiados {$deletedPromos} promos y {$deletedProducts} productos previos en {$tenant->db_name}");
 
-                // Insertar promociones para este Tenant
-                $promoCount = 0;
-                $productCount = 0;
+                // Insertar promociones para este Tenant (BATCH MODE)
+                $promoData = [];
+                $productData = [];
                 $now = now();
 
                 foreach ($allDetailsForTenant as $detail) {
                     $promotion = $masterPromotions->get($detail->prm_code);
                     if (!$promotion) continue;
 
-                    // Insertar cabecera unificada
-                    DB::connection('tenant')->table('promociones_polar')->insert([
+                    // Preparar cabecera unificada
+                    $promoData[] = [
                         'pdl_code'              => $detail->pdl_code,
                         'prm_code'              => $detail->prm_code,
                         'prm_name'              => $promotion->prm_name,
@@ -230,14 +232,15 @@ class SyncPromotionsToClientsAction
                         'prm_can_be_disabled'   => $promotion->prm_can_be_disabled,
                         'prm_enabled_value_on'  => $promotion->prm_enabled_value_on,
                         'prm_valid_to_sale'     => $promotion->prm_valid_to_sale,
+                        'prm_extended_file'     => $promotion->prm_extended_file,
+                        'pdl_extended_file'     => $detail->pdl_extended_file,
                         'synced_at'             => $now,
-                    ]);
-                    $promoCount++;
+                    ];
 
-                    // Insertar productos asociados a este detalle
+                    // Preparar productos asociados
                     $detailProducts = $productsByDetail->get($detail->pdl_code, collect());
                     foreach ($detailProducts as $product) {
-                        DB::connection('tenant')->table('promociones_polar_productos')->insert([
+                        $productData[] = [
                             'prp_code'           => $product->prp_code,
                             'pdl_code'           => $product->pdl_code,
                             'prm_code'           => $product->prm_code,
@@ -276,10 +279,25 @@ class SyncPromotionsToClientsAction
                             'prp_max_free4'      => $product->prp_max_free4,
                             'unt_code_free'      => $product->unt_code_free,
                             'synced_at'          => $now,
-                        ]);
-                        $productCount++;
+                        ];
                     }
                 }
+
+                // Inserción masiva en bloques para optimizar velocidad y memoria
+                if (!empty($promoData)) {
+                    foreach (array_chunk($promoData, 50) as $chunk) {
+                        DB::connection('tenant')->table('promociones_polar')->insert($chunk);
+                    }
+                }
+
+                if (!empty($productData)) {
+                    foreach (array_chunk($productData, 100) as $chunk) {
+                        DB::connection('tenant')->table('promociones_polar_productos')->insert($chunk);
+                    }
+                }
+
+                $promoCount = count($promoData);
+                $productCount = count($productData);
 
                 $results['promotions_synced'] += $promoCount;
                 $results['products_synced'] += $productCount;
@@ -342,13 +360,14 @@ class SyncPromotionsToClientsAction
         if (empty($promoExists)) {
             $conn->statement(self::CREATE_PROMOCIONES_TABLE);
         } else {
-            // Verificar columnas faltantes
             $columns = collect($conn->select("SHOW COLUMNS FROM `promociones_polar`"))->pluck('Field')->toArray();
-            $required = ['pdl_order', 'pdl_scalable', 'pdl_accumulable'];
+            $required = ['pdl_order', 'pdl_scalable', 'pdl_accumulable', 'prm_extended_file', 'pdl_extended_file'];
             foreach ($required as $col) {
                 if (!in_array($col, $columns)) {
-                    $type = ($col === 'pdl_order') ? "int(11) DEFAULT NULL" : "tinyint(1) DEFAULT 0";
-                    $conn->statement("ALTER TABLE `promociones_polar` ADD COLUMN `$col` $type AFTER `unt_code_required` ");
+                    $type = (strpos($col, 'file') !== false) ? "TEXT DEFAULT NULL" : 
+                            (($col === 'pdl_order') ? "int(11) DEFAULT NULL" : "tinyint(1) DEFAULT 0");
+                    
+                    $conn->statement("ALTER TABLE `promociones_polar` ADD COLUMN `$col` $type");
                 }
             }
         }

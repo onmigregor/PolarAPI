@@ -12,7 +12,9 @@ class SyncMasterCompaniesAction
     public function execute(): array
     {
         $results = [
+            'branches'    => 0,
             'logins'      => 0,
+            'login_links' => 0,
             'territories' => 0,
             'errors'      => [],
         ];
@@ -20,7 +22,22 @@ class SyncMasterCompaniesAction
         try {
             $db = DB::connection('productos_polar');
 
-            // 1. Sync Logins
+            // 1. Sync Branches (Sucursales)
+            $branches = $db->table('companies_branches')->get();
+            foreach ($branches as $branch) {
+                if (empty($branch->brc_code)) continue;
+                \Modules\MasterCompany\Models\MasterCompanyBranch::updateOrCreate(
+                    ['brc_code' => $branch->brc_code],
+                    [
+                        'brc_name' => $branch->brc_name,
+                        'brc_general_header1' => $branch->brc_general_header1,
+                        'reg_code' => $branch->reg_code,
+                    ]
+                );
+                $results['branches']++;
+            }
+
+            // 2. Sync Logins
             $logins = $db->table('companies_logins')->get();
             foreach ($logins as $login) {
                 if (empty($login->lgn_code)) continue;
@@ -39,7 +56,17 @@ class SyncMasterCompaniesAction
                 $results['logins']++;
             }
 
-            // 2. Sync Territories
+            // 3. Sync Login-Branch Links
+            $links = $db->table('companies_login_branches')->get();
+            foreach ($links as $link) {
+                \Modules\MasterCompany\Models\MasterCompanyLoginBranch::updateOrCreate(
+                    ['lgn_code' => $link->lgn_code, 'brc_code' => $link->brc_code],
+                    []
+                );
+                $results['login_links']++;
+            }
+
+            // 4. Sync Territories
             $territories = $db->table('companies_territories')->get();
             foreach ($territories as $territory) {
                 if (empty($territory->try_code)) continue;
