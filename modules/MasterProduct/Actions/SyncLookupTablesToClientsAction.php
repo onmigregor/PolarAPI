@@ -11,11 +11,11 @@ use Illuminate\Support\Facades\Log;
 class SyncLookupTablesToClientsAction
 {
     private const TABLES_MAP = [
-        'master_product_families'   => 'product_families',
-        'master_product_categories' => 'product_categories',
-        'master_product_class_3'    => 'product_class_3',
-        'master_product_class_4'    => 'product_class_4',
-        'master_product_units'      => 'product_units',
+        'master_product_families'   => 'producto_class1',
+        'master_product_categories' => 'producto_class2',
+        'master_product_class_3'    => 'producto_class3',
+        'master_product_class_4'    => 'producto_class4',
+        'master_product_units'      => 'producto_units',
     ];
 
     public function __construct(
@@ -45,13 +45,12 @@ class SyncLookupTablesToClientsAction
                 // Asegurar estructura
                 $this->ensureTableExists($tenantTable, $hubTable);
 
-                // Sincronizar datos (Truncate + Insert para estas tablas de catálogo)
-                // Nota: Usamos transacciones o simplemente limpieza total ya que son tablas pequeñas
+                // Sincronizar datos (Truncate + Insert)
                 DB::connection('tenant')->table($tenantTable)->truncate();
                 
                 $rows = $hubData[$hubTable]->map(function($row) {
                     $data = (array)$row;
-                    unset($data['id']); // Dejamos que el Tenant genere sus propios IDs o use los mismos si no hay conflictos
+                    unset($data['id']); 
                     return $data;
                 })->toArray();
 
@@ -82,7 +81,7 @@ class SyncLookupTablesToClientsAction
             return;
         }
 
-        // Crear tabla dinámicamente basada en la estructura del HUB (simplificada)
+        // Crear tabla dinámicamente basada en la estructura del HUB
         Schema::connection('tenant')->create($tenantTable, function ($table) use ($hubTable) {
             $table->id();
             
