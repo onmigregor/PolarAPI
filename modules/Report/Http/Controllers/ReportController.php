@@ -58,14 +58,14 @@ class ReportController extends Controller
             $dateLabel = "{$filters->start_date}_to_{$filters->end_date}";
         }
 
-        $ventasFilename = "ventas_{$dateLabel}.csv";
-        $obsqFilename = "obsequios_{$dateLabel}.csv";
+        $ventasFilename = "ventas_{$dateLabel}.txt";
+        $obsqFilename = "obsequios_{$dateLabel}.txt";
 
         $ventasCsv = $this->generateCsvContent($headers, $ventasRows);
         $obsqCsv = $this->generateCsvContent($headers, $obsqRows);
 
-        $ventasZipFilename = str_replace('.csv', '.zip', $ventasFilename);
-        $obsqZipFilename = str_replace('.csv', '.zip', $obsqFilename);
+        $ventasZipFilename = str_replace('.txt', '.zip', $ventasFilename);
+        $obsqZipFilename = str_replace('.txt', '.zip', $obsqFilename);
 
         try {
             if (config('app.env') === 'local') {
