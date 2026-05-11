@@ -283,6 +283,17 @@ class SyncPromotionsToClientsAction
                     }
                 }
 
+                // --- NUEVO: Asegurar que los productos existan en el Tenant antes de insertar promociones ---
+                if (!empty($productData)) {
+                    $relevantProductCodes = array_unique(array_column($productData, 'pro_code'));
+                    $productEnsurer = new EnsurePromotionProductsExistAction();
+                    $ensureRes = $productEnsurer->execute($tenant->db_name, $relevantProductCodes);
+                    if ($ensureRes['created'] > 0) {
+                        Log::info("SyncPromotionsToClients: Creados {$ensureRes['created']} productos faltantes en '{$tenant->name}'");
+                    }
+                }
+                // ---------------------------------------------------------------------------------------------
+
                 // Inserción masiva en bloques para optimizar velocidad y memoria
                 if (!empty($promoData)) {
                     foreach (array_chunk($promoData, 50) as $chunk) {
