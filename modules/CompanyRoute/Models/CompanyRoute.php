@@ -40,4 +40,27 @@ class CompanyRoute extends Model
     {
         return $this->belongsTo(Region::class);
     }
+
+    /**
+     * Mutadores para forzar minúsculas
+     */
+    public function setCodeAttribute($value)
+    {
+        $this->attributes['code'] = strtolower($value);
+    }
+
+    public function setNameAttribute($value)
+    {
+        $this->attributes['name'] = strtolower($value);
+    }
+
+    public function setRouteNameAttribute($value)
+    {
+        $this->attributes['route_name'] = strtolower($value);
+    }
+
+    public function setDbNameAttribute($value)
+    {
+        $this->attributes['db_name'] = strtolower($value);
+    }
 }

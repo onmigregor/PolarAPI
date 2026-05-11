@@ -108,10 +108,11 @@ class SyncOfficialCustomersAction
             foreach ($routes as $rot_code) {
                 if (empty($rot_code)) continue;
                 
-                $dbName = 'www_' . $rot_code;
+                $cleanRotCode = strtolower((string)$rot_code);
+                $dbName = 'www_' . $cleanRotCode;
                 
                 // Ensure infrastructure (DB + Table)
-                if ($this->ensureInfrastructure((string)$rot_code, $dbName, $summary)) {
+                if ($this->ensureInfrastructure($cleanRotCode, $dbName, $summary)) {
                     $summary['tenants_processed']++;
                 }
             }
