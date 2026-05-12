@@ -21,6 +21,8 @@ class SyncMasterProductsToTenantsAction
         ];
 
         try {
+            Log::info("SyncMasterProductsToTenants: Iniciando sincronización total para '{$tenantDb}'");
+
             // 1. Obtener la información de la ruta en el HUB para el campo 'ruta'
             $companyRoute = \Modules\CompanyRoute\Models\CompanyRoute::where('db_name', $tenantDb)->first();
             $routeName = $companyRoute ? $companyRoute->name : 'S/R';
@@ -120,6 +122,8 @@ class SyncMasterProductsToTenantsAction
                 }
                 $summary['created'] = count($toInsert);
             }
+
+            Log::info("SyncMasterProductsToTenants: Finalizado para '{$tenantDb}'. Maestro: {$summary['total_master']}, Creados: {$summary['created']}, Actualizados: {$summary['updated']}");
 
             return $summary;
 
