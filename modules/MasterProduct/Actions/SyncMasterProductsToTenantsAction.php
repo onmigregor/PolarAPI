@@ -54,6 +54,7 @@ class SyncMasterProductsToTenantsAction
                 $fullData = [
                     'codigoSKU'                 => $sku,
                     'producto'                  => $product->name,
+                    'grupo'                     => 6,
                     'ruta'                      => $routeName,
                     'descripcion1'              => '',
                     'descripcion2'              => '',
