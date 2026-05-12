@@ -21,7 +21,11 @@ class SyncMasterProductsToTenantsAction
         ];
 
         try {
-            // 1. Obtener todos los productos maestros activos del HUB
+            // 1. Obtener la información de la ruta en el HUB para el campo 'ruta'
+            $companyRoute = \Modules\CompanyRoute\Models\CompanyRoute::where('db_name', $tenantDb)->first();
+            $routeName = $companyRoute ? $companyRoute->name : 'S/R';
+
+            // 2. Obtener todos los productos maestros activos del HUB
             $masterProducts = MasterProduct::where('is_active', true)->get();
             $summary['total_master'] = $masterProducts->count();
 
@@ -48,7 +52,7 @@ class SyncMasterProductsToTenantsAction
                 $fullData = [
                     'codigoSKU'                 => $sku,
                     'producto'                  => $product->name,
-                    'ruta'                      => 'S/R',
+                    'ruta'                      => $routeName,
                     'descripcion1'              => '',
                     'descripcion2'              => '',
                     'imagen'                    => 'no-image.png',
