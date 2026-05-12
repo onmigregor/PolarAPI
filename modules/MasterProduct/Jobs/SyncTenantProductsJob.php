@@ -58,7 +58,13 @@ class SyncTenantProductsJob implements ShouldQueue
             \Illuminate\Support\Facades\DB::purge('tenant');
 
             if (\Illuminate\Support\Facades\Schema::connection('tenant')->hasTable('productos')) {
-                $neededColumns = ['class1', 'class2', 'class3', 'class4'];
+                $neededColumns = [
+                    'class1', 'class2', 'class3', 'class4',
+                    'unt_code', 'familia', 'segmento',
+                    'proshortname', 'probarcode', 'bomcode',
+                    'proreturnallowed', 'prodamegereturnsallowed',
+                    'proavailableforsale', 'procustomerinventoryallowed'
+                ];
                 foreach ($neededColumns as $col) {
                     if (!\Illuminate\Support\Facades\Schema::connection('tenant')->hasColumn('productos', $col)) {
                         \Illuminate\Support\Facades\Schema::connection('tenant')->table('productos', function ($table) use ($col) {

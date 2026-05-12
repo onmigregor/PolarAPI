@@ -24,8 +24,8 @@ class SyncMasterProductsToTenantsAction
             Log::info("SyncMasterProductsToTenants: Iniciando sincronización total para '{$tenantDb}'");
 
             // 1. Obtener la información de la ruta en el HUB para el campo 'ruta'
-            $companyRoute = \Modules\CompanyRoute\Models\CompanyRoute::where('db_name', $tenantDb)->first();
-            $routeName = $companyRoute ? $companyRoute->name : 'S/R';
+            $companyRoute = \Modules\CompanyRoute\Models\CompanyRoute::where('db_name', $tenantDb)->firstOrFail();
+            $routeName = $companyRoute->route_name;
 
             // 2. Obtener todos los productos maestros activos del HUB
             $masterProducts = MasterProduct::where('is_active', true)->get();

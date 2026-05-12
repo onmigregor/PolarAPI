@@ -32,7 +32,13 @@ class EnsureProductClassificationColumnsExistAction
                 }
 
                 $columnsToAdd = [];
-                $neededColumns = ['class1', 'class2', 'class3', 'class4'];
+                $neededColumns = [
+                    'class1', 'class2', 'class3', 'class4',
+                    'unt_code', 'familia', 'segmento',
+                    'proshortname', 'probarcode', 'bomcode',
+                    'proreturnallowed', 'prodamegereturnsallowed',
+                    'proavailableforsale', 'procustomerinventoryallowed'
+                ];
                 
                 foreach ($neededColumns as $col) {
                     if (!Schema::connection('tenant')->hasColumn('productos', $col)) {
