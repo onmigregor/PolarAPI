@@ -49,4 +49,16 @@ class MasterClient extends Model
     {
         return $this->belongsTo(CompanyRoute::class);
     }
+
+    public function pools()
+    {
+        return $this->belongsToMany(
+            MasterPool::class,
+            'master_customer_pools',
+            'cus_code',
+            'pol_code',
+            'cep',
+            'pol_code'
+        );
+    }
 }

@@ -22,15 +22,26 @@ class MasterClientController extends Controller
 
     public function syncPolar(\Illuminate\Http\Request $request, \Modules\MasterClient\Actions\MasterClientBulkSyncAction $action): JsonResponse
     {
-        $data = $request->input('data', []);
-        $branches = $request->input('branches', []);
-        $segments = $request->input('segments', []);
-        $result = $action->execute($data, $branches, $segments);
+        try {
+            $data = $request->input('data', []);
+            $branches = $request->input('branches', []);
+            $segments = $request->input('segments', []);
+            $pools = $request->input('pools', []);
+            $customerPools = $request->input('customer_pools', []);
+            
+            $result = $action->execute($data, $branches, $segments, $pools, $customerPools);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Polar Client synchronization completed',
-            'data' => $result,
-        ]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Polar Client synchronization completed',
+                'data' => $result,
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Error in syncPolar: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 }

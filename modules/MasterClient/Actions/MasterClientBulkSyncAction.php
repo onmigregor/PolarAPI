@@ -8,11 +8,20 @@ use Modules\CompanyRoute\Models\CompanyRoute;
 
 class MasterClientBulkSyncAction
 {
-    public function execute(array $data, array $branches = [], array $segments = []): array
+    protected EnsureCustomerPoolTablesExistAction $ensureTablesAction;
+
+    public function __construct(EnsureCustomerPoolTablesExistAction $ensureTablesAction)
+    {
+        $this->ensureTablesAction = $ensureTablesAction;
+    }
+
+    public function execute(array $data, array $branches = [], array $segments = [], array $pools = [], array $customerPools = []): array
     {
         $results = [
             'branches_synced' => 0,
             'segments_synced' => 0,
+            'pools_synced' => 0,
+            'customer_pools_synced' => 0,
             'created' => 0,
             'updated' => 0,
             'pushed_to_tenants' => 0,
@@ -42,6 +51,35 @@ class MasterClientBulkSyncAction
                 );
                 $segmentsMap[$segment['tp3_code']] = $segment['tp3_name'];
                 $results['segments_synced']++;
+            }
+        }
+
+        // 0c. Procesar Pools
+        if (!empty($pools)) {
+            foreach ($pools as $pool) {
+                \Modules\MasterClient\Models\MasterPool::updateOrCreate(
+                    ['pol_code' => $pool['pol_code']],
+                    [
+                        'pol_name' => $pool['pol_name'],
+                        'pol_customer_search' => $pool['pol_customer_search'],
+                        'deleted' => $pool['deleted']
+                    ]
+                );
+                $results['pools_synced']++;
+            }
+        }
+
+        // 0d. Procesar Relación Cliente-Pool
+        if (!empty($customerPools)) {
+            foreach ($customerPools as $cp) {
+                \Modules\MasterClient\Models\MasterCustomerPool::updateOrCreate(
+                    [
+                        'cus_code' => $cp['cus_code'],
+                        'pol_code' => $cp['pol_code']
+                    ],
+                    ['deleted' => $cp['deleted']]
+                );
+                $results['customer_pools_synced']++;
             }
         }
 
@@ -177,8 +215,48 @@ class MasterClientBulkSyncAction
                         );
                     $results['pushed_to_tenants']++;
                 }
+
+                // C. Sincronizar Pools en el Tenant
+                $this->ensureTablesAction->execute('tenant');
+
+                if (!empty($pools)) {
+                    foreach ($pools as $pool) {
+                        \Illuminate\Support\Facades\DB::connection('tenant')
+                            ->table('pools')
+                            ->updateOrInsert(
+                                ['pol_code' => $pool['pol_code']],
+                                [
+                                    'pol_name' => $pool['pol_name'],
+                                    'pol_customer_search' => $pool['pol_customer_search'],
+                                    'deleted' => $pool['deleted'],
+                                    'updated_at' => now(),
+                                ]
+                            );
+                    }
+                }
+
+                // D. Sincronizar Relaciones Cliente-Pool (Solo para clientes de este tenant)
+                $tenantCusCodes = array_column($clients, 'cep');
+                $tenantCustomerPools = array_filter($customerPools, fn($cp) => in_array($cp['cus_code'], $tenantCusCodes));
+
+                if (!empty($tenantCustomerPools)) {
+                    foreach ($tenantCustomerPools as $tcp) {
+                        \Illuminate\Support\Facades\DB::connection('tenant')
+                            ->table('customer_pools')
+                            ->updateOrInsert(
+                                [
+                                    'cus_code' => $tcp['cus_code'],
+                                    'pol_code' => $tcp['pol_code']
+                                ],
+                                [
+                                    'deleted' => $tcp['deleted'],
+                                    'updated_at' => now(),
+                                ]
+                            );
+                    }
+                }
                 
-                Log::info("MasterClientBulkSyncAction: Pushed " . count($clients) . " clients to {$dbName}");
+                Log::info("MasterClientBulkSyncAction: Pushed " . count($clients) . " clients and " . count($tenantCustomerPools) . " pool relations to {$dbName}");
             } catch (\Exception $e) {
                 Log::error("Error pushing to tenant {$dbName}: " . $e->getMessage());
                 $results['errors'][] = "Tenant {$dbName}: " . $e->getMessage();

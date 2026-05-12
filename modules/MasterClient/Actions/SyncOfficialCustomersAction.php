@@ -14,6 +14,12 @@ use Illuminate\Support\Facades\Log;
 
 class SyncOfficialCustomersAction
 {
+    protected EnsureCustomerPoolTablesExistAction $ensurePoolTablesAction;
+
+    public function __construct(EnsureCustomerPoolTablesExistAction $ensurePoolTablesAction)
+    {
+        $this->ensurePoolTablesAction = $ensurePoolTablesAction;
+    }
     /**
      * Structure of the 'clientes' table for tenants based on the provided dump.
      * Updated to include the 'cep' column as the link to Polar Master.
@@ -117,16 +123,19 @@ class SyncOfficialCustomersAction
                 }
             }
 
-            // 2. Sync Master and Tenants (Unified Loop)
+            // 2. Sync Pools to Master first
+            $this->syncPools($officialDb, $summary);
+
+            // 3. Sync Master and Tenants (Unified Loop)
             $this->syncData($officialDb, $summary);
 
-            // 3. Sync Customer Prices
+            // 4. Sync Customer Prices
             $this->syncCustomerPrices($officialDb, $summary);
 
-            // 4. Sync Customer Routes (Días de Visita + Contacto/Balance)
+            // 5. Sync Customer Routes (Días de Visita + Contacto/Balance)
             $this->syncCustomerRoutes($officialDb, $summary);
 
-            // 5. Sync Customer Frequencies (Semanas de Visita)
+            // 6. Sync Customer Frequencies (Semanas de Visita)
             $this->syncCustomerFrequencies($officialDb, $summary);
 
         } catch (\Exception $e) {
@@ -179,6 +188,9 @@ class SyncOfficialCustomersAction
                 } else {
                     $this->ensureCustomerPriceColumnsExist('tenant');
                 }
+
+                // Ensure Pool tables
+                $this->ensurePoolTablesAction->execute('tenant');
             } catch (\Exception $e) {
                 // If it fails but table exists, ignore
                 try {
@@ -231,7 +243,7 @@ class SyncOfficialCustomersAction
 
     private function syncData($officialDb, array &$summary): void
     {
-        // Get all customer-route assignments with frequency info
+        // 1. Get all assignments and group them by route
         $assignments = $officialDb->table('customer_routes')
             ->leftJoin('customer_frequencies', 'customer_routes.fre_code', '=', 'customer_frequencies.fre_code')
             ->select('customer_routes.*', 
@@ -241,182 +253,175 @@ class SyncOfficialCustomersAction
                      'customer_frequencies.fre_week4', 
                      'customer_frequencies.fre_customer')
             ->get();
-        Log::info('SyncOfficialCustomers: Found ' . $assignments->count() . ' assignments in official customer_routes.');
         
-        if ($assignments->count() === 0) {
-            Log::warning('SyncOfficialCustomers: No assignments found to sync!');
-        }
-        
-        foreach ($assignments as $assignment) {
-            Log::info("SyncOfficialCustomers: Processing assignment for cus_code: {$assignment->cus_code}, rot_code: {$assignment->rot_code}");
-            
-            $customer = $officialDb->table('customers')
-                ->where('cus_code', $assignment->cus_code)
-                ->orWhere('cus_code', ltrim($assignment->cus_code, '0'))
-                ->first();
-            
-            if (!$customer) {
-                Log::warning("SyncOfficialCustomers: Customer not found for cus_code: {$assignment->cus_code} (normalized: " . ltrim($assignment->cus_code, '0') . ")");
-                continue;
-            }
+        Log::info('SyncOfficialCustomers: Found ' . $assignments->count() . ' assignments. Grouping by route...');
 
-            $rotCode = $assignment->rot_code;
+        // Grouping
+        $groupedByRoute = [];
+        foreach ($assignments as $asg) {
+            $groupedByRoute[$asg->rot_code][] = $asg;
+        }
+
+        // 2. Pre-load all Pools from Master
+        $allMasterPools = \Modules\MasterClient\Models\MasterPool::all()->map(fn($p) => [
+            'pol_code' => $p->pol_code,
+            'pol_name' => $p->pol_name,
+            'pol_customer_search' => $p->pol_customer_search,
+            'deleted' => $p->deleted,
+            'updated_at' => now(),
+        ])->toArray();
+
+        // 3. Process each Route
+        foreach ($groupedByRoute as $rotCode => $routeAssignments) {
             $companyRoute = CompanyRoute::where('route_name', $rotCode)
                 ->orWhere('route_name', 'v' . $rotCode)
-                ->orWhere('route_name', ltrim($rotCode, 'v'))
+                ->orWhere('route_name', ltrim((string)$rotCode, 'v'))
                 ->first();
 
-            if ($companyRoute) {
-                Log::info("SyncOfficialCustomers: Routing to Tenant DB: {$companyRoute->db_name} for route {$rotCode}");
-                $this->ensureInfrastructure($companyRoute->route_name, $companyRoute->db_name, $summary);
-            } else {
-                Log::warning("SyncOfficialCustomers: CompanyRoute NOT FOUND for rot_code: {$rotCode}");
+            if (!$companyRoute) {
+                Log::warning("SyncOfficialCustomers: CompanyRoute NOT FOUND for rot_code: {$rotCode}. Skipping " . count($routeAssignments) . " customers.");
                 continue;
             }
 
-            // A. Sync to Master
-            Log::info("SyncOfficialCustomers: Syncing customer {$customer->cus_code} to master.");
-            MasterClient::updateOrCreate(
-                ['cep' => $customer->cus_code],
-                [
-                    'company_route_id'  => $companyRoute->id,
-                    'cliente'           => $customer->cus_name ?? '',
-                    'ruta'              => $assignment->rot_code,
-                    'cus_name'          => $customer->cus_name,
-                    'cus_business_name' => $customer->cus_business_name,
-                    'cus_duns'          => $customer->cus_duns,
-                    'cus_comm_id'       => $customer->cus_comm_id,
-                    'tp1_code'          => $customer->tp1_code,
-                    'tp2_code'          => $customer->tp2_code,
-                    'cit_code'          => $customer->cit_code,
-                    'txn_code'          => $customer->txn_code,
-                    'cus_phone'         => $customer->cus_phone,
-                    'cus_fax'           => $customer->cus_fax,
-                    'cus_street1'       => $customer->cus_street1,
-                    'cus_street2'       => $customer->cus_street2,
-                    'cus_street3'       => $customer->cus_street3,
-                    'cus_tax_id1'       => $customer->cus_tax_id1,
-                    'brc_code'          => $customer->brc_code,
-                    'cus_latitude'      => $customer->cus_latitude,
-                    'cus_longitude'     => $customer->cus_longitude,
-                    'prc_code_for_sale' => $customer->prc_code_for_sale,
-                    'prc_code_for_return'=> $customer->prc_code_for_return,
-                    'cus_contact_person'=> $customer->cus_contact_person,
-                    'cus_email'         => $customer->cus_email,
-                    'con_code'          => $customer->con_code ?? null,
-                    'cus_credit_limit'  => $customer->cus_credit_limit ?? null,
-                    'cus_balance'       => $customer->cus_balance ?? null,
-                    'fre_week1'         => $assignment->fre_week1,
-                    'fre_week2'         => $assignment->fre_week2,
-                    'fre_week3'         => $assignment->fre_week3,
-                    'fre_week4'         => $assignment->fre_week4,
-                    'fre_customer'      => $assignment->fre_customer,
-                ]
-            );
-            $summary['customers_synced_master']++;
+            Log::info("SyncOfficialCustomers: Processing route {$rotCode} (DB: {$companyRoute->db_name}) with " . count($routeAssignments) . " customers.");
 
-            // B. Push to Tenant
-            try {
-                // Fetch csp flags for this customer on this route
-                $cspFlags = MasterCustomerPrice::where('rot_code', $assignment->rot_code)
-                    ->where('cus_code', $customer->cus_code)
-                    ->orderByDesc('csp_for_sale')
-                    ->first();
-                $cspForSale   = $cspFlags ? $cspFlags->csp_for_sale   : 0;
-                $cspForReturn = $cspFlags ? $cspFlags->csp_for_return : 0;
+            // A. Ensure Tenant Infrastructure
+            $this->ensureInfrastructure($companyRoute->route_name, $companyRoute->db_name, $summary);
+            
+            // B. Connect to Tenant
+            Config::set('database.connections.tenant.database', $companyRoute->db_name);
+            DB::purge('tenant');
+            $tenantDb = DB::connection('tenant');
 
-                // Fetch route contact/balance fields for this customer
-                // Note: master_customer_routes stores cus_code as-is from the provider (padded zeros)
-                $routeFlags = MasterCustomerRoute::where('rot_code', $assignment->rot_code)
-                    ->where('cus_code', $assignment->cus_code)
-                    ->first();
-                $ctrContactPerson = $routeFlags ? $routeFlags->ctr_contact_person : null;
-                $ctrBalance       = $routeFlags ? $routeFlags->ctr_balance        : null;
-                $prcCodeForSale   = $routeFlags ? $routeFlags->prc_code_for_sale  : null;
-                $conCode          = $routeFlags ? $routeFlags->con_code           : null;
+            // C. Global Push of all Pools to this Tenant
+            if (!empty($allMasterPools)) {
+                foreach ($allMasterPools as $poolData) {
+                    $tenantDb->table('pools')->updateOrInsert(['pol_code' => $poolData['pol_code']], $poolData);
+                }
+            }
 
-                Config::set('database.connections.tenant.database', $companyRoute->db_name);
-                DB::purge('tenant');
-                $tenantDb = DB::connection('tenant');
+            // D. Process each Customer in this route
+            foreach ($routeAssignments as $assignment) {
+                try {
+                    $customer = $officialDb->table('customers')
+                        ->where('cus_code', $assignment->cus_code)
+                        ->orWhere('cus_code', ltrim($assignment->cus_code, '0'))
+                        ->first();
+                    
+                    if (!$customer) continue;
 
-                        // Lógica de Días de Despacho (Visit Days)
-                        $activeDays = [];
-                        if ($routeFlags) {
-                            if ((int)$routeFlags->ctr_monday > 0) $activeDays[] = 'LUNES';
-                            if ((int)$routeFlags->ctr_tuesday > 0) $activeDays[] = 'MARTES';
-                            if ((int)$routeFlags->ctr_wednesday > 0) $activeDays[] = 'MIERCOLES';
-                            if ((int)$routeFlags->ctr_thursday > 0) $activeDays[] = 'JUEVES';
-                            if ((int)$routeFlags->ctr_friday > 0) $activeDays[] = 'VIERNES';
-                            if ((int)$routeFlags->ctr_saturday > 0) $activeDays[] = 'SABADO';
-                            if ((int)$routeFlags->ctr_sunday > 0) $activeDays[] = 'DOMINGO';
-                        }
+                    $paddedCusCode = str_pad((string)$customer->cus_code, 10, '0', STR_PAD_LEFT);
 
-                        $tenantDb->table('clientes')->updateOrInsert(
-                            ['IdCliente' => (int)ltrim($customer->cus_code, '0')],
-                            [
-                                'cep'           => $customer->cus_code,
-                                'Cliente'       => $customer->cus_name ?? '',
-                                'RIF'           => $customer->cus_tax_id1 ?? '',
-                                'tp1_code'      => $customer->tp1_code ?? '',
-                                'Direccion'     => ($customer->cus_street1 . ' ' . $customer->cus_street2 . ' ' . $customer->cus_street3),
-                                'email'         => $customer->cus_email ?? '',
-                                'Ruta'          => $assignment->rot_code,
-                                'latitud'       => $customer->cus_latitude ?? '',
-                                'longitud'      => $customer->cus_longitude ?? '',
-                                'status'        => 'Activo',
-                                'PIN'           => '',
-                                'instagram'     => '',
-                                'DiaDespacho1'  => $activeDays[0] ?? '',
-                                'DiaDespacho2'  => $activeDays[1] ?? '',
-                                'DiaDespacho3'  => $activeDays[0] ?? '',
-                                'FormaPago'     => '',
-                                'diasCredito'   => 0,
-                                'MontoCredito'  => 0,
-                        'Activo'        => 1,
-                        'PorcentajeAcuerdoComercial' => 0,
-                        'tipoclienteplantactico' => '',
-                        'AgenteRetencion' => 0,
-                        'PorcentajeRetencion' => 0,
-                        'prontopago' => 0,
-                        'TipoCliente' => '',
-                        'idgrupo' => 0,
-                        'PersonaContacto' => $customer->cus_contact_person ?? '',
-                        'TelefonoContacto' => $customer->cus_phone ?? '',
-                        'categoria' => '',
-                        'licencialicor' => '',
-                        'nota' => '',
-                        'segmento' => '',
-                        'ADC_CP' => 0,
-                        'ADC_PCV' => 0,
-                        'PCV' => 0,
-                        'APC' => 0,
-                        'CP' => 0,
-                        'prioridad' => 0,
-                        'perfilUsuario' => '',
-                        'perfilUsuarioApp' => '',
-                        'vendedor' => '',
-                        'imagen_negocio' => '',
-                        'ubicacion_imagen_negocio' => '',
-                        'requiere_pasos_visita' => 0,
-                        'csp_for_sale'        => $cspForSale,
-                        'csp_for_return'       => $cspForReturn,
-                        'ctr_contact_person'   => $ctrContactPerson,
-                        'ctr_balance'          => $ctrBalance,
-                        'prc_code_for_sale'    => $prcCodeForSale,
-                        'con_code'             => $customer->con_code ?? $conCode,
-                        'brc_code'             => $customer->brc_code,
-                        'cus_credit_limit'     => $customer->cus_credit_limit,
-                        'cus_balance'          => $customer->cus_balance,
-                        'fre_week1'            => $assignment->fre_week1,
-                        'fre_week2'            => $assignment->fre_week2,
-                        'fre_week3'            => $assignment->fre_week3,
-                        'fre_week4'            => $assignment->fre_week4,
-                        'fre_customer'         => $assignment->fre_customer,
-                    ]
-                );
-                $summary['customers_pushed_tenants']++;
-            } catch (\Exception $e) {
-                $summary['errors'][] = "Error pushing {$customer->cus_code} to tenant {$companyRoute->db_name}: " . $e->getMessage();
+                    // D1. Sync to Master
+                    MasterClient::updateOrCreate(
+                        ['cep' => $paddedCusCode],
+                        [
+                            'company_route_id'  => $companyRoute->id,
+                            'cliente'           => $customer->cus_name ?? '',
+                            'ruta'              => $assignment->rot_code,
+                            'cus_name'          => $customer->cus_name,
+                            'cus_business_name' => $customer->cus_business_name,
+                            'cus_duns'          => $customer->cus_duns,
+                            'cus_comm_id'       => $customer->cus_comm_id,
+                            'tp1_code'          => $customer->tp1_code,
+                            'tp2_code'          => $customer->tp2_code,
+                            'cit_code'          => $customer->cit_code,
+                            'txn_code'          => $customer->txn_code,
+                            'cus_phone'         => $customer->cus_phone,
+                            'cus_fax'           => $customer->cus_fax,
+                            'cus_street1'       => $customer->cus_street1,
+                            'cus_street2'       => $customer->cus_street2,
+                            'cus_street3'       => $customer->cus_street3,
+                            'cus_tax_id1'       => $customer->cus_tax_id1,
+                            'brc_code'          => $customer->brc_code,
+                            'cus_latitude'      => $customer->cus_latitude,
+                            'cus_longitude'     => $customer->cus_longitude,
+                            'prc_code_for_sale' => $customer->prc_code_for_sale,
+                            'prc_code_for_return'=> $customer->prc_code_for_return,
+                            'cus_contact_person'=> $customer->cus_contact_person,
+                            'cus_email'         => $customer->cus_email,
+                            'con_code'          => $customer->con_code ?? null,
+                            'cus_credit_limit'  => $customer->cus_credit_limit ?? null,
+                            'cus_balance'       => $customer->cus_balance ?? null,
+                            'fre_week1'         => $assignment->fre_week1,
+                            'fre_week2'         => $assignment->fre_week2,
+                            'fre_week3'         => $assignment->fre_week3,
+                            'fre_week4'         => $assignment->fre_week4,
+                            'fre_customer'      => $assignment->fre_customer,
+                        ]
+                    );
+                    $summary['customers_synced_master']++;
+
+                    // D2. Resolve flags and Visit Days
+                    $cspFlags = MasterCustomerPrice::where('rot_code', $assignment->rot_code)
+                        ->where('cus_code', $paddedCusCode)
+                        ->orderByDesc('csp_for_sale')->first();
+                    
+                    $routeFlags = MasterCustomerRoute::where('rot_code', $assignment->rot_code)
+                        ->where('cus_code', $paddedCusCode)->first();
+
+                    $activeDays = [];
+                    if ($routeFlags) {
+                        if ((int)$routeFlags->ctr_monday > 0) $activeDays[] = 'LUNES';
+                        if ((int)$routeFlags->ctr_tuesday > 0) $activeDays[] = 'MARTES';
+                        if ((int)$routeFlags->ctr_wednesday > 0) $activeDays[] = 'MIERCOLES';
+                        if ((int)$routeFlags->ctr_thursday > 0) $activeDays[] = 'JUEVES';
+                        if ((int)$routeFlags->ctr_friday > 0) $activeDays[] = 'VIERNES';
+                        if ((int)$routeFlags->ctr_saturday > 0) $activeDays[] = 'SABADO';
+                        if ((int)$routeFlags->ctr_sunday > 0) $activeDays[] = 'DOMINGO';
+                    }
+
+                    // D3. Push to Tenant Clientes
+                    $tenantDb->table('clientes')->updateOrInsert(
+                        ['IdCliente' => (int)ltrim($paddedCusCode, '0')],
+                        [
+                            'cep'           => $paddedCusCode,
+                            'Cliente'       => $customer->cus_name ?? '',
+                            'RIF'           => $customer->cus_tax_id1 ?? '',
+                            'tp1_code'      => $customer->tp1_code ?? '',
+                            'Direccion'     => ($customer->cus_street1 . ' ' . $customer->cus_street2 . ' ' . $customer->cus_street3),
+                            'email'         => $customer->cus_email ?? '',
+                            'Ruta'          => $assignment->rot_code,
+                            'latitud'       => $customer->cus_latitude ?? '',
+                            'longitud'      => $customer->cus_longitude ?? '',
+                            'status'        => 'Activo',
+                            'DiaDespacho1'  => $activeDays[0] ?? '',
+                            'DiaDespacho2'  => $activeDays[1] ?? '',
+                            'DiaDespacho3'  => $activeDays[0] ?? '',
+                            'Activo'        => 1,
+                            'PersonaContacto' => $customer->cus_contact_person ?? '',
+                            'TelefonoContacto' => $customer->cus_phone ?? '',
+                            'csp_for_sale'     => $cspFlags ? $cspFlags->csp_for_sale : 0,
+                            'csp_for_return'    => $cspFlags ? $cspFlags->csp_for_return : 0,
+                            'ctr_contact_person'=> $routeFlags ? $routeFlags->ctr_contact_person : null,
+                            'ctr_balance'       => $routeFlags ? $routeFlags->ctr_balance : null,
+                            'prc_code_for_sale' => $routeFlags ? $routeFlags->prc_code_for_sale : null,
+                            'con_code'          => $customer->con_code ?? ($routeFlags ? $routeFlags->con_code : null),
+                            'brc_code'          => $customer->brc_code,
+                            'cus_credit_limit'  => $customer->cus_credit_limit,
+                            'cus_balance'       => $customer->cus_balance,
+                            'fre_week1'         => $assignment->fre_week1,
+                            'fre_week2'         => $assignment->fre_week2,
+                            'fre_week3'         => $assignment->fre_week3,
+                            'fre_week4'         => $assignment->fre_week4,
+                            'fre_customer'      => $assignment->fre_customer,
+                        ]
+                    );
+
+                    // D4. Push CustomerPool relations for THIS customer
+                    $cpRelations = \Modules\MasterClient\Models\MasterCustomerPool::where('cus_code', $paddedCusCode)->get();
+                    foreach ($cpRelations as $rel) {
+                        $tenantDb->table('customer_pools')->updateOrInsert(
+                            ['cus_code' => $rel->cus_code, 'pol_code' => $rel->pol_code],
+                            ['deleted' => $rel->deleted, 'updated_at' => now()]
+                        );
+                    }
+
+                    $summary['customers_pushed_tenants']++;
+
+                } catch (\Exception $e) {
+                    $summary['errors'][] = "Error processing {$assignment->cus_code} on route {$rotCode}: " . $e->getMessage();
+                }
             }
         }
     }
@@ -520,5 +525,34 @@ class SyncOfficialCustomersAction
 
         $summary['customer_frequencies_synced_master'] = $synced;
         Log::info("SyncOfficialCustomers: Finished syncing $synced customer frequencies.");
+    }
+
+    private function syncPools($officialDb, array &$summary): void
+    {
+        Log::info('SyncOfficialCustomers: Starting sync of Pools.');
+
+        // A. Master Pools
+        $pools = $officialDb->table('pools')->get();
+        foreach ($pools as $pool) {
+            \Modules\MasterClient\Models\MasterPool::updateOrCreate(
+                ['pol_code' => $pool->pol_code],
+                [
+                    'pol_name' => $pool->pol_name,
+                    'pol_customer_search' => $pool->pol_customer_search,
+                    'deleted' => $pool->deleted,
+                ]
+            );
+        }
+
+        // B. Master CustomerPools
+        $relations = $officialDb->table('customer_pools')->get();
+        foreach ($relations as $rel) {
+            \Modules\MasterClient\Models\MasterCustomerPool::updateOrCreate(
+                ['cus_code' => $rel->cus_code, 'pol_code' => $rel->pol_code],
+                ['deleted' => $rel->deleted]
+            );
+        }
+
+        Log::info("SyncOfficialCustomers: Finished syncing " . $pools->count() . " pools and " . $relations->count() . " relations.");
     }
 }
