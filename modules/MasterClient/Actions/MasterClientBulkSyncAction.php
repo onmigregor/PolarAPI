@@ -143,6 +143,7 @@ class MasterClientBulkSyncAction
                         'IdCliente' => (int)ltrim($item['cus_code'], '0'),
                         'cep' => $item['cus_code'],
                         'Cliente' => $item['cus_business_name'] ?? ($item['cus_name'] ?? ''),
+                        'cus_business_name' => $item['cus_business_name'] ?? '',
                         'Ruta' => $routeName,
                         'RIF' => $item['cus_tax_id1'] ?? '',
                         'status' => 'Activo',
