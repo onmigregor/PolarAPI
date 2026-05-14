@@ -42,6 +42,13 @@ class DistributeInvoicesToTenantsAction
                 // Configurar conexión dinámica
                 $this->switchToTenant($dbName);
 
+                // Verificar si la tabla compras existe en este tenant
+                $hasTable = DB::connection('tenant')->select("SHOW TABLES LIKE 'compras'");
+                if (empty($hasTable)) {
+                    Log::warning("DistributeInvoicesToTenantsAction: La tabla 'compras' no existe en el tenant $dbName. Saltando tenant.");
+                    continue;
+                }
+
                 // Agrupar por No Factura para crear cabeceras
                 $groupedByInvoice = $items->groupBy('no_factura');
 
@@ -53,9 +60,10 @@ class DistributeInvoicesToTenantsAction
 
                     // 1. Validar qué líneas tienen productos existentes
                     foreach ($lines as $line) {
-                        $material = $line['material'];
+                        $material = trim($line['material']);
                         $product = DB::connection('tenant')->table('productos')
                             ->where('codigoSKU', $material)
+                            ->orWhere('codigoSKU', ltrim($material, '0'))
                             ->first();
 
                         if ($product) {
