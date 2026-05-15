@@ -31,31 +31,48 @@ class ExportAdcConsolidatedAction
                 DB::purge('tenant_report');
                 $tenantConn = DB::connection('tenant_report');
 
-                // Verificar si la tabla adc_datos existe en el tenant
-                $hasTable = $tenantConn->select("SHOW TABLES LIKE 'adc_datos'");
-                if (empty($hasTable)) continue;
+                // Priorizar tabla adc_polar (Sincronizada) sobre adc_datos (Legacy)
+                $hasTablePolar = !empty($tenantConn->select("SHOW TABLES LIKE 'adc_polar'"));
+                $hasTableDatos = !empty($tenantConn->select("SHOW TABLES LIKE 'adc_datos'"));
 
-                // Consultar datos con el cruce de clientes para obtener el CEP (Idcustomer)
-                $data = $tenantConn->table('adc_datos as adc')
-                    ->join('clientes as c', 'c.IdCliente', '=', 'adc.IdCliente')
-                    ->select([
-                        DB::raw("'{$tenant->cep}' as fq_redi"),
-                        'c.cep as id_customer',
-                        'adc.modelo as marca',
-                        'adc.serial as no_serie',
-                        'adc.no_activo',
-                        'adc.pertenece_a as empresa',
-                        'adc.condicion as estado',
-                        'adc.descripcion as tipo_activo',
-                        'adc.condicion'
-                    ])
-                    ->get();
+                if (!$hasTablePolar && !$hasTableDatos) continue;
+
+                if ($hasTablePolar) {
+                    $data = $tenantConn->table('adc_polar')
+                        ->select([
+                            DB::raw("COALESCE(fq_redi, '{$tenant->cep}') as fq_redi"),
+                            'cus_code as id_customer',
+                            'marca',
+                            'no_serie',
+                            'no_activo',
+                            'empresa',
+                            'estado',
+                            'tipo_activo',
+                            'estado as condicion'
+                        ])
+                        ->get();
+                } else {
+                    $data = $tenantConn->table('adc_datos as adc')
+                        ->join('clientes as c', 'c.IdCliente', '=', 'adc.IdCliente')
+                        ->select([
+                            DB::raw("'{$tenant->cep}' as fq_redi"),
+                            'c.cep as id_customer',
+                            'adc.modelo as marca',
+                            'adc.serial as no_serie',
+                            'adc.no_activo',
+                            'adc.pertenece_a as empresa',
+                            'adc.condicion as estado',
+                            'adc.descripcion as tipo_activo',
+                            'adc.condicion'
+                        ])
+                        ->get();
+                }
 
                 foreach ($data as $row) {
                     $row = (array)$row;
                     
                     // Lógica de condición: CONSISTENTE -> 1, INCONSISTENTE -> 0
-                    $condicionText = strtoupper(trim($row['condicion']));
+                    $condicionText = strtoupper(trim($row['condicion'] ?? ''));
                     $row['condicion_val'] = ($condicionText === 'CONSISTENTE') ? '1' : '0';
 
                     $allData[] = $row;

@@ -9,6 +9,29 @@ use Modules\CustomerADC\Models\MasterAdcPolar;
 
 class MasterCustomerAdcBulkSyncAction
 {
+    private const CREATE_ADC_POLAR_SQL = "
+        CREATE TABLE IF NOT EXISTS `adc_polar` (
+            `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            `fq_redi` varchar(255) DEFAULT NULL,
+            `cus_code` varchar(255) DEFAULT NULL,
+            `marca` varchar(255) DEFAULT NULL,
+            `no_serie` varchar(255) DEFAULT NULL,
+            `no_serial` varchar(255) DEFAULT NULL,
+            `no_activo` varchar(255) DEFAULT NULL,
+            `empresa` varchar(255) DEFAULT NULL,
+            `estado` varchar(255) DEFAULT NULL,
+            `tipo_activo` varchar(255) DEFAULT NULL,
+            `es_propio` tinyint(1) DEFAULT 0,
+            `imagen` varchar(100) DEFAULT '',
+            `ubicacion_imagen` varchar(255) DEFAULT '',
+            `created_at` timestamp NULL DEFAULT NULL,
+            `updated_at` timestamp NULL DEFAULT NULL,
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `idx_no_serie_polar` (`no_serie`),
+            KEY `idx_cus_code_polar` (`cus_code`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ";
+
     private const CREATE_TENANT_TABLE_SQL = "
         CREATE TABLE IF NOT EXISTS `adc_datos` (
             `id_adc` int(11) NOT NULL AUTO_INCREMENT,
@@ -16,7 +39,7 @@ class MasterCustomerAdcBulkSyncAction
             `serial` varchar(100) NOT NULL,
             `no_activo` varchar(100) DEFAULT NULL,
             `modelo` varchar(100) DEFAULT NULL,
-            `condicion` varchar(50) DEFAULT 'FUNCIONAL',
+            `condicion` varchar(50) DEFAULT 'CONSISTENTE',
             `descripcion` text DEFAULT NULL,
             `es_propio` tinyint(1) DEFAULT 0,
             `pertenece_a` varchar(60) NOT NULL DEFAULT 'POLAR',
@@ -32,7 +55,7 @@ class MasterCustomerAdcBulkSyncAction
 
     public function execute(array $data)
     {
-        Log::info("Iniciando sincronización masiva de Equipos ADC (Con Integridad Referencial)");
+        Log::info("Iniciando sincronización masiva de Equipos ADC (Hacia adc_polar y adc_datos)");
 
         // 1. Mapear data del Admin a la estructura de la Maestra Central
         $syncData = array_map(function($item) {
@@ -40,11 +63,12 @@ class MasterCustomerAdcBulkSyncAction
                 'cus_code'    => $item['cus_code'] ?? null,
                 'serial'      => $item['no_serie'] ?? null,
                 'no_activo'   => $item['no_activo'] ?? null,
+                'no_serial'   => $item['no_serial'] ?? null,
                 'modelo'      => $item['marca'] ?? null,
                 'descripcion' => $item['tipo_activo'] ?? null,
-                'condicion'   => 'FUNCIONAL',
+                'condicion'   => strtoupper($item['estado'] ?? 'CONSISTENTE'),
                 'es_propio'   => 0,
-                'pertenece_a' => 'POLAR',
+                'pertenece_a' => $item['empresa'] ?? 'POLAR',
                 'created_at'  => now(),
                 'updated_at'  => now(),
             ];
@@ -65,7 +89,7 @@ class MasterCustomerAdcBulkSyncAction
 
         $results = [];
 
-        // 4. Distribuir a cada tenant con el cruce de IdCliente
+        // 4. Distribuir a cada tenant
         foreach ($recordsWithTenants as $dbName => $records) {
             try {
                 $this->syncToTenant($dbName, $records->toArray());
@@ -88,14 +112,13 @@ class MasterCustomerAdcBulkSyncAction
         $chunks = array_chunk($syncData, 500);
         foreach ($chunks as $chunk) {
             MasterAdcPolar::upsert($chunk, ['serial'], [
-                'cus_code', 'no_activo', 'modelo', 'descripcion', 'updated_at'
+                'cus_code', 'no_activo', 'no_serial', 'modelo', 'descripcion', 'condicion', 'pertenece_a', 'updated_at'
             ]);
         }
     }
 
     protected function syncToTenant(string $dbName, array $records)
     {
-        // Configurar conexión al tenant
         config(['database.connections.tenant_sync' => array_merge(
             config('database.connections.mysql'),
             ['database' => $dbName]
@@ -104,61 +127,76 @@ class MasterCustomerAdcBulkSyncAction
         DB::purge('tenant_sync');
         $tenantConnection = DB::connection('tenant_sync');
 
-        // A. Asegurar tabla adc_datos (con FK a clientes)
+        // A. Asegurar ambas tablas
         try {
+            $tenantConnection->statement(self::CREATE_ADC_POLAR_SQL);
             $tenantConnection->statement(self::CREATE_TENANT_TABLE_SQL);
             
-            // Asegurar que las nuevas columnas existan si la tabla ya existía antes
+            // Parche para no_activo en tabla legacy si ya existía
             $columns = $tenantConnection->select("SHOW COLUMNS FROM `adc_datos` LIKE 'no_activo'");
             if (empty($columns)) {
                 $tenantConnection->statement("ALTER TABLE `adc_datos` ADD COLUMN `no_activo` varchar(100) DEFAULT NULL AFTER `serial` ");
             }
         } catch (\Exception $e) {
-            Log::warning("Tenant {$dbName}: Error al crear/verificar tabla adc_datos: " . $e->getMessage());
+            Log::warning("Tenant {$dbName}: Error al crear/verificar tablas: " . $e->getMessage());
         }
 
-        // B. Obtener mapa de IdCliente del Tenant usando el código (columna 'cep')
+        // B. Mapa de IdCliente
         $cusCodes = array_unique(array_column($records, 'cus_code'));
-        $clientMap = $tenantConnection->table('clientes')
-            ->whereIn('cep', $cusCodes)
-            ->pluck('IdCliente', 'cep');
+        $clientMap = $tenantConnection->table('clientes')->whereIn('cep', $cusCodes)->pluck('IdCliente', 'cep');
 
-        // C. Transformar data para el tenant
-        $tenantRecords = [];
+        // C. Preparar registros para ambas tablas
+        $polarRecords = [];
+        $datosRecords = [];
+
         foreach ($records as $record) {
             $record = (array)$record;
-            $cusCode = $record['cus_code'];
-
-            if (!isset($clientMap[$cusCode])) {
-                continue;
-            }
-
-            $tenantRecords[] = [
-                'IdCliente'      => $clientMap[$cusCode],
-                'serial'         => $record['serial'],
-                'no_activo'      => $record['no_activo'],
-                'modelo'         => $record['modelo'],
-                'condicion'      => 'FUNCIONAL',
-                'descripcion'    => $record['descripcion'],
-                'es_propio'      => 0,
-                'pertenece_a'    => 'POLAR',
-                'fecha_registro' => $record['created_at'] ?? now(),
-                'imagen'         => '',
-                'ubicacion_imagen' => '',
+            
+            // Data para adc_polar (Maestra Limpia)
+            $polarRecords[] = [
+                'fq_redi'     => $record['fq_redi'] ?? null,
+                'cus_code'    => $record['cus_code'],
+                'marca'       => $record['modelo'],
+                'no_serie'    => $record['serial'],
+                'no_serial'   => $record['no_serial'] ?? null,
+                'no_activo'   => $record['no_activo'],
+                'empresa'     => $record['pertenece_a'],
+                'estado'      => $record['condicion'],
+                'tipo_activo' => $record['descripcion'],
+                'created_at'  => $record['created_at'],
+                'updated_at'  => $record['updated_at'],
             ];
+
+            // Data para adc_datos (Compatibilidad App)
+            if (isset($clientMap[$record['cus_code']])) {
+                $datosRecords[] = [
+                    'IdCliente'   => $clientMap[$record['cus_code']],
+                    'serial'      => $record['serial'],
+                    'no_activo'   => $record['no_activo'],
+                    'modelo'      => $record['modelo'],
+                    'condicion'   => $record['condicion'],
+                    'descripcion' => $record['descripcion'],
+                    'pertenece_a' => $record['pertenece_a'],
+                    'fecha_registro' => $record['created_at'],
+                ];
+            }
         }
 
-        if ($dbName === 'www_v09101p' && !empty($tenantRecords)) {
-            Log::error("DEBUG ADC Tenant v09101p - Primer registro serial: " . $tenantRecords[0]['serial']);
-            Log::error("DEBUG ADC Tenant v09101p - Primer registro no_serial: [" . ($tenantRecords[0]['no_serial'] ?? 'MISSING') . "]");
+        // D. Upsert masivo en ambas tablas
+        if (!empty($polarRecords)) {
+            $chunks = array_chunk($polarRecords, 500);
+            foreach ($chunks as $chunk) {
+                $tenantConnection->table('adc_polar')->upsert($chunk, ['no_serie'], [
+                    'fq_redi', 'cus_code', 'marca', 'no_serial', 'no_activo', 'empresa', 'estado', 'tipo_activo', 'updated_at'
+                ]);
+            }
         }
 
-        // D. Upsert masivo en el tenant
-        if (!empty($tenantRecords)) {
-            $chunks = array_chunk($tenantRecords, 500);
+        if (!empty($datosRecords)) {
+            $chunks = array_chunk($datosRecords, 500);
             foreach ($chunks as $chunk) {
                 $tenantConnection->table('adc_datos')->upsert($chunk, ['serial'], [
-                    'IdCliente', 'no_activo', 'modelo', 'descripcion', 'condicion', 'es_propio', 'pertenece_a'
+                    'IdCliente', 'no_activo', 'modelo', 'condicion', 'descripcion', 'pertenece_a'
                 ]);
             }
         }

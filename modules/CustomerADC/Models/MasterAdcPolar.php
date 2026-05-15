@@ -13,6 +13,7 @@ class MasterAdcPolar extends Model
         'cus_code',
         'serial',
         'no_activo',
+        'no_serial',
         'modelo',
         'condicion',
         'descripcion',

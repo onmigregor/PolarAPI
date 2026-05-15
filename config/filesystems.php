@@ -81,6 +81,11 @@ return [
             'timeout' => 30,
         ],
 
+        'ftp' => [
+            'driver' => 'local',
+            'root' => base_path('storage/ftp'),
+        ],
+
     ],
 
     /*
