@@ -12,6 +12,7 @@ class MasterAdcPolar extends Model
     protected $fillable = [
         'cus_code',
         'serial',
+        'no_activo',
         'modelo',
         'condicion',
         'descripcion',

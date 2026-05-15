@@ -6,6 +6,7 @@ use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 use Modules\Report\Actions\ExportSalesCsvAction;
 use Modules\Report\Actions\ExportObsequiosCsvAction;
+use Modules\Report\Actions\ExportAdcConsolidatedAction;
 use Modules\Report\Http\Requests\ExportSalesCsvRequest;
 use Modules\Report\DataTransferObjects\ExportSalesCsvFilterData;
 
@@ -103,6 +104,76 @@ class ReportController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => "Error al procesar archivos o subir al SFTP: " . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Exportar reporte consolidado de ADC
+     */
+    public function exportAdcConsolidated(ExportAdcConsolidatedAction $action): \Illuminate\Http\JsonResponse
+    {
+        try {
+            $rows = $action->execute();
+            
+            $headers = [
+                'FQ/REDI',
+                'Idcustomer',
+                'MARCA',
+                'No SERIE',
+                'No ACTIVO',
+                'Empresa',
+                'ESTADO',
+                'Tipo de activo',
+                'condicion'
+            ];
+
+            $filename = "ADC_DATOS_" . now()->format('Ymd_His') . ".txt";
+            
+            $csvContent = implode(';', $headers) . "\r\n";
+            foreach ($rows as $row) {
+                $csvContent .= implode(';', [
+                    $row['fq_redi'],
+                    $row['id_customer'],
+                    $row['marca'],
+                    $row['no_serie'],
+                    $row['no_activo'],
+                    $row['empresa'],
+                    $row['estado'],
+                    $row['tipo_activo'],
+                    $row['condicion_val'], // 1 o 0
+                ]) . "\r\n";
+            }
+
+            if (config('app.env') === 'local') {
+                if (!file_exists(storage_path('ftp'))) {
+                    mkdir(storage_path('ftp'), 0777, true);
+                }
+                file_put_contents(storage_path("ftp/{$filename}"), $csvContent);
+            } else {
+                $zipFilename = str_replace('.txt', '.zip', $filename);
+                $zipContent = $this->createZipContent($filename, $csvContent);
+                // Usar el disco de ventas por defecto o uno específico si existe
+                \Illuminate\Support\Facades\Storage::disk('sftp_ventas')->put($zipFilename, $zipContent);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => config('app.env') === 'local'
+                    ? "Reporte ADC generado localmente."
+                    : "Reporte ADC enviado al SFTP correctamente.",
+                'data' => [
+                    'filename' => $filename,
+                    'count' => count($rows),
+                    'destination' => config('app.env') === 'local' ? 'Local Storage' : 'SFTP'
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Error en reporte ADC: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => "Error al procesar reporte ADC: " . $e->getMessage(),
             ], 500);
         }
     }

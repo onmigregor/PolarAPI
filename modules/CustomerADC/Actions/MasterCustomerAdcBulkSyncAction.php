@@ -14,6 +14,7 @@ class MasterCustomerAdcBulkSyncAction
             `id_adc` int(11) NOT NULL AUTO_INCREMENT,
             `IdCliente` bigint(20) NOT NULL,
             `serial` varchar(100) NOT NULL,
+            `no_activo` varchar(100) DEFAULT NULL,
             `modelo` varchar(100) DEFAULT NULL,
             `condicion` varchar(50) DEFAULT 'FUNCIONAL',
             `descripcion` text DEFAULT NULL,
@@ -38,6 +39,7 @@ class MasterCustomerAdcBulkSyncAction
             return [
                 'cus_code'    => $item['cus_code'] ?? null,
                 'serial'      => $item['no_serie'] ?? null,
+                'no_activo'   => $item['no_activo'] ?? null,
                 'modelo'      => $item['marca'] ?? null,
                 'descripcion' => $item['tipo_activo'] ?? null,
                 'condicion'   => 'FUNCIONAL',
@@ -86,7 +88,7 @@ class MasterCustomerAdcBulkSyncAction
         $chunks = array_chunk($syncData, 500);
         foreach ($chunks as $chunk) {
             MasterAdcPolar::upsert($chunk, ['serial'], [
-                'cus_code', 'modelo', 'descripcion', 'updated_at'
+                'cus_code', 'no_activo', 'modelo', 'descripcion', 'updated_at'
             ]);
         }
     }
@@ -105,11 +107,14 @@ class MasterCustomerAdcBulkSyncAction
         // A. Asegurar tabla adc_datos (con FK a clientes)
         try {
             $tenantConnection->statement(self::CREATE_TENANT_TABLE_SQL);
-        } catch (\Exception $e) {
-            // Si la tabla ya existe pero no tiene la FK, intentamos añadirla
-            if (!str_contains($e->getMessage(), 'already exists')) {
-                Log::warning("Tenant {$dbName}: Error al crear/verificar tabla adc_datos: " . $e->getMessage());
+            
+            // Asegurar que las nuevas columnas existan si la tabla ya existía antes
+            $columns = $tenantConnection->select("SHOW COLUMNS FROM `adc_datos` LIKE 'no_activo'");
+            if (empty($columns)) {
+                $tenantConnection->statement("ALTER TABLE `adc_datos` ADD COLUMN `no_activo` varchar(100) DEFAULT NULL AFTER `serial` ");
             }
+        } catch (\Exception $e) {
+            Log::warning("Tenant {$dbName}: Error al crear/verificar tabla adc_datos: " . $e->getMessage());
         }
 
         // B. Obtener mapa de IdCliente del Tenant usando el código (columna 'cep')
@@ -129,8 +134,9 @@ class MasterCustomerAdcBulkSyncAction
             }
 
             $tenantRecords[] = [
-                'IdCliente'      => $clientMap[$cusCode], // Este valor ya será el CEP numérico gracias al cambio previo en Clientes
+                'IdCliente'      => $clientMap[$cusCode],
                 'serial'         => $record['serial'],
+                'no_activo'      => $record['no_activo'],
                 'modelo'         => $record['modelo'],
                 'condicion'      => 'FUNCIONAL',
                 'descripcion'    => $record['descripcion'],
@@ -142,12 +148,17 @@ class MasterCustomerAdcBulkSyncAction
             ];
         }
 
+        if ($dbName === 'www_v09101p' && !empty($tenantRecords)) {
+            Log::error("DEBUG ADC Tenant v09101p - Primer registro serial: " . $tenantRecords[0]['serial']);
+            Log::error("DEBUG ADC Tenant v09101p - Primer registro no_serial: [" . ($tenantRecords[0]['no_serial'] ?? 'MISSING') . "]");
+        }
+
         // D. Upsert masivo en el tenant
         if (!empty($tenantRecords)) {
             $chunks = array_chunk($tenantRecords, 500);
             foreach ($chunks as $chunk) {
                 $tenantConnection->table('adc_datos')->upsert($chunk, ['serial'], [
-                    'IdCliente', 'modelo', 'descripcion', 'condicion', 'es_propio', 'pertenece_a'
+                    'IdCliente', 'no_activo', 'modelo', 'descripcion', 'condicion', 'es_propio', 'pertenece_a'
                 ]);
             }
         }
