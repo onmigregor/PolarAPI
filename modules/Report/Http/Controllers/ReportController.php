@@ -7,6 +7,7 @@ use Illuminate\Routing\Controller;
 use Modules\Report\Actions\ExportSalesCsvAction;
 use Modules\Report\Actions\ExportObsequiosCsvAction;
 use Modules\Report\Actions\ExportAdcConsolidatedAction;
+use Modules\Report\Actions\ExportCustomerConsolidatedAction;
 use Modules\Report\Http\Requests\ExportSalesCsvRequest;
 use Modules\Report\DataTransferObjects\ExportSalesCsvFilterData;
 
@@ -174,6 +175,89 @@ class ReportController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => "Error al procesar reporte ADC: " . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Exportar reporte consolidado de Clientes de todos los tenants
+     */
+    public function exportCustomerConsolidated(ExportCustomerConsolidatedAction $action): \Illuminate\Http\JsonResponse
+    {
+        try {
+            $rows = $action->execute();
+            
+            $headers = [
+                'FQ/REDI',
+                'Codigo Cliente',
+                'Nombre',
+                'RIF',
+                'Tipo Cliente',
+                'Direccion',
+                'Ruta',
+                'Telefono',
+                'Email',
+                'Contacto',
+                'Latitud',
+                'Longitud',
+                'Condicion Pago',
+                'Lista Precios',
+                'Sucursal',
+                'Estado'
+            ];
+
+            $filename = "CLIENTES_CONSOLIDADO_" . now()->format('Ymd_His') . ".txt";
+            
+            $csvContent = implode(';', $headers) . "\r\n";
+            foreach ($rows as $row) {
+                $csvContent .= implode(';', [
+                    $row['fq_redi'],
+                    $row['codigo_cliente'],
+                    $row['nombre'],
+                    $row['rif'],
+                    $row['tipo_cliente'],
+                    $row['direccion'],
+                    $row['ruta'],
+                    $row['telefono'],
+                    $row['email'],
+                    $row['contacto'],
+                    $row['latitud'],
+                    $row['longitud'],
+                    $row['condicion_pago'],
+                    $row['lista_precios'],
+                    $row['sucursal'],
+                    $row['estado'],
+                ]) . "\r\n";
+            }
+
+            if (config('app.env') === 'local') {
+                if (!file_exists(storage_path('ftp'))) {
+                    mkdir(storage_path('ftp'), 0777, true);
+                }
+                file_put_contents(storage_path("ftp/{$filename}"), $csvContent);
+            } else {
+                $zipFilename = str_replace('.txt', '.zip', $filename);
+                $zipContent = $this->createZipContent($filename, $csvContent);
+                \Illuminate\Support\Facades\Storage::disk('sftp_ventas')->put($zipFilename, $zipContent);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => config('app.env') === 'local'
+                    ? "Reporte de Clientes generado localmente."
+                    : "Reporte de Clientes enviado al SFTP correctamente.",
+                'data' => [
+                    'filename' => $filename,
+                    'count' => count($rows),
+                    'destination' => config('app.env') === 'local' ? 'Local Storage' : 'SFTP'
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Error en reporte Clientes: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => "Error al procesar reporte de Clientes: " . $e->getMessage(),
             ], 500);
         }
     }
