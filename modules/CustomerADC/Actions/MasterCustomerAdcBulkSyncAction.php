@@ -59,8 +59,9 @@ class MasterCustomerAdcBulkSyncAction
 
         // 1. Mapear data del Admin a la estructura de la Maestra Central
         $syncData = array_map(function($item) {
+            $paddedCusCode = str_pad((string)($item['cus_code'] ?? ''), 10, '0', STR_PAD_LEFT);
             return [
-                'cus_code'    => $item['cus_code'] ?? null,
+                'cus_code'    => $paddedCusCode,
                 'serial'      => $item['no_serie'] ?? null,
                 'no_activo'   => $item['no_activo'] ?? null,
                 'no_serial'   => $item['no_serial'] ?? null,
@@ -78,8 +79,9 @@ class MasterCustomerAdcBulkSyncAction
         $this->upsertMasterData($syncData);
 
         // 3. Obtener la data con su respectivo tenant (db_name)
+        // Usamos master_clients que es la tabla que realmente tiene los registros vinculados a rutas
         $recordsWithTenants = DB::table('master_adc_datos_polar as adc')
-            ->join('master_client_polar as clients', 'clients.cus_code', '=', 'adc.cus_code')
+            ->join('master_clients as clients', 'clients.cep', '=', 'adc.cus_code')
             ->join('company_routes as routes', 'routes.id', '=', 'clients.company_route_id')
             ->select('adc.*', 'routes.db_name')
             ->get()

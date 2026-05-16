@@ -67,6 +67,7 @@ class InitializeTenantDatabaseAction
 
     public function execute(string $dbName): bool
     {
+        $dbName = strtolower($dbName);
         try {
             // 1. Asegurar que la base de datos física existe
             $dbExists = DB::connection('mysql')->select("SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?", [$dbName]);

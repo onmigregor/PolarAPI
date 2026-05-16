@@ -82,9 +82,9 @@ class ReportController extends Controller
                 $ventasZipContent = $this->createZipContent($ventasFilename, $ventasCsv);
                 $obsqZipContent = $this->createZipContent($obsqFilename, $obsqCsv);
 
-                // Subir al SFTP en sus respectivas carpetas
+                // Subir al SFTP en la misma ruta unificada (sftp_ventas)
                 \Illuminate\Support\Facades\Storage::disk('sftp_ventas')->put($ventasZipFilename, $ventasZipContent);
-                \Illuminate\Support\Facades\Storage::disk('sftp_obsequios')->put($obsqZipFilename, $obsqZipContent);
+                \Illuminate\Support\Facades\Storage::disk('sftp_ventas')->put($obsqZipFilename, $obsqZipContent);
             }
 
             return response()->json([

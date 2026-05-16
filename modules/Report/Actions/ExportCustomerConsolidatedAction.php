@@ -44,27 +44,30 @@ class ExportCustomerConsolidatedAction
                     continue;
                 }
 
-                // Extraer los 16 campos acordados
-                $data = $tenantConn->table('clientes')
-                    ->select([
-                        DB::raw("'{$tenant->cep}' as fq_redi"), // FQ/REDI del tenant
-                        'cep as codigo_cliente',
-                        'Cliente as nombre',
-                        'RIF as rif',
-                        'tp1_code as tipo_cliente',
-                        'Direccion as direccion',
-                        'Ruta as ruta',
-                        'TelefonoContacto as telefono',
-                        'email',
-                        'PersonaContacto as contacto',
-                        'latitud',
-                        'longitud',
-                        'con_code as condicion_pago',
-                        'prc_code_for_sale as lista_precios',
-                        'brc_code as sucursal',
-                        'status as estado'
-                    ])
-                    ->get();
+                // Verificar columnas existentes para evitar errores SQL
+                $columns = array_column($tenantConn->select("SHOW COLUMNS FROM clientes"), 'Field');
+                
+                // Definir mapeo con fallbacks
+                $selectFields = [
+                    DB::raw("'{$tenant->cep}' as fq_redi"),
+                    'cep as codigo_cliente',
+                    'Cliente as nombre',
+                    'RIF as rif',
+                    in_array('tp1_code', $columns) ? 'tp1_code as tipo_cliente' : 'TipoCliente as tipo_cliente',
+                    'Direccion as direccion',
+                    'Ruta as ruta',
+                    'TelefonoContacto as telefono',
+                    'email',
+                    'PersonaContacto as contacto',
+                    'latitud',
+                    'longitud',
+                    in_array('con_code', $columns) ? 'con_code as condicion_pago' : DB::raw("'' as condicion_pago"),
+                    in_array('prc_code_for_sale', $columns) ? 'prc_code_for_sale as lista_precios' : DB::raw("'' as lista_precios"),
+                    in_array('brc_code', $columns) ? 'brc_code as sucursal' : DB::raw("'' as sucursal"),
+                    'status as estado'
+                ];
+
+                $data = $tenantConn->table('clientes')->select($selectFields)->get();
 
                 foreach ($data as $row) {
                     $allData[] = (array)$row;

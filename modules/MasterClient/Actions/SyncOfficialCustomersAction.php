@@ -148,6 +148,7 @@ class SyncOfficialCustomersAction
 
     private function ensureInfrastructure(string $rot_code, string $dbName, array &$summary): bool
     {
+        $dbName = strtolower($dbName);
         try {
             // A. Ensure record in company_routes
             CompanyRoute::updateOrCreate(
