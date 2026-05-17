@@ -31,42 +31,30 @@ class ExportAdcConsolidatedAction
                 DB::purge('tenant_report');
                 $tenantConn = DB::connection('tenant_report');
 
-                // Priorizar tabla adc_polar (Sincronizada) sobre adc_datos (Legacy)
-                $hasTablePolar = !empty($tenantConn->select("SHOW TABLES LIKE 'adc_polar'"));
+                // Consultar tabla única de inventario adc_datos
                 $hasTableDatos = !empty($tenantConn->select("SHOW TABLES LIKE 'adc_datos'"));
+                if (!$hasTableDatos) continue;
 
-                if (!$hasTablePolar && !$hasTableDatos) continue;
+                // Resolver dinámicamente si la columna es 'no_serie' o 'serial' (legacy)
+                $columns = array_map(function($col) {
+                    return strtolower($col->Field);
+                }, $tenantConn->select("SHOW COLUMNS FROM `adc_datos`"));
+                $serialCol = in_array('no_serie', $columns) ? 'no_serie' : 'serial';
 
-                if ($hasTablePolar) {
-                    $data = $tenantConn->table('adc_polar')
-                        ->select([
-                            DB::raw("'{$tenant->cep}' as fq_redi"),
-                            'cus_code as id_customer',
-                            'marca',
-                            'no_serie',
-                            'no_activo',
-                            'empresa',
-                            'estado',
-                            'tipo_activo',
-                            'estado as condicion'
-                        ])
-                        ->get();
-                } else {
-                    $data = $tenantConn->table('adc_datos as adc')
-                        ->join('clientes as c', 'c.IdCliente', '=', 'adc.IdCliente')
-                        ->select([
-                            DB::raw("'{$tenant->cep}' as fq_redi"),
-                            'c.cep as id_customer',
-                            'adc.modelo as marca',
-                            'adc.serial as no_serie',
-                            'adc.no_activo',
-                            'adc.pertenece_a as empresa',
-                            'adc.condicion as estado',
-                            'adc.descripcion as tipo_activo',
-                            'adc.condicion'
-                        ])
-                        ->get();
-                }
+                $data = $tenantConn->table('adc_datos as adc')
+                    ->join('clientes as c', 'c.IdCliente', '=', 'adc.IdCliente')
+                    ->select([
+                        DB::raw("'{$tenant->cep}' as fq_redi"),
+                        'c.cep as id_customer',
+                        'adc.modelo as marca',
+                        "adc.{$serialCol} as no_serie",
+                        'adc.no_activo',
+                        'adc.pertenece_a as empresa',
+                        'adc.condicion as estado',
+                        'adc.descripcion as tipo_activo',
+                        'adc.condicion'
+                    ])
+                    ->get();
 
                 foreach ($data as $row) {
                     $row = (array)$row;

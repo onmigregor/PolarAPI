@@ -298,10 +298,12 @@ class SyncOfficialCustomersAction
 
         // 3. Process each Route
         foreach ($groupedByRoute as $rotCode => $routeAssignments) {
-            $companyRoute = CompanyRoute::where('route_name', $rotCode)
-                ->orWhere('route_name', 'v' . $rotCode)
-                ->orWhere('route_name', ltrim((string)$rotCode, 'v'))
-                ->first();
+            $cleanRot = ltrim(strtolower((string)$rotCode), 'v');
+            $companyRoute = CompanyRoute::all()->first(function($cr) use ($cleanRot) {
+                $crCleanRouteName = ltrim(strtolower((string)$cr->route_name), 'v');
+                $crCleanCode = ltrim(strtolower((string)$cr->code), 'v');
+                return $crCleanRouteName === $cleanRot || $crCleanCode === $cleanRot;
+            });
 
             if (!$companyRoute) {
                 Log::warning("SyncOfficialCustomers: CompanyRoute NOT FOUND for rot_code: {$rotCode}. Skipping " . count($routeAssignments) . " customers.");

@@ -13,7 +13,7 @@ class MasterCustomerAdcBulkSyncAction
         CREATE TABLE IF NOT EXISTS `adc_datos` (
             `id_adc` int(11) NOT NULL AUTO_INCREMENT,
             `IdCliente` bigint(20) NOT NULL,
-            `serial` varchar(100) NOT NULL,
+            `no_serie` varchar(100) NOT NULL,
             `no_activo` varchar(100) DEFAULT NULL,
             `no_serial` varchar(255) DEFAULT NULL,
             `modelo` varchar(100) DEFAULT NULL,
@@ -29,7 +29,7 @@ class MasterCustomerAdcBulkSyncAction
             `created_at` timestamp NULL DEFAULT NULL,
             `updated_at` timestamp NULL DEFAULT NULL,
             PRIMARY KEY (`id_adc`),
-            UNIQUE KEY `idx_serial` (`serial`),
+            UNIQUE KEY `idx_no_serie` (`no_serie`),
             KEY `idx_id_cliente` (`IdCliente`),
             KEY `idx_cus_code` (`cus_code`),
             CONSTRAINT `fk_adc_cliente` FOREIGN KEY (`IdCliente`) REFERENCES `clientes` (`IdCliente`) ON DELETE CASCADE ON UPDATE CASCADE
@@ -68,26 +68,71 @@ class MasterCustomerAdcBulkSyncAction
         // 2. Upsert masivo en la tabla maestra central
         $this->upsertMasterData($syncData);
 
-        // 3. Obtener la data con su respectivo tenant (db_name)
-        // Usamos master_clients (o master_client_polar como fallback) y hacemos join tolerante a ceros a la izquierda usando CAST
-        $hasMasterClients = DB::table('master_clients')->count() > 0;
-        
-        $query = DB::table('master_adc_datos_polar as adc');
-        
-        if ($hasMasterClients) {
-            $query->join('master_clients as clients', function($join) {
-                $join->on(DB::raw('CAST(clients.cep AS UNSIGNED)'), '=', DB::raw('CAST(adc.cus_code AS UNSIGNED)'));
-            });
-        } else {
-            $query->join('master_client_polar as clients', function($join) {
-                $join->on(DB::raw('CAST(clients.cus_code AS UNSIGNED)'), '=', DB::raw('CAST(adc.cus_code AS UNSIGNED)'));
-            });
+        // 3. Obtener la data con su respectivo tenant (db_name) y fq_redi
+        // Cargamos mapa de rutas: cep (que es el REDI) -> db_name
+        $routeMap = DB::table('company_routes')->pluck('db_name', 'cep')->toArray();
+
+        // Mapear serial -> [db_name, fq_redi] desde el payload actual del request
+        $adcTenantMap = [];
+        foreach ($data as $item) {
+            $serial = $item['no_serie'] ?? null;
+            $redi = $item['fq_redi'] ?? null;
+            if ($serial && $redi) {
+                $adcTenantMap[$serial] = [
+                    'db_name' => $routeMap[$redi] ?? null,
+                    'fq_redi' => $redi
+                ];
+            }
         }
-        
-        $recordsWithTenants = $query->join('company_routes as routes', 'routes.id', '=', 'clients.company_route_id')
-            ->select('adc.*', 'routes.db_name')
-            ->get()
-            ->groupBy('db_name');
+
+        // Obtener todos los registros de la tabla maestra central
+        $allAdc = DB::table('master_adc_datos_polar')->get();
+
+        // Agruparlos por db_name
+        $recordsWithTenants = [];
+
+        // Para resolver por BD (fallback), precargamos los clientes con su db_name y cep de la ruta
+        $hasMasterClients = DB::table('master_clients')->count() > 0;
+        $clientDbMap = [];
+        if ($hasMasterClients) {
+            $clientDbMap = DB::table('master_clients as clients')
+                ->join('company_routes as routes', 'routes.id', '=', 'clients.company_route_id')
+                ->select(DB::raw('CAST(clients.cep AS UNSIGNED) as cep_num'), 'routes.db_name', 'routes.cep as route_cep')
+                ->get()
+                ->keyBy('cep_num')
+                ->map(fn($item) => (array)$item)
+                ->toArray();
+        } else {
+            $clientDbMap = DB::table('master_client_polar as clients')
+                ->join('company_routes as routes', 'routes.id', '=', 'clients.company_route_id')
+                ->select(DB::raw('CAST(clients.cus_code AS UNSIGNED) as cep_num'), 'routes.db_name', 'routes.cep as route_cep')
+                ->get()
+                ->keyBy('cep_num')
+                ->map(fn($item) => (array)$item)
+                ->toArray();
+        }
+
+        foreach ($allAdc as $record) {
+            $serial = $record->serial;
+            $dbName = $adcTenantMap[$serial]['db_name'] ?? null;
+            $fqRedi = $adcTenantMap[$serial]['fq_redi'] ?? null;
+
+            if (!$dbName) {
+                // Fallback por cliente
+                $cusCodeNum = (int)$record->cus_code;
+                $clientInfo = $clientDbMap[$cusCodeNum] ?? null;
+                if ($clientInfo) {
+                    $dbName = $clientInfo['db_name'];
+                    $fqRedi = $clientInfo['route_cep'];
+                }
+            }
+
+            if ($dbName) {
+                $recordArray = (array)$record;
+                $recordArray['fq_redi'] = $fqRedi;
+                $recordsWithTenants[$dbName][] = $recordArray;
+            }
+        }
 
         Log::info("Equipos ADC agrupados por tenant: " . count($recordsWithTenants) . " tenants encontrados.");
 
@@ -96,7 +141,7 @@ class MasterCustomerAdcBulkSyncAction
         // 4. Distribuir a cada tenant
         foreach ($recordsWithTenants as $dbName => $records) {
             try {
-                $this->syncToTenant($dbName, $records->toArray());
+                $this->syncToTenant($dbName, $records);
                 $results[$dbName] = 'Success';
             } catch (\Exception $e) {
                 Log::error("Error sincronizando ADC al tenant {$dbName}: " . $e->getMessage());
@@ -141,8 +186,20 @@ class MasterCustomerAdcBulkSyncAction
                 return strtolower($col->Field);
             }, $tenantConnection->select("SHOW COLUMNS FROM `adc_datos`"));
 
+            // Si existe la columna 'serial' (antigua), renombrarla a 'no_serie'
+            if (in_array('serial', $columns) && !in_array('no_serie', $columns)) {
+                $tenantConnection->statement("ALTER TABLE `adc_datos` CHANGE COLUMN `serial` `no_serie` varchar(100) NOT NULL");
+                // Actualizar la lista de columnas en memoria
+                $columns[] = 'no_serie';
+                $columns = array_values(array_filter($columns, function($c) { return $c !== 'serial'; }));
+            }
+
+            if (!in_array('no_serie', $columns)) {
+                $tenantConnection->statement("ALTER TABLE `adc_datos` ADD COLUMN `no_serie` varchar(100) NOT NULL AFTER `IdCliente` ");
+                $tenantConnection->statement("ALTER TABLE `adc_datos` ADD UNIQUE KEY `idx_no_serie` (`no_serie`)");
+            }
             if (!in_array('no_activo', $columns)) {
-                $tenantConnection->statement("ALTER TABLE `adc_datos` ADD COLUMN `no_activo` varchar(100) DEFAULT NULL AFTER `serial` ");
+                $tenantConnection->statement("ALTER TABLE `adc_datos` ADD COLUMN `no_activo` varchar(100) DEFAULT NULL AFTER `no_serie` ");
             }
             if (!in_array('no_serial', $columns)) {
                 $tenantConnection->statement("ALTER TABLE `adc_datos` ADD COLUMN `no_serial` varchar(255) DEFAULT NULL AFTER `no_activo` ");
@@ -167,11 +224,15 @@ class MasterCustomerAdcBulkSyncAction
         }
 
         // B. Mapa de IdCliente (usamos cep sin ceros a la izquierda)
-        $cusCodes = array_unique(array_map(function($c) {
-            return ltrim((string)$c, '0');
-        }, array_column($records, 'cus_code')));
-        
-        $clientMap = $tenantConnection->table('clientes')->whereIn('cep', $cusCodes)->pluck('IdCliente', 'cep');
+        $clientMap = $tenantConnection->table('clientes')
+            ->select('IdCliente', 'cep')
+            ->get()
+            ->keyBy(function($c) {
+                return ltrim((string)$c->cep, '0');
+            })
+            ->map(function($c) {
+                return $c->IdCliente;
+            });
  
         // C. Preparar registros para la tabla unificada adc_datos
         $datosRecords = [];
@@ -186,11 +247,10 @@ class MasterCustomerAdcBulkSyncAction
                     'IdCliente'   => $clientMap[$paddedCusCode],
                     'cus_code'    => $paddedCusCode,
                     'fq_redi'     => $record['fq_redi'] ?? null,
-                    'serial'      => $record['serial'],
+                    'no_serie'    => $record['serial'], // El serial del HUB/Admin va a no_serie
                     'no_activo'   => $record['no_activo'],
                     'no_serial'   => $record['no_serial'] ?? null,
                     'modelo'      => $record['modelo'],
-                    'condicion'   => null, // Queda siempre en NULL para los tenants
                     'descripcion' => $record['descripcion'],
                     'pertenece_a' => $record['pertenece_a'],
                     'fecha_registro' => $record['created_at'],
@@ -204,8 +264,8 @@ class MasterCustomerAdcBulkSyncAction
         if (!empty($datosRecords)) {
             $chunks = array_chunk($datosRecords, 500);
             foreach ($chunks as $chunk) {
-                $tenantConnection->table('adc_datos')->upsert($chunk, ['serial'], [
-                    'IdCliente', 'cus_code', 'fq_redi', 'no_activo', 'no_serial', 'modelo', 'condicion', 'descripcion', 'pertenece_a', 'updated_at'
+                $tenantConnection->table('adc_datos')->upsert($chunk, ['no_serie'], [
+                    'IdCliente', 'cus_code', 'fq_redi', 'no_activo', 'no_serial', 'modelo', 'descripcion', 'pertenece_a', 'updated_at'
                 ]);
             }
         }

@@ -120,7 +120,12 @@ class MasterClientBulkSyncAction
 
                 if ($routeName) {
                     if (!isset($routesCache[$routeName])) {
-                        $routesCache[$routeName] = CompanyRoute::where('route_name', $routeName)->first();
+                        $cleanRot = ltrim(strtolower((string)$routeName), 'v');
+                        $routesCache[$routeName] = CompanyRoute::all()->first(function($cr) use ($cleanRot) {
+                            $crCleanRouteName = ltrim(strtolower((string)$cr->route_name), 'v');
+                            $crCleanCode = ltrim(strtolower((string)$cr->code), 'v');
+                            return $crCleanRouteName === $cleanRot || $crCleanCode === $cleanRot;
+                        });
                     }
                     $companyRoute = $routesCache[$routeName];
                 }

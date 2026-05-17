@@ -32,7 +32,7 @@ class SyncMasterClientsAction
                 DB::purge('tenant');
 
                 $clients = ExtClient::on('tenant')
-                    ->select('IdCliente', 'Cliente', 'Ruta')
+                    ->select('IdCliente', 'cep', 'Cliente', 'Ruta')
                     ->whereRaw("UPPER(Ruta) NOT LIKE ?", ['%ELIMINADO%'])
                     ->whereRaw("UPPER(Ruta) NOT LIKE ?", ['%EMILINADO%'])
                     ->get();
@@ -44,6 +44,7 @@ class SyncMasterClientsAction
                             'external_id' => $client->IdCliente,
                         ],
                         [
+                            'cep' => $client->cep ? ltrim((string)$client->cep, '0') : null,
                             'cliente' => $client->Cliente ?? '',
                             'ruta' => $client->Ruta ?? null,
                         ]

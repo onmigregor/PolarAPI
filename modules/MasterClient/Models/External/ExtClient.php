@@ -12,6 +12,7 @@ class ExtClient extends ExternalModel
 
     protected $fillable = [
         'IdCliente',
+        'cep',
         'Cliente',
         'Ruta',
     ];
