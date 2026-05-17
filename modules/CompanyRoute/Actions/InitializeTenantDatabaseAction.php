@@ -16,7 +16,7 @@ class InitializeTenantDatabaseAction
           `RIF` varchar(50) NOT NULL,
           `PIN` varchar(100) NOT NULL,
           `Direccion` text NOT NULL,
-          `email` varchar(30) NOT NULL,
+          `email` varchar(150) NOT NULL,
           `instagram` varchar(30) NOT NULL,
           `DiaDespacho1` varchar(255) NOT NULL,
           `DiaDespacho2` varchar(255) NOT NULL,

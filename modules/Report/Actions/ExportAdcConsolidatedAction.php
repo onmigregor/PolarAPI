@@ -40,7 +40,7 @@ class ExportAdcConsolidatedAction
                 if ($hasTablePolar) {
                     $data = $tenantConn->table('adc_polar')
                         ->select([
-                            DB::raw("COALESCE(fq_redi, '{$tenant->cep}') as fq_redi"),
+                            DB::raw("'{$tenant->cep}' as fq_redi"),
                             'cus_code as id_customer',
                             'marca',
                             'no_serie',

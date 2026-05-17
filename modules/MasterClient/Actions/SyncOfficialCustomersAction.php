@@ -33,7 +33,7 @@ class SyncOfficialCustomersAction
           `tp1_code` varchar(20) DEFAULT NULL,
           `PIN` varchar(100) NOT NULL,
           `Direccion` text NOT NULL,
-          `email` varchar(30) NOT NULL,
+          `email` varchar(150) NOT NULL,
           `instagram` varchar(30) NOT NULL,
           `DiaDespacho1` varchar(255) NOT NULL,
           `DiaDespacho2` varchar(255) NOT NULL,
@@ -179,6 +179,7 @@ class SyncOfficialCustomersAction
 
             // C. Ensure 'clientes' table exists in this tenant
             Config::set('database.connections.tenant.database', $dbName);
+            Config::set('database.connections.tenant.strict', false); // Desactivar modo estricto para ignorar defaults faltantes
             DB::purge('tenant');
             
             try {
@@ -217,6 +218,8 @@ class SyncOfficialCustomersAction
         $existingColumns = array_column($columns, 'Field');
 
         $toAdd = [
+            'latitud'            => 'VARCHAR(20) NOT NULL DEFAULT \'\'',
+            'longitud'           => 'VARCHAR(20) NOT NULL DEFAULT \'\'',
             'csp_for_sale'       => 'TINYINT(1) NOT NULL DEFAULT 0',
             'csp_for_return'     => 'TINYINT(1) NOT NULL DEFAULT 0',
             'ctr_contact_person' => 'VARCHAR(100) DEFAULT NULL',
@@ -239,6 +242,13 @@ class SyncOfficialCustomersAction
                 Log::info("SyncOfficialCustomers: Adding column {$col} to table clientes in connection {$connection}");
                 DB::connection($connection)->statement("ALTER TABLE clientes ADD COLUMN `{$col}` {$definition}");
             }
+        }
+
+        // Expandir tamaño de email si es necesario
+        try {
+            DB::connection($connection)->statement("ALTER TABLE clientes MODIFY COLUMN `email` VARCHAR(150) NOT NULL");
+        } catch (\Exception $e) {
+            Log::warning("SyncOfficialCustomers: Could not modify email column in {$connection}: " . $e->getMessage());
         }
     }
 
@@ -374,9 +384,8 @@ class SyncOfficialCustomersAction
 
                     // D3. Push to Tenant Clientes
                     $tenantDb->table('clientes')->updateOrInsert(
-                        ['IdCliente' => (int)ltrim($paddedCusCode, '0')],
+                        ['cep' => $paddedCusCode],
                         [
-                            'cep'           => $paddedCusCode,
                             'Cliente'       => $customer->cus_name ?? '',
                             'RIF'           => $customer->cus_tax_id1 ?? '',
                             'tp1_code'      => $customer->tp1_code ?? '',
