@@ -1,0 +1,27 @@
+# Reglas del Proyecto POLAR
+
+## Homologación de Códigos de Cliente (CEP / CusCode)
+
+### ⚠️ REGLA CRÍTICA: Prohibido usar ceros a la izquierda
+
+Para evitar fallas de inconsistencia de formato y garantizar que todas las uniones de base de datos (`JOIN`), búsquedas de clientes y sincronizaciones funcionen de manera uniforme y exacta, se establece la siguiente regla obligatoria para todos los desarrollos, migraciones, scripts de automatización e integraciones en este proyecto:
+
+1. **Sin ceros a la izquierda en Base de Datos**: Todos los códigos de cliente (`cep`, `cus_code`, etc.) deben guardarse, procesarse y consultarse **completamente libres de ceros a la izquierda** en cualquier tabla (tanto en las del HUB central como en las de los Tenants).
+2. **Tratamiento Obligatorio en PHP/Laravel**: Antes de realizar cualquier inserción, actualización o consulta que involucre códigos de cliente, se debe sanitizar el código usando:
+   ```php
+   $cleanCode = ltrim((string)$code, '0');
+   ```
+3. **Tratamiento Obligatorio en MySQL (Migraciones y Consultas SQL)**:
+   * Al limpiar registros con datos heredados, usar la función:
+     ```sql
+     UPDATE tabla SET columna = TRIM(LEADING '0' FROM columna) WHERE columna LIKE '0%';
+     ```
+   * Para hacer joins robustos con datos históricos de otros proveedores, usar conversión numérica tolerante:
+     ```sql
+     ON CAST(tabla1.cep AS UNSIGNED) = CAST(tabla2.cus_code AS UNSIGNED)
+     ```
+4. **Módulos bajo esta Regla**:
+   * **MasterClient**: Sincronización oficial de clientes, sucursales, segmentos y pools.
+   * **CustomerADC**: Equipos ADC, `adc_polar` y `adc_datos`.
+   * **CompanyRoute**: Rutas y bases de datos asociadas.
+   * **MasterPromotion / MasterProduct**: Relaciones de precios y promociones.

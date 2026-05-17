@@ -9,55 +9,45 @@ use Modules\CustomerADC\Models\MasterAdcPolar;
 
 class MasterCustomerAdcBulkSyncAction
 {
-    private const CREATE_ADC_POLAR_SQL = "
-        CREATE TABLE IF NOT EXISTS `adc_polar` (
-            `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-            `fq_redi` varchar(255) DEFAULT NULL,
-            `cus_code` varchar(255) DEFAULT NULL,
-            `marca` varchar(255) DEFAULT NULL,
-            `no_serie` varchar(255) DEFAULT NULL,
-            `no_serial` varchar(255) DEFAULT NULL,
-            `no_activo` varchar(255) DEFAULT NULL,
-            `empresa` varchar(255) DEFAULT NULL,
-            `estado` varchar(255) DEFAULT NULL,
-            `tipo_activo` varchar(255) DEFAULT NULL,
-            `es_propio` tinyint(1) DEFAULT 0,
-            `imagen` varchar(100) DEFAULT '',
-            `ubicacion_imagen` varchar(255) DEFAULT '',
-            `created_at` timestamp NULL DEFAULT NULL,
-            `updated_at` timestamp NULL DEFAULT NULL,
-            PRIMARY KEY (`id`),
-            UNIQUE KEY `idx_no_serie_polar` (`no_serie`),
-            KEY `idx_cus_code_polar` (`cus_code`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    ";
-
     private const CREATE_TENANT_TABLE_SQL = "
         CREATE TABLE IF NOT EXISTS `adc_datos` (
             `id_adc` int(11) NOT NULL AUTO_INCREMENT,
             `IdCliente` bigint(20) NOT NULL,
             `serial` varchar(100) NOT NULL,
             `no_activo` varchar(100) DEFAULT NULL,
+            `no_serial` varchar(255) DEFAULT NULL,
             `modelo` varchar(100) DEFAULT NULL,
-            `condicion` varchar(50) DEFAULT 'CONSISTENTE',
+            `condicion` varchar(50) DEFAULT NULL,
             `descripcion` text DEFAULT NULL,
             `es_propio` tinyint(1) DEFAULT 0,
             `pertenece_a` varchar(60) NOT NULL DEFAULT 'POLAR',
             `fecha_registro` datetime DEFAULT CURRENT_TIMESTAMP,
-            `imagen` varchar(30) NOT NULL DEFAULT '',
-            `ubicacion_imagen` varchar(100) NOT NULL DEFAULT '',
+            `imagen` varchar(100) NOT NULL DEFAULT '',
+            `ubicacion_imagen` varchar(255) NOT NULL DEFAULT '',
+            `fq_redi` varchar(255) DEFAULT NULL,
+            `cus_code` varchar(255) DEFAULT NULL,
+            `created_at` timestamp NULL DEFAULT NULL,
+            `updated_at` timestamp NULL DEFAULT NULL,
             PRIMARY KEY (`id_adc`),
             UNIQUE KEY `idx_serial` (`serial`),
             KEY `idx_id_cliente` (`IdCliente`),
+            KEY `idx_cus_code` (`cus_code`),
             CONSTRAINT `fk_adc_cliente` FOREIGN KEY (`IdCliente`) REFERENCES `clientes` (`IdCliente`) ON DELETE CASCADE ON UPDATE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
     ";
 
     public function execute(array $data)
     {
-        Log::info("Iniciando sincronización masiva de Equipos ADC (Hacia adc_polar y adc_datos)");
+        Log::info("Iniciando sincronización masiva de Equipos ADC (Hacia adc_datos)");
 
-        // 1. Mapear data del Admin a la estructura de la Maestra Central
+        // Asegurar que la columna condicion de la maestra permita NULL
+        try {
+            DB::statement("ALTER TABLE `master_adc_datos_polar` MODIFY COLUMN `condicion` varchar(50) DEFAULT NULL");
+        } catch (\Exception $e) {
+            Log::debug("No se pudo alterar master_adc_datos_polar.condicion: " . $e->getMessage());
+        }
+
+        // 1. Mapear data del Admin a la estructura de la Maestra Central (condicion permite NULL)
         $syncData = array_map(function($item) {
             $paddedCusCode = ltrim((string)($item['cus_code'] ?? ''), '0');
             return [
@@ -67,7 +57,7 @@ class MasterCustomerAdcBulkSyncAction
                 'no_serial'   => $item['no_serial'] ?? null,
                 'modelo'      => $item['marca'] ?? null,
                 'descripcion' => $item['tipo_activo'] ?? null,
-                'condicion'   => strtoupper($item['estado'] ?? 'CONSISTENTE'),
+                'condicion'   => !empty($item['estado']) ? strtoupper($item['estado']) : null,
                 'es_propio'   => 0,
                 'pertenece_a' => $item['empresa'] ?? 'POLAR',
                 'created_at'  => now(),
@@ -141,18 +131,39 @@ class MasterCustomerAdcBulkSyncAction
         DB::purge('tenant_sync');
         $tenantConnection = DB::connection('tenant_sync');
 
-        // A. Asegurar ambas tablas
+        // A. Asegurar estructura unificada de adc_datos
         try {
-            $tenantConnection->statement(self::CREATE_ADC_POLAR_SQL);
+            // Crear adc_datos si no existe
             $tenantConnection->statement(self::CREATE_TENANT_TABLE_SQL);
             
-            // Parche para no_activo en tabla legacy si ya existía
-            $columns = $tenantConnection->select("SHOW COLUMNS FROM `adc_datos` LIKE 'no_activo'");
-            if (empty($columns)) {
+            // Parche/Actualización dinámica de columnas si la tabla ya existía
+            $columns = array_map(function($col) {
+                return strtolower($col->Field);
+            }, $tenantConnection->select("SHOW COLUMNS FROM `adc_datos`"));
+
+            if (!in_array('no_activo', $columns)) {
                 $tenantConnection->statement("ALTER TABLE `adc_datos` ADD COLUMN `no_activo` varchar(100) DEFAULT NULL AFTER `serial` ");
             }
+            if (!in_array('no_serial', $columns)) {
+                $tenantConnection->statement("ALTER TABLE `adc_datos` ADD COLUMN `no_serial` varchar(255) DEFAULT NULL AFTER `no_activo` ");
+            }
+            if (!in_array('fq_redi', $columns)) {
+                $tenantConnection->statement("ALTER TABLE `adc_datos` ADD COLUMN `fq_redi` varchar(255) DEFAULT NULL AFTER `no_serial` ");
+            }
+            if (!in_array('cus_code', $columns)) {
+                $tenantConnection->statement("ALTER TABLE `adc_datos` ADD COLUMN `cus_code` varchar(255) DEFAULT NULL AFTER `fq_redi` ");
+            }
+            if (!in_array('created_at', $columns)) {
+                $tenantConnection->statement("ALTER TABLE `adc_datos` ADD COLUMN `created_at` timestamp NULL DEFAULT NULL ");
+            }
+            if (!in_array('updated_at', $columns)) {
+                $tenantConnection->statement("ALTER TABLE `adc_datos` ADD COLUMN `updated_at` timestamp NULL DEFAULT NULL ");
+            }
+
+            // Asegurar que condicion sea nullable
+            $tenantConnection->statement("ALTER TABLE `adc_datos` MODIFY COLUMN `condicion` varchar(50) DEFAULT NULL");
         } catch (\Exception $e) {
-            Log::warning("Tenant {$dbName}: Error al crear/verificar tablas: " . $e->getMessage());
+            Log::warning("Tenant {$dbName}: Error al migrar/verificar tabla adc_datos: " . $e->getMessage());
         }
 
         // B. Mapa de IdCliente (usamos cep sin ceros a la izquierda)
@@ -162,59 +173,39 @@ class MasterCustomerAdcBulkSyncAction
         
         $clientMap = $tenantConnection->table('clientes')->whereIn('cep', $cusCodes)->pluck('IdCliente', 'cep');
  
-        // C. Preparar registros para ambas tablas
-        $polarRecords = [];
+        // C. Preparar registros para la tabla unificada adc_datos
         $datosRecords = [];
  
         foreach ($records as $record) {
             $record = (array)$record;
             $paddedCusCode = ltrim((string)$record['cus_code'], '0');
-            
-            // Data para adc_polar (Maestra Limpia)
-            $polarRecords[] = [
-                'fq_redi'     => $record['fq_redi'] ?? null,
-                'cus_code'    => $paddedCusCode,
-                'marca'       => $record['modelo'],
-                'no_serie'    => $record['serial'],
-                'no_serial'   => $record['no_serial'] ?? null,
-                'no_activo'   => $record['no_activo'],
-                'empresa'     => $record['pertenece_a'],
-                'estado'      => $record['condicion'],
-                'tipo_activo' => $record['descripcion'],
-                'created_at'  => $record['created_at'],
-                'updated_at'  => $record['updated_at'],
-            ];
 
-            // Data para adc_datos (Compatibilidad App)
+            // Data para adc_datos (Única Tabla de Inventario y Compatibilidad con App)
             if (isset($clientMap[$paddedCusCode])) {
                 $datosRecords[] = [
                     'IdCliente'   => $clientMap[$paddedCusCode],
+                    'cus_code'    => $paddedCusCode,
+                    'fq_redi'     => $record['fq_redi'] ?? null,
                     'serial'      => $record['serial'],
                     'no_activo'   => $record['no_activo'],
+                    'no_serial'   => $record['no_serial'] ?? null,
                     'modelo'      => $record['modelo'],
-                    'condicion'   => $record['condicion'],
+                    'condicion'   => null, // Queda siempre en NULL para los tenants
                     'descripcion' => $record['descripcion'],
                     'pertenece_a' => $record['pertenece_a'],
                     'fecha_registro' => $record['created_at'],
+                    'created_at'  => $record['created_at'],
+                    'updated_at'  => $record['updated_at'],
                 ];
             }
         }
 
-        // D. Upsert masivo en ambas tablas
-        if (!empty($polarRecords)) {
-            $chunks = array_chunk($polarRecords, 500);
-            foreach ($chunks as $chunk) {
-                $tenantConnection->table('adc_polar')->upsert($chunk, ['no_serie'], [
-                    'fq_redi', 'cus_code', 'marca', 'no_serial', 'no_activo', 'empresa', 'estado', 'tipo_activo', 'updated_at'
-                ]);
-            }
-        }
-
+        // D. Upsert masivo en la tabla única adc_datos
         if (!empty($datosRecords)) {
             $chunks = array_chunk($datosRecords, 500);
             foreach ($chunks as $chunk) {
                 $tenantConnection->table('adc_datos')->upsert($chunk, ['serial'], [
-                    'IdCliente', 'no_activo', 'modelo', 'condicion', 'descripcion', 'pertenece_a'
+                    'IdCliente', 'cus_code', 'fq_redi', 'no_activo', 'no_serial', 'modelo', 'condicion', 'descripcion', 'pertenece_a', 'updated_at'
                 ]);
             }
         }
