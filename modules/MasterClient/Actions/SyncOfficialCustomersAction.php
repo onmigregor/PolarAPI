@@ -335,7 +335,7 @@ class SyncOfficialCustomersAction
                     
                     if (!$customer) continue;
 
-                    $paddedCusCode = str_pad((string)$customer->cus_code, 10, '0', STR_PAD_LEFT);
+                    $paddedCusCode = ltrim((string)$customer->cus_code, '0');
 
                     // D1. Sync to Master
                     MasterClient::updateOrCreate(
@@ -473,7 +473,7 @@ class SyncOfficialCustomersAction
                 MasterCustomerPrice::updateOrCreate(
                     [
                         'rot_code' => $price->rot_code,
-                        'cus_code' => $price->cus_code,
+                        'cus_code' => ltrim((string)$price->cus_code, '0'),
                         'prc_code' => $price->prc_code,
                     ],
                     [
@@ -503,7 +503,7 @@ class SyncOfficialCustomersAction
                 MasterCustomerRoute::updateOrCreate(
                     [
                         'rot_code' => $route->rot_code,
-                        'cus_code' => $route->cus_code,
+                        'cus_code' => ltrim((string)$route->cus_code, '0'),
                     ],
                     [
                         'fre_code'           => $route->fre_code,

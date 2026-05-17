@@ -59,7 +59,7 @@ class MasterCustomerAdcBulkSyncAction
 
         // 1. Mapear data del Admin a la estructura de la Maestra Central
         $syncData = array_map(function($item) {
-            $paddedCusCode = str_pad((string)($item['cus_code'] ?? ''), 10, '0', STR_PAD_LEFT);
+            $paddedCusCode = ltrim((string)($item['cus_code'] ?? ''), '0');
             return [
                 'cus_code'    => $paddedCusCode,
                 'serial'      => $item['no_serie'] ?? null,
@@ -79,10 +79,22 @@ class MasterCustomerAdcBulkSyncAction
         $this->upsertMasterData($syncData);
 
         // 3. Obtener la data con su respectivo tenant (db_name)
-        // Usamos master_clients que es la tabla que realmente tiene los registros vinculados a rutas
-        $recordsWithTenants = DB::table('master_adc_datos_polar as adc')
-            ->join('master_clients as clients', 'clients.cep', '=', 'adc.cus_code')
-            ->join('company_routes as routes', 'routes.id', '=', 'clients.company_route_id')
+        // Usamos master_clients (o master_client_polar como fallback) y hacemos join tolerante a ceros a la izquierda usando CAST
+        $hasMasterClients = DB::table('master_clients')->count() > 0;
+        
+        $query = DB::table('master_adc_datos_polar as adc');
+        
+        if ($hasMasterClients) {
+            $query->join('master_clients as clients', function($join) {
+                $join->on(DB::raw('CAST(clients.cep AS UNSIGNED)'), '=', DB::raw('CAST(adc.cus_code AS UNSIGNED)'));
+            });
+        } else {
+            $query->join('master_client_polar as clients', function($join) {
+                $join->on(DB::raw('CAST(clients.cus_code AS UNSIGNED)'), '=', DB::raw('CAST(adc.cus_code AS UNSIGNED)'));
+            });
+        }
+        
+        $recordsWithTenants = $query->join('company_routes as routes', 'routes.id', '=', 'clients.company_route_id')
             ->select('adc.*', 'routes.db_name')
             ->get()
             ->groupBy('db_name');
@@ -143,21 +155,25 @@ class MasterCustomerAdcBulkSyncAction
             Log::warning("Tenant {$dbName}: Error al crear/verificar tablas: " . $e->getMessage());
         }
 
-        // B. Mapa de IdCliente
-        $cusCodes = array_unique(array_column($records, 'cus_code'));
+        // B. Mapa de IdCliente (usamos cep sin ceros a la izquierda)
+        $cusCodes = array_unique(array_map(function($c) {
+            return ltrim((string)$c, '0');
+        }, array_column($records, 'cus_code')));
+        
         $clientMap = $tenantConnection->table('clientes')->whereIn('cep', $cusCodes)->pluck('IdCliente', 'cep');
-
+ 
         // C. Preparar registros para ambas tablas
         $polarRecords = [];
         $datosRecords = [];
-
+ 
         foreach ($records as $record) {
             $record = (array)$record;
+            $paddedCusCode = ltrim((string)$record['cus_code'], '0');
             
             // Data para adc_polar (Maestra Limpia)
             $polarRecords[] = [
                 'fq_redi'     => $record['fq_redi'] ?? null,
-                'cus_code'    => $record['cus_code'],
+                'cus_code'    => $paddedCusCode,
                 'marca'       => $record['modelo'],
                 'no_serie'    => $record['serial'],
                 'no_serial'   => $record['no_serial'] ?? null,
@@ -170,9 +186,9 @@ class MasterCustomerAdcBulkSyncAction
             ];
 
             // Data para adc_datos (Compatibilidad App)
-            if (isset($clientMap[$record['cus_code']])) {
+            if (isset($clientMap[$paddedCusCode])) {
                 $datosRecords[] = [
-                    'IdCliente'   => $clientMap[$record['cus_code']],
+                    'IdCliente'   => $clientMap[$paddedCusCode],
                     'serial'      => $record['serial'],
                     'no_activo'   => $record['no_activo'],
                     'modelo'      => $record['modelo'],

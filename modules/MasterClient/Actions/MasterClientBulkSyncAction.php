@@ -28,6 +28,23 @@ class MasterClientBulkSyncAction
             'errors' => [],
         ];
 
+        // Homologación: Limpiar todos los ceros a la izquierda de cus_code
+        $data = array_map(function($item) {
+            if (isset($item['cus_code'])) {
+                $item['cus_code'] = ltrim((string)$item['cus_code'], '0');
+            }
+            return $item;
+        }, $data);
+
+        if (!empty($customerPools)) {
+            $customerPools = array_map(function($cp) {
+                if (isset($cp['cus_code'])) {
+                    $cp['cus_code'] = ltrim((string)$cp['cus_code'], '0');
+                }
+                return $cp;
+            }, $customerPools);
+        }
+
         // 0a. Procesar Sucursales (Branches)
         $branchesMap = [];
         if (!empty($branches)) {
