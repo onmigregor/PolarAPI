@@ -219,6 +219,10 @@ class MasterCustomerAdcBulkSyncAction
 
             // Asegurar que condicion sea nullable
             $tenantConnection->statement("ALTER TABLE `adc_datos` MODIFY COLUMN `condicion` varchar(50) DEFAULT NULL");
+
+            // Asegurar que imagen y ubicacion_imagen tengan default ''
+            $tenantConnection->statement("ALTER TABLE `adc_datos` MODIFY COLUMN `imagen` varchar(100) NOT NULL DEFAULT ''");
+            $tenantConnection->statement("ALTER TABLE `adc_datos` MODIFY COLUMN `ubicacion_imagen` varchar(255) NOT NULL DEFAULT ''");
         } catch (\Exception $e) {
             Log::warning("Tenant {$dbName}: Error al migrar/verificar tabla adc_datos: " . $e->getMessage());
         }
