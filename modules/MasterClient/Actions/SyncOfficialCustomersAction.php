@@ -104,12 +104,18 @@ class SyncOfficialCustomersAction
             'errors' => [],
         ];
 
+        $startTime = microtime(true);
+
         try {
             $officialDb = DB::connection('productos_polar');
-            Log::info('SyncOfficialCustomers: Starting process.');
+            Log::channel('stack')->info('=== SyncOfficialCustomers: INICIO DE SINCRONIZACIÓN ===');
+            Log::channel('stack')->info('SyncOfficialCustomers: Timestamp: ' . now()->toDateTimeString());
 
             // 1. Identify unique routes and ensure infrastructure
             $routes = $officialDb->table('customer_routes')->distinct()->pluck('rot_code');
+            $totalCustomersInSource = $officialDb->table('customers')->count();
+            $totalAssignmentsInSource = $officialDb->table('customer_routes')->count();
+            Log::channel('stack')->info("SyncOfficialCustomers: [ORIGEN] Rutas únicas: {$routes->count()}, Clientes: {$totalCustomersInSource}, Asignaciones: {$totalAssignmentsInSource}");
             
             foreach ($routes as $rot_code) {
                 if (empty($rot_code)) continue;
@@ -122,6 +128,7 @@ class SyncOfficialCustomersAction
                     $summary['tenants_processed']++;
                 }
             }
+            Log::channel('stack')->info("SyncOfficialCustomers: [INFRA] {$summary['tenants_processed']} tenants verificados/creados.");
 
             // 2. Sync Pools to Master first
             $this->syncPools($officialDb, $summary);
@@ -139,8 +146,15 @@ class SyncOfficialCustomersAction
             $this->syncCustomerFrequencies($officialDb, $summary);
 
         } catch (\Exception $e) {
-            Log::error('SyncOfficialCustomers General Exception: ' . $e->getMessage());
+            Log::channel('stack')->error('SyncOfficialCustomers EXCEPCION GENERAL: ' . $e->getMessage());
             $summary['errors'][] = 'General Error: ' . $e->getMessage();
+        }
+
+        $elapsedSeconds = round(microtime(true) - $startTime, 2);
+        Log::channel('stack')->info("=== SyncOfficialCustomers: FIN DE SINCRONIZACIÓN ===");
+        Log::channel('stack')->info("SyncOfficialCustomers: [RESUMEN] Tenants: {$summary['tenants_processed']}, Master: {$summary['customers_synced_master']}, Tenants push: {$summary['customers_pushed_tenants']}, Errores: " . count($summary['errors']) . ", Tiempo: {$elapsedSeconds}s");
+        if (!empty($summary['errors'])) {
+            Log::channel('stack')->warning('SyncOfficialCustomers: [ERRORES] Primeros 5: ' . json_encode(array_slice($summary['errors'], 0, 5)));
         }
 
         return $summary;
@@ -294,7 +308,7 @@ class SyncOfficialCustomersAction
                 continue;
             }
 
-            Log::info("SyncOfficialCustomers: Processing route {$rotCode} (DB: {$companyRoute->db_name}) with " . count($routeAssignments) . " customers.");
+            Log::channel('stack')->info("SyncOfficialCustomers: [RUTA {$rotCode}] DB: {$companyRoute->db_name}, Clientes a procesar: " . count($routeAssignments));
 
             // A. Ensure Tenant Infrastructure
             $this->ensureInfrastructure($companyRoute->route_name, $companyRoute->db_name, $summary);
@@ -363,6 +377,11 @@ class SyncOfficialCustomersAction
                     );
                     $summary['customers_synced_master']++;
 
+                    // Log cada 50 clientes para no saturar
+                    if ($summary['customers_synced_master'] % 50 === 0) {
+                        Log::channel('stack')->info("SyncOfficialCustomers: [PROGRESO MASTER] {$summary['customers_synced_master']} clientes sincronizados...");
+                    }
+
                     // D2. Resolve flags and Visit Days
                     $cspFlags = MasterCustomerPrice::where('rot_code', $assignment->rot_code)
                         ->where('cus_code', $paddedCusCode)
@@ -429,7 +448,13 @@ class SyncOfficialCustomersAction
 
                     $summary['customers_pushed_tenants']++;
 
+                    // Log cada 50 clientes para no saturar
+                    if ($summary['customers_pushed_tenants'] % 50 === 0) {
+                        Log::channel('stack')->info("SyncOfficialCustomers: [PROGRESO TENANT] {$summary['customers_pushed_tenants']} clientes empujados a tenants...");
+                    }
+
                 } catch (\Exception $e) {
+                    Log::channel('stack')->error("SyncOfficialCustomers: [ERROR TENANT] CEP {$assignment->cus_code} en ruta {$rotCode}: " . $e->getMessage());
                     $summary['errors'][] = "Error processing {$assignment->cus_code} on route {$rotCode}: " . $e->getMessage();
                 }
             }
