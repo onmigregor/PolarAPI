@@ -154,8 +154,8 @@ class ReportController extends Controller
             } else {
                 $zipFilename = str_replace('.txt', '.zip', $filename);
                 $zipContent = $this->createZipContent($filename, $csvContent);
-                // Usar el disco de ventas por defecto o uno específico si existe
-                \Illuminate\Support\Facades\Storage::disk('sftp_ventas')->put($zipFilename, $zipContent);
+                // Usar el disco de obsequios (que apunta a la carpeta /Manual)
+                \Illuminate\Support\Facades\Storage::disk('sftp_obsequios')->put($zipFilename, $zipContent);
             }
 
             return response()->json([
@@ -238,7 +238,7 @@ class ReportController extends Controller
             } else {
                 $zipFilename = str_replace('.txt', '.zip', $filename);
                 $zipContent = $this->createZipContent($filename, $csvContent);
-                \Illuminate\Support\Facades\Storage::disk('sftp_ventas')->put($zipFilename, $zipContent);
+                \Illuminate\Support\Facades\Storage::disk('sftp_obsequios')->put($zipFilename, $zipContent);
             }
 
             return response()->json([
