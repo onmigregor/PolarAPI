@@ -18,4 +18,5 @@ return [
     Modules\MasterGeneral\Providers\MasterGeneralServiceProvider::class,
     Modules\MasterCompany\Providers\MasterCompanyServiceProvider::class,
     Modules\MasterPromotion\Providers\MasterPromotionServiceProvider::class,
+    Modules\MasterDiscount\Providers\MasterDiscountServiceProvider::class,
 ];
