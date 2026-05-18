@@ -40,6 +40,13 @@ class SyncDiscountsToClientsAction
             `did_code` varchar(200) NOT NULL COMMENT 'FK al detalle de descuento',
             `dis_code` varchar(200) NOT NULL COMMENT 'FK al descuento padre',
             `pro_code` varchar(50) DEFAULT NULL COMMENT 'SKU del producto',
+            `cl1code` varchar(50) DEFAULT NULL,
+            `cl2code` varchar(50) DEFAULT NULL,
+            `cl3code` varchar(50) DEFAULT NULL,
+            `cl4code` varchar(50) DEFAULT NULL,
+            `pro_code_ingredient` varchar(50) DEFAULT NULL,
+            `quo_code` varchar(50) DEFAULT NULL,
+            `con_code` varchar(50) DEFAULT NULL,
             `unt_code` varchar(10) DEFAULT NULL COMMENT 'Unidad de medida',
             `dlp_required` varchar(10) DEFAULT NULL,
             `dlp_discount` decimal(15,4) DEFAULT NULL,
@@ -191,6 +198,13 @@ class SyncDiscountsToClientsAction
                             'did_code'                     => $product->did_code,
                             'dis_code'                     => $product->dis_code,
                             'pro_code'                     => $product->pro_code,
+                            'cl1code'                      => $product->cl1code ?? null,
+                            'cl2code'                      => $product->cl2code ?? null,
+                            'cl3code'                      => $product->cl3code ?? null,
+                            'cl4code'                      => $product->cl4code ?? null,
+                            'pro_code_ingredient'          => $product->pro_code_ingredient ?? null,
+                            'quo_code'                     => $product->quo_code ?? null,
+                            'con_code'                     => $product->con_code ?? null,
                             'unt_code'                     => $product->unt_code,
                             'dlp_required'                 => $product->dlp_required,
                             'dlp_discount'                 => $product->dlp_discount,
@@ -288,6 +302,14 @@ class SyncDiscountsToClientsAction
         $productsExists = $conn->select("SHOW TABLES LIKE 'descuentos_polar_productos'");
         if (empty($productsExists)) {
             $conn->statement(self::CREATE_PRODUCTOS_TABLE);
+        } else {
+            $columns = collect($conn->select("SHOW COLUMNS FROM `descuentos_polar_productos`"))->pluck('Field')->toArray();
+            $required = ['cl1code', 'cl2code', 'cl3code', 'cl4code', 'pro_code_ingredient', 'quo_code', 'con_code'];
+            foreach ($required as $col) {
+                if (!in_array($col, $columns)) {
+                    $conn->statement("ALTER TABLE `descuentos_polar_productos` ADD COLUMN `$col` varchar(50) DEFAULT NULL");
+                }
+            }
         }
     }
 }
