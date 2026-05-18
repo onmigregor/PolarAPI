@@ -10,7 +10,7 @@ use Modules\CustomerADC\Models\MasterAdcPolar;
 class MasterCustomerAdcBulkSyncAction
 {
     private const CREATE_TENANT_TABLE_SQL = "
-        CREATE TABLE IF NOT EXISTS `adc_datos` (
+        CREATE TABLE IF NOT EXISTS `adc_polar` (
             `id_adc` int(11) NOT NULL AUTO_INCREMENT,
             `IdCliente` bigint(20) NOT NULL,
             `no_serie` varchar(100) NOT NULL,
@@ -38,7 +38,7 @@ class MasterCustomerAdcBulkSyncAction
 
     public function execute(array $data)
     {
-        Log::info("Iniciando sincronización masiva de Equipos ADC (Hacia adc_datos)");
+        Log::info("Iniciando sincronización masiva de Equipos ADC (Hacia adc_polar)");
 
         // Asegurar que la columna condicion de la maestra permita NULL
         try {
@@ -176,55 +176,55 @@ class MasterCustomerAdcBulkSyncAction
         DB::purge('tenant_sync');
         $tenantConnection = DB::connection('tenant_sync');
 
-        // A. Asegurar estructura unificada de adc_datos
+        // A. Asegurar estructura unificada de adc_polar
         try {
-            // Crear adc_datos si no existe
+            // Crear adc_polar si no existe
             $tenantConnection->statement(self::CREATE_TENANT_TABLE_SQL);
             
             // Parche/Actualización dinámica de columnas si la tabla ya existía
             $columns = array_map(function($col) {
                 return strtolower($col->Field);
-            }, $tenantConnection->select("SHOW COLUMNS FROM `adc_datos`"));
+            }, $tenantConnection->select("SHOW COLUMNS FROM `adc_polar`"));
 
             // Si existe la columna 'serial' (antigua), renombrarla a 'no_serie'
             if (in_array('serial', $columns) && !in_array('no_serie', $columns)) {
-                $tenantConnection->statement("ALTER TABLE `adc_datos` CHANGE COLUMN `serial` `no_serie` varchar(100) NOT NULL");
+                $tenantConnection->statement("ALTER TABLE `adc_polar` CHANGE COLUMN `serial` `no_serie` varchar(100) NOT NULL");
                 // Actualizar la lista de columnas en memoria
                 $columns[] = 'no_serie';
                 $columns = array_values(array_filter($columns, function($c) { return $c !== 'serial'; }));
             }
 
             if (!in_array('no_serie', $columns)) {
-                $tenantConnection->statement("ALTER TABLE `adc_datos` ADD COLUMN `no_serie` varchar(100) NOT NULL AFTER `IdCliente` ");
-                $tenantConnection->statement("ALTER TABLE `adc_datos` ADD UNIQUE KEY `idx_no_serie` (`no_serie`)");
+                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `no_serie` varchar(100) NOT NULL AFTER `IdCliente` ");
+                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD UNIQUE KEY `idx_no_serie` (`no_serie`)");
             }
             if (!in_array('no_activo', $columns)) {
-                $tenantConnection->statement("ALTER TABLE `adc_datos` ADD COLUMN `no_activo` varchar(100) DEFAULT NULL AFTER `no_serie` ");
+                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `no_activo` varchar(100) DEFAULT NULL AFTER `no_serie` ");
             }
             if (!in_array('no_serial', $columns)) {
-                $tenantConnection->statement("ALTER TABLE `adc_datos` ADD COLUMN `no_serial` varchar(255) DEFAULT NULL AFTER `no_activo` ");
+                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `no_serial` varchar(255) DEFAULT NULL AFTER `no_activo` ");
             }
             if (!in_array('fq_redi', $columns)) {
-                $tenantConnection->statement("ALTER TABLE `adc_datos` ADD COLUMN `fq_redi` varchar(255) DEFAULT NULL AFTER `no_serial` ");
+                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `fq_redi` varchar(255) DEFAULT NULL AFTER `no_serial` ");
             }
             if (!in_array('cus_code', $columns)) {
-                $tenantConnection->statement("ALTER TABLE `adc_datos` ADD COLUMN `cus_code` varchar(255) DEFAULT NULL AFTER `fq_redi` ");
+                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `cus_code` varchar(255) DEFAULT NULL AFTER `fq_redi` ");
             }
             if (!in_array('created_at', $columns)) {
-                $tenantConnection->statement("ALTER TABLE `adc_datos` ADD COLUMN `created_at` timestamp NULL DEFAULT NULL ");
+                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `created_at` timestamp NULL DEFAULT NULL ");
             }
             if (!in_array('updated_at', $columns)) {
-                $tenantConnection->statement("ALTER TABLE `adc_datos` ADD COLUMN `updated_at` timestamp NULL DEFAULT NULL ");
+                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `updated_at` timestamp NULL DEFAULT NULL ");
             }
 
             // Asegurar que condicion sea nullable
-            $tenantConnection->statement("ALTER TABLE `adc_datos` MODIFY COLUMN `condicion` varchar(50) DEFAULT NULL");
+            $tenantConnection->statement("ALTER TABLE `adc_polar` MODIFY COLUMN `condicion` varchar(50) DEFAULT NULL");
 
             // Asegurar que imagen y ubicacion_imagen tengan default ''
-            $tenantConnection->statement("ALTER TABLE `adc_datos` MODIFY COLUMN `imagen` varchar(100) NOT NULL DEFAULT ''");
-            $tenantConnection->statement("ALTER TABLE `adc_datos` MODIFY COLUMN `ubicacion_imagen` varchar(255) NOT NULL DEFAULT ''");
+            $tenantConnection->statement("ALTER TABLE `adc_polar` MODIFY COLUMN `imagen` varchar(100) NOT NULL DEFAULT ''");
+            $tenantConnection->statement("ALTER TABLE `adc_polar` MODIFY COLUMN `ubicacion_imagen` varchar(255) NOT NULL DEFAULT ''");
         } catch (\Exception $e) {
-            Log::warning("Tenant {$dbName}: Error al migrar/verificar tabla adc_datos: " . $e->getMessage());
+            Log::warning("Tenant {$dbName}: Error al migrar/verificar tabla adc_polar: " . $e->getMessage());
         }
 
         // B. Mapa de IdCliente (usamos cep sin ceros a la izquierda)
@@ -238,14 +238,14 @@ class MasterCustomerAdcBulkSyncAction
                 return $c->IdCliente;
             });
  
-        // C. Preparar registros para la tabla unificada adc_datos
+        // C. Preparar registros para la tabla unificada adc_polar
         $datosRecords = [];
  
         foreach ($records as $record) {
             $record = (array)$record;
             $paddedCusCode = ltrim((string)$record['cus_code'], '0');
 
-            // Data para adc_datos (Única Tabla de Inventario y Compatibilidad con App)
+            // Data para adc_polar (Única Tabla de Inventario y Compatibilidad con App)
             if (isset($clientMap[$paddedCusCode])) {
                 $datosRecords[] = [
                     'IdCliente'   => $clientMap[$paddedCusCode],
@@ -264,11 +264,11 @@ class MasterCustomerAdcBulkSyncAction
             }
         }
 
-        // D. Upsert masivo en la tabla única adc_datos
+        // D. Upsert masivo en la tabla única adc_polar
         if (!empty($datosRecords)) {
             $chunks = array_chunk($datosRecords, 500);
             foreach ($chunks as $chunk) {
-                $tenantConnection->table('adc_datos')->upsert($chunk, ['no_serie'], [
+                $tenantConnection->table('adc_polar')->upsert($chunk, ['no_serie'], [
                     'IdCliente', 'cus_code', 'fq_redi', 'no_activo', 'no_serial', 'modelo', 'descripcion', 'pertenece_a', 'updated_at'
                 ]);
             }

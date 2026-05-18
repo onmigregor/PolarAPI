@@ -31,17 +31,17 @@ class ExportAdcConsolidatedAction
                 DB::purge('tenant_report');
                 $tenantConn = DB::connection('tenant_report');
 
-                // Consultar tabla única de inventario adc_datos
-                $hasTableDatos = !empty($tenantConn->select("SHOW TABLES LIKE 'adc_datos'"));
+                // Consultar tabla única de inventario adc_polar
+                $hasTableDatos = !empty($tenantConn->select("SHOW TABLES LIKE 'adc_polar'"));
                 if (!$hasTableDatos) continue;
 
                 // Resolver dinámicamente si la columna es 'no_serie' o 'serial' (legacy)
                 $columns = array_map(function($col) {
                     return strtolower($col->Field);
-                }, $tenantConn->select("SHOW COLUMNS FROM `adc_datos`"));
+                }, $tenantConn->select("SHOW COLUMNS FROM `adc_polar`"));
                 $serialCol = in_array('no_serie', $columns) ? 'no_serie' : 'serial';
 
-                $data = $tenantConn->table('adc_datos as adc')
+                $data = $tenantConn->table('adc_polar as adc')
                     ->join('clientes as c', 'c.IdCliente', '=', 'adc.IdCliente')
                     ->select([
                         DB::raw("'{$tenant->cep}' as fq_redi"),
