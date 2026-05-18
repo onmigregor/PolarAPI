@@ -25,6 +25,7 @@ class MasterPromotionDetail extends Model
         'tp3_code',
         'pdl_minimum',
         'unt_code_required',
+        'unt_code_free',
         'pdl_order',
         'pdl_scalable',
         'pdl_accumulable',

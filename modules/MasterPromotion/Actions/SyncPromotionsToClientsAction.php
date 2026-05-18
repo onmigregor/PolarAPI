@@ -46,6 +46,7 @@ class SyncPromotionsToClientsAction
             `tp3_code` varchar(50) DEFAULT NULL COMMENT 'Clase de producto jerarquía 3',
             `pdl_minimum` decimal(15,3) DEFAULT NULL COMMENT 'Mínimo requerido para activar',
             `unt_code_required` varchar(50) DEFAULT NULL COMMENT 'Unidad requerida',
+            `unt_code_free` varchar(50) DEFAULT NULL COMMENT 'Unidad del regalo/gratis',
             `pdl_order` int(11) DEFAULT NULL COMMENT 'Orden del detalle',
             `pdl_scalable` tinyint(1) DEFAULT 0 COMMENT 'Es escalable',
             `pdl_accumulable` tinyint(1) DEFAULT 0 COMMENT 'Es acumulable',
@@ -234,6 +235,7 @@ class SyncPromotionsToClientsAction
                         'tp3_code'              => $detail->tp3_code ?? null,
                         'pdl_minimum'           => $detail->pdl_minimum,
                         'unt_code_required'     => $detail->unt_code_required,
+                        'unt_code_free'         => $detail->unt_code_free ?? null,
                         'pdl_order'             => $detail->pdl_order,
                         'pdl_scalable'          => $detail->pdl_scalable,
                         'pdl_accumulable'       => $detail->pdl_accumulable,
@@ -382,7 +384,7 @@ class SyncPromotionsToClientsAction
             $conn->statement(self::CREATE_PROMOCIONES_TABLE);
         } else {
             $columns = collect($conn->select("SHOW COLUMNS FROM `promociones_polar`"))->pluck('Field')->toArray();
-            $required = ['pdl_order', 'pdl_scalable', 'pdl_accumulable', 'prm_extended_file', 'pdl_extended_file', 'tp1_code', 'tp2_code', 'tp3_code'];
+            $required = ['pdl_order', 'pdl_scalable', 'pdl_accumulable', 'prm_extended_file', 'pdl_extended_file', 'tp1_code', 'tp2_code', 'tp3_code', 'unt_code_free'];
             foreach ($required as $col) {
                 if (!in_array($col, $columns)) {
                     $type = (strpos($col, 'file') !== false) ? "TEXT DEFAULT NULL" : 
