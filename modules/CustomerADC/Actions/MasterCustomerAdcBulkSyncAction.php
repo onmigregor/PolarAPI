@@ -204,8 +204,32 @@ class MasterCustomerAdcBulkSyncAction
             if (!in_array('no_serial', $columns)) {
                 $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `no_serial` varchar(255) DEFAULT NULL AFTER `no_activo` ");
             }
+            if (!in_array('modelo', $columns)) {
+                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `modelo` varchar(100) DEFAULT NULL AFTER `no_serial` ");
+            }
+            if (!in_array('condicion', $columns)) {
+                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `condicion` varchar(50) DEFAULT NULL AFTER `modelo` ");
+            }
+            if (!in_array('descripcion', $columns)) {
+                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `descripcion` text DEFAULT NULL AFTER `condicion` ");
+            }
+            if (!in_array('es_propio', $columns)) {
+                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `es_propio` tinyint(1) DEFAULT 0 AFTER `descripcion` ");
+            }
+            if (!in_array('pertenece_a', $columns)) {
+                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `pertenece_a` varchar(60) NOT NULL DEFAULT 'POLAR' AFTER `es_propio` ");
+            }
+            if (!in_array('fecha_registro', $columns)) {
+                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `fecha_registro` datetime DEFAULT CURRENT_TIMESTAMP AFTER `pertenece_a` ");
+            }
+            if (!in_array('imagen', $columns)) {
+                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `imagen` varchar(100) NOT NULL DEFAULT '' AFTER `fecha_registro` ");
+            }
+            if (!in_array('ubicacion_imagen', $columns)) {
+                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `ubicacion_imagen` varchar(255) NOT NULL DEFAULT '' AFTER `imagen` ");
+            }
             if (!in_array('fq_redi', $columns)) {
-                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `fq_redi` varchar(255) DEFAULT NULL AFTER `no_serial` ");
+                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `fq_redi` varchar(255) DEFAULT NULL AFTER `ubicacion_imagen` ");
             }
             if (!in_array('cus_code', $columns)) {
                 $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `cus_code` varchar(255) DEFAULT NULL AFTER `fq_redi` ");

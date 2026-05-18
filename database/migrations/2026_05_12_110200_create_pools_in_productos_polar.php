@@ -12,24 +12,28 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::connection('productos_polar')->create('pools', function (Blueprint $table) {
-            $table->id();
-            $table->string('pol_code')->unique();
-            $table->string('pol_name')->nullable();
-            $table->boolean('pol_customer_search')->default(false);
-            $table->boolean('deleted')->default(false);
-            $table->timestamps();
-        });
+        if (!Schema::connection('productos_polar')->hasTable('pools')) {
+            Schema::connection('productos_polar')->create('pools', function (Blueprint $table) {
+                $table->id();
+                $table->string('pol_code')->unique();
+                $table->string('pol_name')->nullable();
+                $table->boolean('pol_customer_search')->default(false);
+                $table->boolean('deleted')->default(false);
+                $table->timestamps();
+            });
+        }
 
-        Schema::connection('productos_polar')->create('customer_pools', function (Blueprint $table) {
-            $table->id();
-            $table->string('cus_code')->index();
-            $table->string('pol_code')->index();
-            $table->boolean('deleted')->default(false);
-            $table->timestamps();
-            
-            $table->unique(['cus_code', 'pol_code'], 'idx_cus_pol_unique');
-        });
+        if (!Schema::connection('productos_polar')->hasTable('customer_pools')) {
+            Schema::connection('productos_polar')->create('customer_pools', function (Blueprint $table) {
+                $table->id();
+                $table->string('cus_code')->index();
+                $table->string('pol_code')->index();
+                $table->boolean('deleted')->default(false);
+                $table->timestamps();
+                
+                $table->unique(['cus_code', 'pol_code'], 'idx_cus_pol_unique');
+            });
+        }
     }
 
     /**
