@@ -56,7 +56,8 @@ class MasterPromotionBulkSyncAction
             if (!empty($productsData)) {
                 // REQUERIMIENTO ESPECIAL: Filtrar solo prpRequired == true
                 $filteredProducts = array_filter($productsData, function ($item) {
-                    return isset($item['prpRequired']) && $item['prpRequired'] === true;
+                    $required = $item['prp_required'] ?? $item['prpRequired'] ?? false;
+                    return filter_var($required, FILTER_VALIDATE_BOOLEAN);
                 });
 
                 $fillable = (new MasterPromotionDetailProduct())->getFillable();
