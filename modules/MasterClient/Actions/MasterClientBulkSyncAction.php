@@ -15,13 +15,24 @@ class MasterClientBulkSyncAction
         $this->ensureTablesAction = $ensureTablesAction;
     }
 
-    public function execute(array $data, array $branches = [], array $segments = [], array $pools = [], array $customerPools = []): array
-    {
+    public function execute(
+        array $data, 
+        array $branches = [], 
+        array $segments = [], 
+        array $pools = [], 
+        array $customerPools = [],
+        array $customerRoutes = [],
+        array $customerPrices = [],
+        array $customerFrequencies = []
+    ): array {
         $results = [
             'branches_synced' => 0,
             'segments_synced' => 0,
             'pools_synced' => 0,
             'customer_pools_synced' => 0,
+            'customer_routes_synced' => 0,
+            'customer_prices_synced' => 0,
+            'customer_frequencies_synced' => 0,
             'created' => 0,
             'updated' => 0,
             'pushed_to_tenants' => 0,
@@ -43,6 +54,24 @@ class MasterClientBulkSyncAction
                 }
                 return $cp;
             }, $customerPools);
+        }
+
+        if (!empty($customerRoutes)) {
+            $customerRoutes = array_map(function($cr) {
+                if (isset($cr['cus_code'])) {
+                    $cr['cus_code'] = ltrim((string)$cr['cus_code'], '0');
+                }
+                return $cr;
+            }, $customerRoutes);
+        }
+
+        if (!empty($customerPrices)) {
+            $customerPrices = array_map(function($cp) {
+                if (isset($cp['cus_code'])) {
+                    $cp['cus_code'] = ltrim((string)$cp['cus_code'], '0');
+                }
+                return $cp;
+            }, $customerPrices);
         }
 
         // 0a. Procesar Sucursales (Branches)
@@ -97,6 +126,71 @@ class MasterClientBulkSyncAction
                     ['deleted' => $cp['deleted']]
                 );
                 $results['customer_pools_synced']++;
+            }
+        }
+
+        // 0e. Procesar customer_routes
+        if (!empty($customerRoutes)) {
+            foreach ($customerRoutes as $cr) {
+                \Modules\MasterClient\Models\MasterCustomerRoute::updateOrCreate(
+                    [
+                        'rot_code' => $cr['rot_code'],
+                        'cus_code' => $cr['cus_code'],
+                    ],
+                    [
+                        'fre_code'           => $cr['fre_code'] ?? null,
+                        'ctr_monday'         => $cr['ctr_monday'] ?? null,
+                        'ctr_tuesday'        => $cr['ctr_tuesday'] ?? null,
+                        'ctr_wednesday'      => $cr['ctr_wednesday'] ?? null,
+                        'ctr_thursday'       => $cr['ctr_thursday'] ?? null,
+                        'ctr_friday'         => $cr['ctr_friday'] ?? null,
+                        'ctr_saturday'       => $cr['ctr_saturday'] ?? null,
+                        'ctr_sunday'         => $cr['ctr_sunday'] ?? null,
+                        'ctr_contact_person' => $cr['ctr_contact_person'] ?? null,
+                        'ctr_balance'        => $cr['ctr_balance'] ?? null,
+                        'prc_code_for_sale'  => $cr['prc_code_for_sale'] ?? null,
+                        'con_code'           => $cr['con_code'] ?? null,
+                    ]
+                );
+                $results['customer_routes_synced']++;
+            }
+        }
+
+        // 0f. Procesar customer_prices
+        if (!empty($customerPrices)) {
+            foreach ($customerPrices as $cp) {
+                \Modules\MasterClient\Models\MasterCustomerPrice::updateOrCreate(
+                    [
+                        'rot_code' => $cp['rot_code'],
+                        'cus_code' => $cp['cus_code'],
+                        'prc_code' => $cp['prc_code'],
+                    ],
+                    [
+                        'csp_for_sale'   => $cp['csp_for_sale'] ?? 0,
+                        'csp_for_return' => $cp['csp_for_return'] ?? 0,
+                    ]
+                );
+                $results['customer_prices_synced']++;
+            }
+        }
+
+        // 0g. Procesar customer_frequencies
+        if (!empty($customerFrequencies)) {
+            foreach ($customerFrequencies as $cf) {
+                \Modules\MasterClient\Models\MasterCustomerFrequency::updateOrCreate(
+                    [
+                        'fre_code' => $cf['fre_code'],
+                    ],
+                    [
+                        'fre_name'     => $cf['fre_name'] ?? null,
+                        'fre_week1'    => $cf['fre_week1'] ?? null,
+                        'fre_week2'    => $cf['fre_week2'] ?? null,
+                        'fre_week3'    => $cf['fre_week3'] ?? null,
+                        'fre_week4'    => $cf['fre_week4'] ?? null,
+                        'fre_customer' => $cf['fre_customer'] ?? null,
+                    ]
+                );
+                $results['customer_frequencies_synced']++;
             }
         }
 
@@ -161,8 +255,23 @@ class MasterClientBulkSyncAction
                         if (($item['days']['sunday'] ?? 0) > 0) $activeDays[] = 'DOMINGO';
                     }
 
+                    // Resolver banderas y Días de Visita de las tablas Master recién sincronizadas
+                    $paddedCusCode = $item['cus_code'];
+                    $rotCode = $routeName;
+
+                    $cspFlags = \Modules\MasterClient\Models\MasterCustomerPrice::where('rot_code', $rotCode)
+                        ->where('cus_code', $paddedCusCode)
+                        ->orderByDesc('csp_for_sale')->first();
+                    
+                    $routeFlags = \Modules\MasterClient\Models\MasterCustomerRoute::where('rot_code', $rotCode)
+                        ->where('cus_code', $paddedCusCode)->first();
+
+                    $freqFlags = null;
+                    if ($routeFlags && $routeFlags->fre_code) {
+                        $freqFlags = \Modules\MasterClient\Models\MasterCustomerFrequency::where('fre_code', $routeFlags->fre_code)->first();
+                    }
+
                     $groupedByRoute[$companyRoute->db_name][] = [
-                        'IdCliente' => (int)ltrim($item['cus_code'], '0'),
                         'cep' => $item['cus_code'],
                         'Cliente' => $item['cus_business_name'] ?? ($item['cus_name'] ?? ''),
                         'cus_business_name' => $item['cus_business_name'] ?? '',
@@ -181,7 +290,7 @@ class MasterClientBulkSyncAction
                         'DiaDespacho2' => $activeDays[1] ?? '',
                         'DiaDespacho3' => $activeDays[0] ?? '', // Se repite el primer día aquí
                         'FormaPago' => '',
-                        'PIN' => '',
+                        'PIN' => 0,
                         'vendedor' => '',
                         'tipoclienteplantactico' => '',
                         'TipoCliente' => $branchesMap[$item['tp2_code'] ?? ''] ?? '',
@@ -214,6 +323,19 @@ class MasterClientBulkSyncAction
                         'promoCP' => 0,
                         'promoPCV' => 0,
                         'Descuento' => 0.00,
+                        
+                        // Campos de precio, ruta y frecuencia
+                        'csp_for_sale'       => $cspFlags ? $cspFlags->csp_for_sale : 0,
+                        'csp_for_return'     => $cspFlags ? $cspFlags->csp_for_return : 0,
+                        'ctr_contact_person' => $routeFlags ? $routeFlags->ctr_contact_person : null,
+                        'ctr_balance'        => $routeFlags ? $routeFlags->ctr_balance : null,
+                        'prc_code_for_sale'  => $routeFlags ? $routeFlags->prc_code_for_sale : null,
+                        'con_code'           => $routeFlags ? $routeFlags->con_code : null,
+                        'fre_week1'          => $freqFlags ? $freqFlags->fre_week1 : null,
+                        'fre_week2'          => $freqFlags ? $freqFlags->fre_week2 : null,
+                        'fre_week3'          => $freqFlags ? $freqFlags->fre_week3 : null,
+                        'fre_week4'          => $freqFlags ? $freqFlags->fre_week4 : null,
+                        'fre_customer'       => $freqFlags ? $freqFlags->fre_customer : null,
                     ];
                 }
 
@@ -229,11 +351,14 @@ class MasterClientBulkSyncAction
                 \Illuminate\Support\Facades\Config::set('database.connections.tenant.database', $dbName);
                 \Illuminate\Support\Facades\DB::purge('tenant');
                 
+                // Asegurar las columnas correctas en la tabla clientes de este tenant
+                $this->ensureClientesColumnsExist('tenant');
+
                 foreach ($clients as $clientData) {
                     \Illuminate\Support\Facades\DB::connection('tenant')
                         ->table('clientes')
                         ->updateOrInsert(
-                            ['IdCliente' => $clientData['IdCliente']],
+                            ['cep' => $clientData['cep']],
                             $clientData
                         );
                     $results['pushed_to_tenants']++;
@@ -287,5 +412,64 @@ class MasterClientBulkSyncAction
         }
 
         return $results;
+    }
+
+    private function ensureClientesColumnsExist(string $connection): void
+    {
+        try {
+            $columns = \Illuminate\Support\Facades\DB::connection($connection)->select("SHOW COLUMNS FROM clientes");
+            $existingColumns = array_column($columns, 'Field');
+
+            $toAdd = [
+                'cus_business_name'  => 'VARCHAR(255) DEFAULT NULL',
+                'tipoclienteplantactico' => 'VARCHAR(50) DEFAULT NULL',
+                'latitud'            => 'VARCHAR(20) NOT NULL DEFAULT \'\'',
+                'longitud'           => 'VARCHAR(20) NOT NULL DEFAULT \'\'',
+                'csp_for_sale'       => 'TINYINT(1) NOT NULL DEFAULT 0',
+                'csp_for_return'     => 'TINYINT(1) NOT NULL DEFAULT 0',
+                'ctr_contact_person' => 'VARCHAR(100) DEFAULT NULL',
+                'ctr_balance'        => 'VARCHAR(50) DEFAULT NULL',
+                'prc_code_for_sale'  => 'VARCHAR(20) DEFAULT NULL',
+                'con_code'           => 'VARCHAR(50) DEFAULT NULL',
+                'brc_code'           => 'VARCHAR(50) DEFAULT NULL',
+                'cus_credit_limit'   => 'VARCHAR(50) DEFAULT NULL',
+                'cus_balance'        => 'VARCHAR(50) DEFAULT NULL',
+                'tp1_code'           => 'VARCHAR(20) DEFAULT NULL',
+                'fre_week1'          => 'VARCHAR(10) DEFAULT NULL',
+                'fre_week2'          => 'VARCHAR(10) DEFAULT NULL',
+                'fre_week3'          => 'VARCHAR(10) DEFAULT NULL',
+                'fre_week4'          => 'VARCHAR(10) DEFAULT NULL',
+                'fre_customer'       => 'VARCHAR(10) DEFAULT NULL',
+                // Legacy fields that might be missing on some tenants
+                'imagen_negocio'     => 'VARCHAR(255) DEFAULT NULL',
+                'ubicacion_imagen_negocio' => 'VARCHAR(255) DEFAULT NULL',
+                'requiere_pasos_visita'=> 'TINYINT(1) NOT NULL DEFAULT 0',
+                'promoAPC'           => 'INT(11) NOT NULL DEFAULT 0',
+                'promoCP'            => 'INT(11) NOT NULL DEFAULT 0',
+                'promoPCV'           => 'INT(11) NOT NULL DEFAULT 0',
+                'email'              => 'VARCHAR(150) DEFAULT NULL',
+                'instagram'          => 'VARCHAR(30) DEFAULT NULL',
+                'DiaDespacho1'       => 'VARCHAR(255) DEFAULT NULL',
+                'DiaDespacho2'       => 'VARCHAR(255) DEFAULT NULL',
+                'DiaDespacho3'       => 'VARCHAR(255) DEFAULT NULL',
+                'FormaPago'          => 'VARCHAR(20) DEFAULT NULL',
+                'PIN'                => 'VARCHAR(20) DEFAULT NULL',
+                'vendedor'           => 'VARCHAR(100) DEFAULT NULL',
+                'categoria'          => 'VARCHAR(3) DEFAULT NULL',
+                'licencialicor'      => 'VARCHAR(30) DEFAULT NULL',
+                'nota'               => 'TEXT DEFAULT NULL',
+                'perfilUsuario'      => 'VARCHAR(10) DEFAULT NULL',
+                'perfilUsuarioApp'   => 'VARCHAR(10) DEFAULT NULL',
+            ];
+
+            foreach ($toAdd as $col => $definition) {
+                if (!in_array($col, $existingColumns)) {
+                    Log::info("MasterClientBulkSyncAction: Adding missing column {$col} to table clientes in connection {$connection}");
+                    \Illuminate\Support\Facades\DB::connection($connection)->statement("ALTER TABLE clientes ADD COLUMN `{$col}` {$definition}");
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning("MasterClientBulkSyncAction: Error ensuring column structure on {$connection}: " . $e->getMessage());
+        }
     }
 }

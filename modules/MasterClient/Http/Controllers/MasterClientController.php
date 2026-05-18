@@ -28,8 +28,20 @@ class MasterClientController extends Controller
             $segments = $request->input('segments', []);
             $pools = $request->input('pools', []);
             $customerPools = $request->input('customer_pools', []);
+            $customerRoutes = $request->input('customer_routes', []);
+            $customerPrices = $request->input('customer_prices', []);
+            $customerFrequencies = $request->input('customer_frequencies', []);
             
-            $result = $action->execute($data, $branches, $segments, $pools, $customerPools);
+            $result = $action->execute(
+                $data, 
+                $branches, 
+                $segments, 
+                $pools, 
+                $customerPools, 
+                $customerRoutes, 
+                $customerPrices, 
+                $customerFrequencies
+            );
 
             return response()->json([
                 'success' => true,
