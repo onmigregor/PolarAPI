@@ -35,6 +35,7 @@ class MasterPromotionDetailProduct extends Model
         'prp_min_percentage3',
         'prp_min_percentage4',
         'prp_min_percentage5',
+        'prp_max_percentage1',
         'prp_max_percentage2',
         'prp_max_percentage3',
         'prp_max_percentage4',
@@ -48,6 +49,7 @@ class MasterPromotionDetailProduct extends Model
         'prp_max_free2',
         'prp_max_free3',
         'prp_max_free4',
+        'prp_max_free5',
         'unt_code_free',
     ];
 }

@@ -41,6 +41,9 @@ class SyncPromotionsToClientsAction
             `cus_code` varchar(50) DEFAULT NULL COMMENT 'Cliente específico (NULL = todos)',
             `rot_code` varchar(50) DEFAULT NULL COMMENT 'Ruta/territorio asignado',
             `tp3code` varchar(50) DEFAULT NULL COMMENT 'Clase de producto (filtro por jerarquía)',
+            `tp1_code` varchar(50) DEFAULT NULL COMMENT 'Clase de producto jerarquía 1',
+            `tp2_code` varchar(50) DEFAULT NULL COMMENT 'Clase de producto jerarquía 2',
+            `tp3_code` varchar(50) DEFAULT NULL COMMENT 'Clase de producto jerarquía 3',
             `pdl_minimum` decimal(15,3) DEFAULT NULL COMMENT 'Mínimo requerido para activar',
             `unt_code_required` varchar(50) DEFAULT NULL COMMENT 'Unidad requerida',
             `pdl_order` int(11) DEFAULT NULL COMMENT 'Orden del detalle',
@@ -88,6 +91,7 @@ class SyncPromotionsToClientsAction
             `prp_min_percentage3` decimal(15,3) DEFAULT NULL,
             `prp_min_percentage4` decimal(15,3) DEFAULT NULL,
             `prp_min_percentage5` decimal(15,3) DEFAULT NULL,
+            `prp_max_percentage1` decimal(15,3) DEFAULT NULL,
             `prp_max_percentage2` decimal(15,3) DEFAULT NULL,
             `prp_max_percentage3` decimal(15,3) DEFAULT NULL,
             `prp_max_percentage4` decimal(15,3) DEFAULT NULL,
@@ -101,6 +105,7 @@ class SyncPromotionsToClientsAction
             `prp_max_free2` decimal(15,3) DEFAULT NULL,
             `prp_max_free3` decimal(15,3) DEFAULT NULL,
             `prp_max_free4` decimal(15,3) DEFAULT NULL,
+            `prp_max_free5` decimal(15,3) DEFAULT NULL,
             `unt_code_free` varchar(50) DEFAULT NULL,
             `synced_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Última sincronización',
             PRIMARY KEY (`prp_code`),
@@ -224,6 +229,9 @@ class SyncPromotionsToClientsAction
                         'cus_code'              => $detail->cus_code,
                         'rot_code'              => $detail->rot_code,
                         'tp3code'               => $detail->tp3code,
+                        'tp1_code'              => $detail->tp1_code ?? null,
+                        'tp2_code'              => $detail->tp2_code ?? null,
+                        'tp3_code'              => $detail->tp3_code ?? null,
                         'pdl_minimum'           => $detail->pdl_minimum,
                         'unt_code_required'     => $detail->unt_code_required,
                         'pdl_order'             => $detail->pdl_order,
@@ -264,6 +272,7 @@ class SyncPromotionsToClientsAction
                             'prp_min_percentage3'=> $product->prp_min_percentage3,
                             'prp_min_percentage4'=> $product->prp_min_percentage4,
                             'prp_min_percentage5'=> $product->prp_min_percentage5,
+                            'prp_max_percentage1'=> $product->prp_max_percentage1 ?? null,
                             'prp_max_percentage2'=> $product->prp_max_percentage2,
                             'prp_max_percentage3'=> $product->prp_max_percentage3,
                             'prp_max_percentage4'=> $product->prp_max_percentage4,
@@ -277,6 +286,7 @@ class SyncPromotionsToClientsAction
                             'prp_max_free2'      => $product->prp_max_free2,
                             'prp_max_free3'      => $product->prp_max_free3,
                             'prp_max_free4'      => $product->prp_max_free4,
+                            'prp_max_free5'      => $product->prp_max_free5 ?? null,
                             'unt_code_free'      => $product->unt_code_free,
                             'synced_at'          => $now,
                         ];
@@ -372,11 +382,12 @@ class SyncPromotionsToClientsAction
             $conn->statement(self::CREATE_PROMOCIONES_TABLE);
         } else {
             $columns = collect($conn->select("SHOW COLUMNS FROM `promociones_polar`"))->pluck('Field')->toArray();
-            $required = ['pdl_order', 'pdl_scalable', 'pdl_accumulable', 'prm_extended_file', 'pdl_extended_file'];
+            $required = ['pdl_order', 'pdl_scalable', 'pdl_accumulable', 'prm_extended_file', 'pdl_extended_file', 'tp1_code', 'tp2_code', 'tp3_code'];
             foreach ($required as $col) {
                 if (!in_array($col, $columns)) {
                     $type = (strpos($col, 'file') !== false) ? "TEXT DEFAULT NULL" : 
-                            (($col === 'pdl_order') ? "int(11) DEFAULT NULL" : "tinyint(1) DEFAULT 0");
+                            ((strpos($col, 'code') !== false) ? "varchar(50) DEFAULT NULL" :
+                            (($col === 'pdl_order') ? "int(11) DEFAULT NULL" : "tinyint(1) DEFAULT 0"));
                     
                     $conn->statement("ALTER TABLE `promociones_polar` ADD COLUMN `$col` $type");
                 }
@@ -393,10 +404,10 @@ class SyncPromotionsToClientsAction
             $required = [
                 'prp_valid_for_base_percentage', 'prp_quantity', 'prp_quantity2', 'prp_quantity3', 
                 'prp_quantity4', 'prp_quantity5', 'prp_min_percentage3', 'prp_min_percentage4', 
-                'prp_min_percentage5', 'prp_max_percentage2', 'prp_max_percentage3', 
+                'prp_min_percentage5', 'prp_max_percentage1', 'prp_max_percentage2', 'prp_max_percentage3', 
                 'prp_max_percentage4', 'prp_max_percentage5', 'prp_min_free2', 'prp_min_free3', 
                 'prp_min_free4', 'prp_min_free5', 'prp_max_free1', 'prp_max_free2', 
-                'prp_max_free3', 'prp_max_free4', 'unt_code_free'
+                'prp_max_free3', 'prp_max_free4', 'prp_max_free5', 'unt_code_free'
             ];
             foreach ($required as $col) {
                 if (!in_array($col, $columns)) {
