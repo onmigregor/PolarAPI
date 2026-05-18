@@ -226,7 +226,7 @@ class SyncPromotionsToClientsAction
                         'pdl_name'              => $detail->pdl_name,
                         'pdl_since'             => $detail->pdl_since,
                         'pdl_until'             => $detail->pdl_until,
-                        'cus_code'              => $detail->cus_code,
+                        'cus_code'              => $detail->cus_code ? ltrim($detail->cus_code, '0') : null,
                         'rot_code'              => $detail->rot_code,
                         'tp3code'               => $detail->tp3code,
                         'tp1_code'              => $detail->tp1_code ?? null,

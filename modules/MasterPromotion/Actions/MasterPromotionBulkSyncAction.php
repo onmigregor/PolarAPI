@@ -127,6 +127,10 @@ class MasterPromotionBulkSyncAction
                         $value = $value ? 1 : 0;
                     }
 
+                    if ($snakeKey === 'cus_code' && is_string($value)) {
+                        $value = ltrim($value, '0');
+                    }
+
                     $newItem[$snakeKey] = $value;
                 }
             }
