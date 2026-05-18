@@ -194,8 +194,11 @@ class MasterCustomerAdcBulkSyncAction
                 $columns = array_values(array_filter($columns, function($c) { return $c !== 'serial'; }));
             }
 
+            if (!in_array('idcliente', $columns)) {
+                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `IdCliente` bigint(20) NOT NULL DEFAULT 0");
+            }
             if (!in_array('no_serie', $columns)) {
-                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `no_serie` varchar(100) NOT NULL AFTER `IdCliente` ");
+                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD COLUMN `no_serie` varchar(100) NOT NULL");
                 $tenantConnection->statement("ALTER TABLE `adc_polar` ADD UNIQUE KEY `idx_no_serie` (`no_serie`)");
             }
             if (!in_array('no_activo', $columns)) {
