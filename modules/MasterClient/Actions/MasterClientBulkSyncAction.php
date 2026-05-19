@@ -215,11 +215,15 @@ class MasterClientBulkSyncAction
                 if ($routeName) {
                     if (!isset($routesCache[$routeName])) {
                         $cleanRot = ltrim(strtolower((string)$routeName), 'v');
-                        $routesCache[$routeName] = CompanyRoute::all()->first(function($cr) use ($cleanRot) {
-                            $crCleanRouteName = ltrim(strtolower((string)$cr->route_name), 'v');
-                            $crCleanCode = ltrim(strtolower((string)$cr->code), 'v');
-                            return $crCleanRouteName === $cleanRot || $crCleanCode === $cleanRot;
-                        });
+                        $routesCache[$routeName] = CompanyRoute::all()
+                            ->sortBy(function($cr) {
+                                return $cr->cep ? 0 : 1;
+                            })
+                            ->first(function($cr) use ($cleanRot) {
+                                $crCleanRouteName = ltrim(strtolower((string)$cr->route_name), 'v');
+                                $crCleanCode = ltrim(strtolower((string)$cr->code), 'v');
+                                return $crCleanRouteName === $cleanRot || $crCleanCode === $cleanRot;
+                            });
                     }
                     $companyRoute = $routesCache[$routeName];
                 }

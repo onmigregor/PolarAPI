@@ -31,9 +31,9 @@ class CompanyRouteBulkSyncAction
             try {
                 // 1. Upsert en la tabla maestra de rutas
                 $route = CompanyRoute::updateOrCreate(
-                    ['cep' => $item['cep']],
+                    ['code' => $item['code']],
                     [
-                        'code' => $item['code'] ?? null,
+                        'cep' => $item['cep'] ?? null,
                         'name' => $item['name'] ?? null,
                         'route_name' => $item['route_name'] ?? null,
                         'zone' => $item['zone'] ?? null,
