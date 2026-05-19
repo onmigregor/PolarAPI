@@ -78,7 +78,7 @@ class MasterClientBulkSyncAction
         $branchesMap = [];
         if (!empty($branches)) {
             foreach ($branches as $branch) {
-                \Modules\MasterClient\Models\MasterClientBranch::updateOrCreate(
+                \Modules\MasterClient\Models\MasterClientType2::updateOrCreate(
                     ['tp2_code' => $branch['tp2_code']],
                     ['tp2_name' => $branch['tp2_name']]
                 );
@@ -196,7 +196,7 @@ class MasterClientBulkSyncAction
 
         // Si no vinieron datos en el payload, cargamos lo que tengamos en DB para el mapeo
         if (empty($branchesMap)) {
-            $branchesMap = \Modules\MasterClient\Models\MasterClientBranch::pluck('tp2_name', 'tp2_code')->toArray();
+            $branchesMap = \Modules\MasterClient\Models\MasterClientType2::pluck('tp2_name', 'tp2_code')->toArray();
         }
         if (empty($segmentsMap)) {
             $segmentsMap = \Modules\MasterClient\Models\MasterClientSegment::pluck('tp3_name', 'tp3_code')->toArray();
