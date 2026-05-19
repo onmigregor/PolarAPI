@@ -54,14 +54,8 @@ class MasterPromotionBulkSyncAction
 
             // 3. Sync Products
             if (!empty($productsData)) {
-                // REQUERIMIENTO ESPECIAL: Filtrar solo prpRequired == true
-                $filteredProducts = array_filter($productsData, function ($item) {
-                    $required = $item['prp_required'] ?? $item['prpRequired'] ?? false;
-                    return filter_var($required, FILTER_VALIDATE_BOOLEAN);
-                });
-
                 $fillable = (new MasterPromotionDetailProduct())->getFillable();
-                $data = $this->filterAndMap($filteredProducts, $fillable);
+                $data = $this->filterAndMap($productsData, $fillable);
                 
                 if (!empty($data)) {
                     MasterPromotionDetailProduct::upsert($data, ['prp_code'], array_diff($fillable, ['prp_code', 'pdl_code', 'prm_code']));
