@@ -126,7 +126,8 @@ class ReportController extends Controller
                 'Empresa',
                 'ESTADO',
                 'Tipo de activo',
-                'condicion'
+                'condicion',
+                'FECHA ACT.'
             ];
 
             $filename = "ADC_DATOS_" . now()->format('Ymd_His') . ".txt";
@@ -143,6 +144,7 @@ class ReportController extends Controller
                     $row['estado'],
                     $row['tipo_activo'],
                     $row['condicion_val'], // 1 o 0
+                    $row['updated_at'] ?? '',
                 ]) . "\r\n";
             }
 

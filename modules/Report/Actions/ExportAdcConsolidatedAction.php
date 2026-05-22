@@ -52,7 +52,8 @@ class ExportAdcConsolidatedAction
                         'adc.pertenece_a as empresa',
                         'adc.condicion as estado',
                         'adc.descripcion as tipo_activo',
-                        'adc.condicion'
+                        'adc.condicion',
+                        'adc.updated_at'
                     ])
                     ->get();
 
