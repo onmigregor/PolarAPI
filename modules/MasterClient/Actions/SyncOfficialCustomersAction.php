@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Log;
 class SyncOfficialCustomersAction
 {
     protected EnsureCustomerPoolTablesExistAction $ensurePoolTablesAction;
+    private array $routeMap = [];
 
     public function __construct(EnsureCustomerPoolTablesExistAction $ensurePoolTablesAction)
     {
@@ -111,18 +112,51 @@ class SyncOfficialCustomersAction
             Log::channel('stack')->info('=== SyncOfficialCustomers: INICIO DE SINCRONIZACIÓN ===');
             Log::channel('stack')->info('SyncOfficialCustomers: Timestamp: ' . now()->toDateTimeString());
 
+            // 0. Build route map from companies_territories
+            $territories = $officialDb->table('companies_territories')->get();
+            $this->routeMap = [];
+            foreach ($territories as $t) {
+                if (empty($t->try_code)) continue;
+                $parts = explode('-', $t->try_code);
+                if (count($parts) === 2) {
+                    $parent = ltrim(strtolower(trim($parts[0])), 'v'); // e.g. "v0824a" -> "0824a"
+                    $child = ltrim(strtolower(trim($parts[1])), 'v');  // e.g. "v09101" -> "09101"
+                    $this->routeMap[$child] = $parent;
+                }
+            }
+            Log::channel('stack')->info("SyncOfficialCustomers: Built route map with " . count($this->routeMap) . " mappings.");
+
             // 1. Identify unique routes and ensure infrastructure
             $routes = $officialDb->table('customer_routes')->distinct()->pluck('rot_code');
             $totalCustomersInSource = $officialDb->table('customers')->count();
             $totalAssignmentsInSource = $officialDb->table('customer_routes')->count();
             Log::channel('stack')->info("SyncOfficialCustomers: [ORIGEN] Rutas únicas: {$routes->count()}, Clientes: {$totalCustomersInSource}, Asignaciones: {$totalAssignmentsInSource}");
             
+            $uniqueMappedRoutes = [];
             foreach ($routes as $rot_code) {
                 if (empty($rot_code)) continue;
-                
-                $cleanRotCode = strtolower((string)$rot_code);
-                $dbName = 'www_' . $cleanRotCode;
-                
+                $cleanRot = ltrim(strtolower((string)$rot_code), 'v');
+                $mappedRot = $this->routeMap[$cleanRot] ?? $cleanRot;
+                if (!isset($uniqueMappedRoutes[$mappedRot])) {
+                    $uniqueMappedRoutes[$mappedRot] = true;
+                }
+            }
+
+            foreach (array_keys($uniqueMappedRoutes) as $rot_code) {
+                $companyRoute = CompanyRoute::all()->first(function($cr) use ($rot_code) {
+                    $crCleanRouteName = ltrim(strtolower((string)$cr->route_name), 'v');
+                    $crCleanCode = ltrim(strtolower((string)$cr->code), 'v');
+                    return $crCleanRouteName === $rot_code || $crCleanCode === $rot_code;
+                });
+
+                if ($companyRoute) {
+                    $dbName = $companyRoute->db_name;
+                    $cleanRotCode = ltrim(strtolower($companyRoute->route_name), 'v');
+                } else {
+                    $cleanRotCode = $rot_code;
+                    $dbName = 'www_' . $cleanRotCode;
+                }
+
                 // Ensure infrastructure (DB + Table)
                 if ($this->ensureInfrastructure($cleanRotCode, $dbName, $summary)) {
                     $summary['tenants_processed']++;
@@ -165,12 +199,13 @@ class SyncOfficialCustomersAction
         $dbName = strtolower($dbName);
         try {
             // A. Ensure record in company_routes
+            $exists = CompanyRoute::where('db_name', $dbName)->first();
             CompanyRoute::updateOrCreate(
                 ['db_name' => $dbName],
                 [
-                    'code'       => $rot_code,
-                    'name'       => $rot_code,
-                    'route_name' => $rot_code,
+                    'code'       => $exists ? $exists->code : $rot_code,
+                    'name'       => $exists ? $exists->name : $rot_code,
+                    'route_name' => $exists ? $exists->route_name : $rot_code,
                     'is_active'  => true,
                 ]
             );
@@ -299,14 +334,16 @@ class SyncOfficialCustomersAction
         // 3. Process each Route
         foreach ($groupedByRoute as $rotCode => $routeAssignments) {
             $cleanRot = ltrim(strtolower((string)$rotCode), 'v');
-            $companyRoute = CompanyRoute::all()->first(function($cr) use ($cleanRot) {
+            $mappedRot = $this->routeMap[$cleanRot] ?? $cleanRot;
+            
+            $companyRoute = CompanyRoute::all()->first(function($cr) use ($mappedRot) {
                 $crCleanRouteName = ltrim(strtolower((string)$cr->route_name), 'v');
                 $crCleanCode = ltrim(strtolower((string)$cr->code), 'v');
-                return $crCleanRouteName === $cleanRot || $crCleanCode === $cleanRot;
+                return $crCleanRouteName === $mappedRot || $crCleanCode === $mappedRot;
             });
 
             if (!$companyRoute) {
-                Log::warning("SyncOfficialCustomers: CompanyRoute NOT FOUND for rot_code: {$rotCode}. Skipping " . count($routeAssignments) . " customers.");
+                Log::warning("SyncOfficialCustomers: CompanyRoute NOT FOUND for rot_code: {$rotCode} (mapped: {$mappedRot}). Skipping " . count($routeAssignments) . " customers.");
                 continue;
             }
 
