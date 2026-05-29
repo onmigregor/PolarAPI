@@ -6,6 +6,7 @@ use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 use Modules\Report\Actions\ExportSalesCsvAction;
 use Modules\Report\Actions\ExportObsequiosCsvAction;
+use Modules\Report\Actions\ExportObsequiosSapAction;
 use Modules\Report\Actions\ExportAdcConsolidatedAction;
 use Modules\Report\Actions\ExportCustomerConsolidatedAction;
 use Modules\Report\Http\Requests\ExportSalesCsvRequest;
@@ -19,18 +20,21 @@ class ReportController extends Controller
     public function exportSalesCsv(
         ExportSalesCsvRequest $request,
         ExportSalesCsvAction $salesAction,
-        ExportObsequiosCsvAction $obsqAction
+        ExportObsequiosCsvAction $obsqAction,
+        ExportObsequiosSapAction $obsqSapAction
     ): \Illuminate\Http\JsonResponse {
         $filters = ExportSalesCsvFilterData::fromRequest($request->validated());
 
         // Ejecutar acciones por separado
         $ventasRows = $salesAction->execute($filters);
         $obsqRows = $obsqAction->execute($filters);
+        $obsqSapRows = $obsqSapAction->execute($filters);
 
         // Auditoría/Diagnóstico en el Log del HUB (Nivel Error para forzar visibilidad)
         \Illuminate\Support\Facades\Log::error("AUDITORIA REPORTE - Filtros: " . json_encode($filters));
         \Illuminate\Support\Facades\Log::error(" - Ventas encontradas: " . count($ventasRows));
         \Illuminate\Support\Facades\Log::error(" - Obsequios encontrados: " . count($obsqRows));
+        \Illuminate\Support\Facades\Log::error(" - Obsequios SAP encontrados: " . count($obsqSapRows));
 
         // LOG DE ERRORES DE TENANTS (Si los hay)
         if (isset($salesAction->errors) && count($salesAction->errors) > 0) {
@@ -61,12 +65,15 @@ class ReportController extends Controller
 
         $ventasFilename = "ventas_{$dateLabel}.txt";
         $obsqFilename = "obsequios_{$dateLabel}.txt";
+        $obsqSapFilename = "obsequios_sap_{$dateLabel}.csv";
 
         $ventasCsv = $this->generateCsvContent($headers, $ventasRows);
         $obsqCsv = $this->generateCsvContent($headers, $obsqRows);
+        $obsqSapCsv = $obsqSapAction->generateCsvContent($obsqSapRows);
 
         $ventasZipFilename = str_replace('.txt', '.zip', $ventasFilename);
         $obsqZipFilename = str_replace('.txt', '.zip', $obsqFilename);
+        $obsqSapZipFilename = str_replace('.csv', '.zip', $obsqSapFilename);
 
         try {
             if (config('app.env') === 'local') {
@@ -77,14 +84,17 @@ class ReportController extends Controller
                 // Guardar localmente solo en LOCAL
                 file_put_contents(storage_path("ftp/{$ventasFilename}"), $ventasCsv);
                 file_put_contents(storage_path("ftp/{$obsqFilename}"), $obsqCsv);
+                file_put_contents(storage_path("ftp/{$obsqSapFilename}"), $obsqSapCsv);
             } else {
                 // Generar ZIPs en memoria para PRODUCCIÓN
                 $ventasZipContent = $this->createZipContent($ventasFilename, $ventasCsv);
                 $obsqZipContent = $this->createZipContent($obsqFilename, $obsqCsv);
+                $obsqSapZipContent = $this->createZipContent($obsqSapFilename, $obsqSapCsv);
 
                 // Subir al SFTP en la misma ruta unificada (sftp_ventas)
                 \Illuminate\Support\Facades\Storage::disk('sftp_ventas')->put($ventasZipFilename, $ventasZipContent);
                 \Illuminate\Support\Facades\Storage::disk('sftp_ventas')->put($obsqZipFilename, $obsqZipContent);
+                \Illuminate\Support\Facades\Storage::disk('sftp_ventas')->put($obsqSapZipFilename, $obsqSapZipContent);
             }
 
             return response()->json([
@@ -97,6 +107,8 @@ class ReportController extends Controller
                     'ventas_count' => count($ventasRows),
                     'obsq_file' => config('app.env') === 'local' ? $obsqFilename : $obsqZipFilename,
                     'obsq_count' => count($obsqRows),
+                    'obsq_sap_file' => config('app.env') === 'local' ? $obsqSapFilename : $obsqSapZipFilename,
+                    'obsq_sap_count' => count($obsqSapRows),
                     'destination' => config('app.env') === 'local' ? 'Local Storage' : 'SFTP Polar (Zipped)',
                 ]
             ]);
