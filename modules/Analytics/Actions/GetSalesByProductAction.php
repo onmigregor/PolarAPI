@@ -34,15 +34,23 @@ class GetSalesByProductAction
                 ->where('eliminado', 0)
                 ->whereBetween('fecha', [$filters->start_date, $filters->end_date]);
 
-            // Filter by product SKUs if provided
-            if (!empty($filters->product_skus)) {
-                $productIds = ExtProduct::on('tenant')
-                    ->whereIn('codigoSKU', $filters->product_skus)
-                    ->pluck('idproducto')
-                    ->toArray();
+            // Filter by product SKUs if provided or hierarchical filters
+            $skusToFilter = $this->tenantService->resolveProductSkus($filters);
 
-                if (!empty($productIds)) {
-                    $query->whereIn('idproducto', $productIds);
+            if ($skusToFilter !== null) {
+                if (empty($skusToFilter)) {
+                    $query->where('idproducto', -1);
+                } else {
+                    $productIds = ExtProduct::on('tenant')
+                        ->whereIn('codigoSKU', $skusToFilter)
+                        ->pluck('idproducto')
+                        ->toArray();
+
+                    if (!empty($productIds)) {
+                        $query->whereIn('idproducto', $productIds);
+                    } else {
+                        $query->where('idproducto', -1);
+                    }
                 }
             }
 

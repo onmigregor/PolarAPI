@@ -32,15 +32,26 @@ class GetTopProductsAction
                 ->where('eliminado', 0)
                 ->whereBetween('fecha', [$filters->start_date, $filters->end_date]);
 
-            // Filter by product SKUs if provided
-            if (!empty($filters->product_skus)) {
-                $productIds = ExtProduct::on('tenant')
-                    ->whereIn('codigoSKU', $filters->product_skus)
-                    ->pluck('idproducto')
-                    ->toArray();
+            // Filter by product SKUs if provided or hierarchical filters
+            $skusToFilter = $this->tenantService->resolveProductSkus($filters);
 
-                if (!empty($productIds)) {
-                    $query->whereIn('idproducto', $productIds);
+            if ($skusToFilter !== null) {
+                // If skusToFilter is empty array, it means hierarchical filter yielded 0 results
+                if (empty($skusToFilter)) {
+                    // Force an empty result for this tenant by searching for an impossible ID
+                    $query->where('idproducto', -1);
+                } else {
+                    $productIds = ExtProduct::on('tenant')
+                        ->whereIn('codigoSKU', $skusToFilter)
+                        ->pluck('idproducto')
+                        ->toArray();
+
+                    if (!empty($productIds)) {
+                        $query->whereIn('idproducto', $productIds);
+                    } else {
+                        // SKUs matched hierarchy but tenant doesn't have these products active
+                        $query->where('idproducto', -1);
+                    }
                 }
             }
 

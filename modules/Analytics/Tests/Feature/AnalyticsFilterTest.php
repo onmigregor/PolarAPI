@@ -62,4 +62,49 @@ class AnalyticsFilterTest extends TestCase
         $this->assertCount(1, $results);
         $this->assertEquals($client2->id, $results->first()->id);
     }
+
+    public function test_resolve_product_skus_with_hierarchical_filters()
+    {
+        \Modules\MasterProduct\Models\MasterProduct::insert([
+            ['sku' => 'SKU1', 'name' => 'P1', 'cl1_code' => 'F1', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['sku' => 'SKU2', 'name' => 'P2', 'cl1_code' => 'F1', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['sku' => 'SKU3', 'name' => 'P3', 'cl1_code' => 'F2', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        $filters = \Modules\Analytics\DataTransferObjects\ReportFilterData::fromRequest([
+            'start_date' => '2024-01-01',
+            'end_date' => '2024-01-31',
+            'cl1_codes' => ['F1']
+        ]);
+
+        $skus = $this->tenantService->resolveProductSkus($filters);
+
+        $this->assertIsArray($skus);
+        $this->assertCount(2, $skus);
+        $this->assertContains('SKU1', $skus);
+        $this->assertContains('SKU2', $skus);
+        $this->assertNotContains('SKU3', $skus);
+    }
+
+    public function test_resolve_product_skus_intersects_product_skus_with_hierarchies()
+    {
+        \Modules\MasterProduct\Models\MasterProduct::insert([
+            ['sku' => 'SKU1', 'name' => 'P1', 'cl1_code' => 'F1', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+            ['sku' => 'SKU2', 'name' => 'P2', 'cl1_code' => 'F1', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        // Filter by Familia 1 AND SKU1
+        $filters = \Modules\Analytics\DataTransferObjects\ReportFilterData::fromRequest([
+            'start_date' => '2024-01-01',
+            'end_date' => '2024-01-31',
+            'cl1_codes' => ['F1'],
+            'product_skus' => ['SKU1']
+        ]);
+
+        $skus = $this->tenantService->resolveProductSkus($filters);
+
+        $this->assertIsArray($skus);
+        $this->assertCount(1, $skus);
+        $this->assertContains('SKU1', $skus);
+    }
 }

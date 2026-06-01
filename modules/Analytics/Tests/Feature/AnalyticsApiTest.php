@@ -54,4 +54,44 @@ class AnalyticsApiTest extends TestCase
         $response->assertStatus(422);
         $response->assertJsonValidationErrors(['client_ids.0']);
     }
+
+    public function test_get_filters_returns_hierarchical_data()
+    {
+        \Modules\MasterProduct\Models\MasterProductFamily::create(['cl1_code' => 'F1', 'cl1_name' => 'Familia 1']);
+        \Modules\MasterProduct\Models\MasterProductCategory::create(['cl2_code' => 'C1', 'cl1_code' => 'F1', 'cl2_name' => 'Categoria 1']);
+        
+        \Modules\MasterProduct\Models\MasterProduct::insert([
+            'sku' => 'SKU1', 
+            'name' => 'P1', 
+            'cl1_code' => 'F1', 
+            'cl2_code' => 'C1', 
+            'brand_code' => 'B1', 
+            'segment_code' => 'S1', 
+            'is_active' => true,
+            'category' => 'C1',
+            'brand' => 'B1',
+            'created_at' => now(),
+            'updated_at' => now()
+        ]);
+
+        $response = $this->getJson('/api/analytics/filters');
+
+        $response->assertStatus(200);
+        $response->assertJsonStructure([
+            'success',
+            'data' => [
+                'clients', 'regions', 'products', 'families', 'categories', 'brands', 'segments'
+            ]
+        ]);
+        
+        $data = $response->json('data');
+        $this->assertCount(1, $data['families']);
+        $this->assertEquals('F1', $data['families'][0]['id']);
+        
+        $this->assertCount(1, $data['brands']);
+        $this->assertEquals('B1', $data['brands'][0]['id']);
+        
+        $this->assertCount(1, $data['segments']);
+        $this->assertEquals('S1', $data['segments'][0]['id']);
+    }
 }

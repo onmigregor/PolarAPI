@@ -7,6 +7,9 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
 
+use Modules\MasterProduct\Models\MasterProduct;
+use Modules\Analytics\DataTransferObjects\ReportFilterData;
+
 class TenantConnectionService
 {
     /**
@@ -23,6 +26,49 @@ class TenantConnectionService
                 return $query->whereIn('region_id', $regionIds);
             })
             ->get();
+    }
+
+    /**
+     * Resolve product SKUs taking into account hierarchical filters.
+     * Returns an array of SKUs to filter by, or null if no product filter is applied.
+     */
+    public function resolveProductSkus(ReportFilterData $filters): ?array
+    {
+        $hasHierarchyFilters = !empty($filters->cl1_codes) || 
+                               !empty($filters->cl2_codes) || 
+                               !empty($filters->brand_codes) || 
+                               !empty($filters->segment_codes);
+                               
+        $skusToFilter = $filters->product_skus;
+
+        if ($hasHierarchyFilters) {
+            $masterQuery = MasterProduct::query()->where('is_active', true);
+            
+            if (!empty($filters->cl1_codes)) {
+                $masterQuery->whereIn('cl1_code', $filters->cl1_codes);
+            }
+            if (!empty($filters->cl2_codes)) {
+                $masterQuery->whereIn('cl2_code', $filters->cl2_codes);
+            }
+            if (!empty($filters->brand_codes)) {
+                $masterQuery->whereIn('brand_code', $filters->brand_codes);
+            }
+            if (!empty($filters->segment_codes)) {
+                $masterQuery->whereIn('segment_code', $filters->segment_codes);
+            }
+
+            $hierarchySkus = $masterQuery->pluck('sku')->toArray();
+
+            if (is_array($skusToFilter) && !empty($skusToFilter)) {
+                // Intersect selected products with hierarchy results
+                $skusToFilter = array_intersect($skusToFilter, $hierarchySkus);
+            } else {
+                // Only hierarchy filters
+                $skusToFilter = $hierarchySkus;
+            }
+        }
+
+        return $skusToFilter;
     }
 
     /**

@@ -27,6 +27,14 @@ class ReportFilterRequest extends FormRequest
             'product_skus.*' => ['string'],
             'routes' => ['nullable', 'array'],
             'routes.*' => ['string'],
+            'cl1_codes' => ['nullable', 'array'],
+            'cl1_codes.*' => ['string'],
+            'cl2_codes' => ['nullable', 'array'],
+            'cl2_codes.*' => ['string'],
+            'brand_codes' => ['nullable', 'array'],
+            'brand_codes.*' => ['string'],
+            'segment_codes' => ['nullable', 'array'],
+            'segment_codes.*' => ['string'],
         ];
     }
 

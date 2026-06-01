@@ -12,6 +12,23 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (DB::connection()->getDriverName() === 'sqlite') {
+            // SQLite no soporta SHOW INDEX, así que simplemente intentamos añadir o ignoramos si falla
+            try {
+                Schema::table('master_adc_polar', function (Blueprint $table) {
+                    $table->index('cus_code');
+                });
+            } catch (\Exception $e) {}
+
+            try {
+                Schema::table('master_client_polar', function (Blueprint $table) {
+                    $table->index('cus_code');
+                });
+            } catch (\Exception $e) {}
+            
+            return;
+        }
+
         // Índice para master_adc_polar
         $indexAdc = DB::select("SHOW INDEX FROM master_adc_polar WHERE Key_name = 'master_adc_polar_cus_code_index'");
         if (count($indexAdc) === 0) {
