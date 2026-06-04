@@ -114,17 +114,21 @@ class MasterCustomerAdcBulkSyncAction
 
         foreach ($allAdc as $record) {
             $serial = $record->serial;
-            $dbName = $adcTenantMap[$serial]['db_name'] ?? null;
-            $fqRedi = $adcTenantMap[$serial]['fq_redi'] ?? null;
+            $dbName = null;
+            $fqRedi = null;
 
+            // Priorizar la resolución por cliente (es 100% precisa porque cada cliente pertenece a un único tenant/ruta)
+            $cusCodeNum = (int)$record->cus_code;
+            $clientInfo = $clientDbMap[$cusCodeNum] ?? null;
+            if ($clientInfo) {
+                $dbName = $clientInfo['db_name'];
+                $fqRedi = $clientInfo['route_cep'];
+            }
+
+            // Fallback: Si no se encuentra por cliente, usar el mapa de la ruta del request
             if (!$dbName) {
-                // Fallback por cliente
-                $cusCodeNum = (int)$record->cus_code;
-                $clientInfo = $clientDbMap[$cusCodeNum] ?? null;
-                if ($clientInfo) {
-                    $dbName = $clientInfo['db_name'];
-                    $fqRedi = $clientInfo['route_cep'];
-                }
+                $dbName = $adcTenantMap[$serial]['db_name'] ?? null;
+                $fqRedi = $adcTenantMap[$serial]['fq_redi'] ?? null;
             }
 
             if ($dbName) {
