@@ -109,6 +109,21 @@ class SyncDiscountsToClientsAction
 
         Log::info("SyncDiscountsToClients: Encontrados {$tenants->count()} Tenants activos");
 
+        // Cargar mapa de clientes a códigos de ruta desde la tabla maestra de clientes
+        $clients = DB::table('master_clients as clients')
+            ->join('company_routes as routes', 'routes.id', '=', 'clients.company_route_id')
+            ->select('clients.cep', 'routes.code as route_code', 'routes.db_name')
+            ->get();
+            
+        $clientToRouteMap = [];
+        foreach ($clients as $c) {
+            $cleanedCep = ltrim($c->cep, '0');
+            $cRotCode = $this->extractRotCode($c->route_code, $c->db_name);
+            if ($cRotCode) {
+                $clientToRouteMap[$cleanedCep] = strtolower($cRotCode);
+            }
+        }
+
         // 2. Cargar datos maestros en memoria
         $masterDiscounts = DB::table('master_discounts')->get()->keyBy('dis_code');
         $masterDetails = DB::table('master_discount_details')->get();
@@ -117,7 +132,6 @@ class SyncDiscountsToClientsAction
 
         Log::info("SyncDiscountsToClients: HUB tiene {$masterDiscounts->count()} descuentos, {$masterDetails->count()} detalles, {$masterProducts->count()} productos");
 
-        $detailsByRoute = $masterDetails->groupBy('rot_code_customer');
         $productsByDetail = $masterProducts->groupBy('did_code');
 
         // 3. Procesar cada Tenant
@@ -131,6 +145,9 @@ class SyncDiscountsToClientsAction
                     continue;
                 }
 
+                $rotCodeLower = strtolower($rotCode);
+                $isC3Branch = (str_contains(strtolower($tenant->code), 'c3'));
+
                 Log::info("SyncDiscountsToClients: Procesando Tenant '{$tenant->name}' (DB: {$tenant->db_name}, rot_code: {$rotCode})");
 
                 // Conectar al Tenant
@@ -142,19 +159,41 @@ class SyncDiscountsToClientsAction
                 // Asegurar tablas
                 $this->ensureTables();
 
-                // Filtrar descuentos aplicables
-                $routeDetails = $detailsByRoute->get($rotCode, collect());
+                // Filtrar descuentos aplicables para esta ruta específica
+                $allDetailsForTenant = $masterDetails->filter(function($detail) use ($rotCodeLower, $isC3Branch, $clientToRouteMap, $masterRoutes) {
+                    // Caso A: Por cliente específico (cus_code)
+                    if (!empty($detail->cus_code)) {
+                        $cleanedCusCode = ltrim($detail->cus_code, '0');
+                        if (isset($clientToRouteMap[$cleanedCusCode])) {
+                            return $clientToRouteMap[$cleanedCusCode] === $rotCodeLower;
+                        }
+                    }
 
-                $disCodesFromRoutes = $masterRoutes
-                    ->where('rot_code', $rotCode)
-                    ->pluck('dis_code')
-                    ->unique();
+                    // Caso B: Por ruta específica (rot_code_customer)
+                    if (!empty($detail->rot_code_customer)) {
+                        $rotCust = strtolower(trim($detail->rot_code_customer));
+                        if ($rotCust === 'c3') {
+                            return $isC3Branch;
+                        }
+                        if ($rotCust === $rotCodeLower) {
+                            return true;
+                        }
+                    }
 
-                $additionalDetails = $masterDetails
-                    ->whereIn('dis_code', $disCodesFromRoutes)
-                    ->whereNotIn('did_code', $routeDetails->pluck('did_code'));
+                    // Caso C: Por rutas asociadas al descuento principal
+                    $disRoutes = $masterRoutes->where('dis_code', $detail->dis_code);
+                    foreach ($disRoutes as $r) {
+                        $rCode = strtolower(trim($r->rot_code));
+                        if ($rCode === 'c3' && $isC3Branch) {
+                            return true;
+                        }
+                        if ($rCode === $rotCodeLower) {
+                            return true;
+                        }
+                    }
 
-                $allDetailsForTenant = $routeDetails->merge($additionalDetails);
+                    return false;
+                });
 
                 if ($allDetailsForTenant->isEmpty()) {
                     Log::info("SyncDiscountsToClients: Sin descuentos para rot_code '{$rotCode}'");
