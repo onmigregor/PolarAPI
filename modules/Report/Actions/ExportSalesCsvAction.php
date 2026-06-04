@@ -125,9 +125,7 @@ class ExportSalesCsvAction
                 $clDoc = 'FVTA';
 
                 $clientCep = !empty($row->client_cep) ? $row->client_cep : $row->IdCliente;
-                if (strlen((string)$clientCep) !== 10) {
-                    $clientCep = self::GENERIC_CEP_CODE;
-                }
+                $clientCep = str_pad((string)$clientCep, 10, '0', STR_PAD_LEFT);
 
                 $tenantRows[] = [
                     'fq_redi'       => $cep, // El CEP del Tenant va ahora en FQ/REDI
@@ -163,9 +161,7 @@ class ExportSalesCsvAction
 
                 foreach ($clientesRJ as $clienteRJ) {
                     $clientCepRJ = !empty($clienteRJ->client_cep) ? $clienteRJ->client_cep : $clienteRJ->IdCliente;
-                    if (strlen((string)$clientCepRJ) !== 10) {
-                        $clientCepRJ = self::GENERIC_CEP_CODE;
-                    }
+                    $clientCepRJ = str_pad((string)$clientCepRJ, 10, '0', STR_PAD_LEFT);
 
                     $tenantRows[] = [
                         'fq_redi'       => $cep,

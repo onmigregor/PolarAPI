@@ -58,25 +58,26 @@ class ReportController extends Controller
         ];
 
 
-        $dateLabel = $filters->start_date;
-        if (!empty($filters->start_date) && !empty($filters->end_date)) {
-            $dateLabel = "{$filters->start_date}_to_{$filters->end_date}";
-        }
+        $now = now();
+        $isLocal = config('app.env') === 'local';
+        // En producción usamos dos puntos (:), en local usamos guion bajo (_) porque Windows no permite (:)
+        $timeFormat = $isLocal ? 'Ymd_His' : 'Ymd_H:i:s';
+        $timestamp = $now->format($timeFormat);
 
-        $ventasFilename = "ventas_{$dateLabel}.txt";
-        $obsqFilename = "obsequios_{$dateLabel}.txt";
-        $obsqSapFilename = "obsequios_sap_{$dateLabel}.csv";
+        $ventasFilename = "VENTA_{$timestamp}.txt";
+        $obsqFilename = "OBSEQUIO_{$timestamp}.txt";
+        $obsqSapFilename = "OBSEQUIO_SAP_{$timestamp}.csv";
 
         $ventasCsv = $this->generateCsvContent($headers, $ventasRows);
         $obsqCsv = $this->generateCsvContent($headers, $obsqRows);
         $obsqSapCsv = $obsqSapAction->generateCsvContent($obsqSapRows);
 
-        $ventasZipFilename = str_replace('.txt', '.zip', $ventasFilename);
-        $obsqZipFilename = str_replace('.txt', '.zip', $obsqFilename);
-        $obsqSapZipFilename = str_replace('.csv', '.zip', $obsqSapFilename);
+        $ventasZipFilename = "VENTA_{$timestamp}.ZIP";
+        $obsqZipFilename = "OBSEQUIO_{$timestamp}.ZIP";
+        $obsqSapZipFilename = "OBSEQUIO_SAP_{$timestamp}.ZIP";
 
         try {
-            if (config('app.env') === 'local') {
+            if ($isLocal) {
                 // Asegurar que el directorio existe
                 if (!file_exists(storage_path('ftp'))) {
                     mkdir(storage_path('ftp'), 0777, true);
@@ -91,10 +92,12 @@ class ReportController extends Controller
                 $obsqZipContent = $this->createZipContent($obsqFilename, $obsqCsv);
                 $obsqSapZipContent = $this->createZipContent($obsqSapFilename, $obsqSapCsv);
 
-                // Subir al SFTP en la misma ruta unificada (sftp_ventas)
+                // Subir ventas al SFTP de ventas (Automatico)
                 \Illuminate\Support\Facades\Storage::disk('sftp_ventas')->put($ventasZipFilename, $ventasZipContent);
-                \Illuminate\Support\Facades\Storage::disk('sftp_ventas')->put($obsqZipFilename, $obsqZipContent);
-                \Illuminate\Support\Facades\Storage::disk('sftp_ventas')->put($obsqSapZipFilename, $obsqSapZipContent);
+
+                // Subir obsequios al SFTP de obsequios (Manual)
+                \Illuminate\Support\Facades\Storage::disk('sftp_obsequios')->put($obsqZipFilename, $obsqZipContent);
+                \Illuminate\Support\Facades\Storage::disk('sftp_obsequios')->put($obsqSapZipFilename, $obsqSapZipContent);
             }
 
             return response()->json([

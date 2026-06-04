@@ -76,9 +76,7 @@ class ExportObsequiosCsvAction
                 $um = ((int)$row->unidadesporcaja === 1) ? 'UND' : 'CJS';
                 
                 $clientCep = !empty($row->client_cep) ? $row->client_cep : $row->IdCliente;
-                if (strlen((string)$clientCep) !== 10) {
-                    $clientCep = self::GENERIC_CEP_CODE;
-                }
+                $clientCep = str_pad((string)$clientCep, 10, '0', STR_PAD_LEFT);
 
                 $tenantRows[] = [
                     'fq_redi'       => $cep,

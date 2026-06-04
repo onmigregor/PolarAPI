@@ -81,8 +81,9 @@ class ExportObsequiosSapAction
             Log::info("ExportObsequiosSap: Tenant {$routeCode} - {$results->count()} obsequios encontrados.");
 
             foreach ($results as $row) {
-                // Solicitante: usar cep del cliente, si no existe usar genérico
+                // Solicitante: usar cep del cliente, si no existe usar genérico, formateado a 10 dígitos (SAP)
                 $solicitante = !empty($row->client_cep) ? $row->client_cep : self::GENERIC_CEP_CODE;
+                $solicitante = str_pad((string)$solicitante, 10, '0', STR_PAD_LEFT);
 
                 // Fecha en formato SAP (dd.mm.yyyy)
                 $fechaSap = Carbon::parse($row->rpt_fecha)->format('d.m.Y');
