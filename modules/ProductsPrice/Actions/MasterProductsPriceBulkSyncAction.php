@@ -4,6 +4,8 @@ namespace Modules\ProductsPrice\Actions;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Config;
+use Modules\CompanyRoute\Models\CompanyRoute;
 use Modules\ProductsPrice\Models\MasterProductsPrice;
 
 class MasterProductsPriceBulkSyncAction
@@ -39,9 +41,13 @@ class MasterProductsPriceBulkSyncAction
         // 2. Upsert masivo en la tabla maestra central (PolarAPI)
         $this->upsertMasterData($syncData);
 
-        // 3. Obtener todas las rutas (Tenants) disponibles
-        $tenants = DB::table('company_routes')
+        // 3. Obtener todas las rutas (Tenants) disponibles activos
+        $prefix = config('tenants.prefix', 'www_');
+        $suffix = config('tenants.suffix', 'p');
+        
+        $tenants = CompanyRoute::where('is_active', true)
             ->whereNotNull('db_name')
+            ->where('db_name', 'LIKE', "{$prefix}v%{$suffix}")
             ->pluck('db_name')
             ->unique();
 
@@ -80,13 +86,10 @@ class MasterProductsPriceBulkSyncAction
     protected function syncToTenant(string $dbName, array $records)
     {
         // Configurar conexión al tenant
-        config(['database.connections.tenant_sync' => array_merge(
-            config('database.connections.mysql'),
-            ['database' => $dbName]
-        )]);
+        Config::set('database.connections.tenant.database', $dbName);
         
-        DB::purge('tenant_sync');
-        $tenantConnection = DB::connection('tenant_sync');
+        DB::purge('tenant');
+        $tenantConnection = DB::connection('tenant');
 
         // B. Extraer todos los materiales (códigos SKU del Admin)
         $materiales = array_unique(array_column($records, 'material'));
