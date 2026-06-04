@@ -41,25 +41,40 @@ class MasterProductsPriceBulkSyncAction
         // 2. Upsert masivo en la tabla maestra central (PolarAPI)
         $this->upsertMasterData($syncData);
 
-        // 3. Obtener todas las rutas (Tenants) disponibles activos
+        // 3. Obtener todas las rutas (Tenants) disponibles activos con sus metadatos
         $prefix = config('tenants.prefix', 'www_');
         $suffix = config('tenants.suffix', 'p');
         
         $tenants = CompanyRoute::where('is_active', true)
             ->whereNotNull('db_name')
             ->where('db_name', 'LIKE', "{$prefix}v%{$suffix}")
-            ->pluck('db_name')
-            ->unique();
+            ->get();
 
         Log::info("Precios a sincronizar: " . count($syncData) . ". Tenants encontrados: " . $tenants->count());
 
         $results = [];
 
-        // 4. Distribuir a cada tenant
-        foreach ($tenants as $dbName) {
+        // 4. Distribuir a cada tenant filtrando por su sale_zone (lgnstreet1)
+        foreach ($tenants as $tenant) {
+            $dbName = $tenant->db_name;
+            $saleZone = $tenant->sale_zone ? trim($tenant->sale_zone) : null;
+
+            // Filtrar precios que correspondan al sale_zone de esta ruta
+            $tenantRecords = array_filter($syncData, function($record) use ($saleZone) {
+                if (empty($record['lgnstreet1']) || empty($saleZone)) {
+                    return false;
+                }
+                return strcasecmp($record['lgnstreet1'], $saleZone) === 0;
+            });
+
+            if (empty($tenantRecords)) {
+                Log::info("Tenant {$dbName} (Zone: " . ($saleZone ?? 'N/A') . "): Sin precios correspondientes para sincronizar.");
+                continue;
+            }
+
             try {
-                $this->syncToTenant($dbName, $data);
-                $results[$dbName] = 'Success';
+                $this->syncToTenant($dbName, $tenantRecords);
+                $results[$dbName] = 'Success (' . count($tenantRecords) . ' precios)';
             } catch (\Exception $e) {
                 Log::error("Error sincronizando precios al tenant {$dbName}: " . $e->getMessage());
                 $results[$dbName] = 'Error: ' . $e->getMessage();
