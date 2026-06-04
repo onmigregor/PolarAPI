@@ -34,6 +34,11 @@ jobs:
             echo "Copiando archivos al contenedor Docker apimet..."
             docker cp /home/apimet_source/. apimet:/var/www/html/
 
+            # Corregir permisos de almacenamiento y caché para el servidor web (www-data)
+            echo "Corrigiendo permisos de storage y bootstrap/cache..."
+            docker exec -u root -t apimet chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+            docker exec -u root -t apimet chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+
             # 4. Copiar .env-main a .env dentro de Docker (como usuario root)
             echo "Estableciendo archivo .env de producción..."
             docker exec -u root -t apimet cp /var/www/html/.env-main /var/www/html/.env
