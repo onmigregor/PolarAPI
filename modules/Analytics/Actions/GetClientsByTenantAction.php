@@ -9,14 +9,14 @@ class GetClientsByTenantAction
 {
     public function execute(): array
     {
-        $rows = DB::table('master_clients')
-            ->join('company_routes', 'company_routes.id', '=', 'master_clients.company_route_id')
+        $rows = DB::table('master_client_polar')
+            ->join('company_routes', 'company_routes.id', '=', 'master_client_polar.company_route_id')
             ->select(
                 'company_routes.name as company_route_name',
-                DB::raw('COUNT(master_clients.id) as total_clients')
+                DB::raw('COUNT(master_client_polar.id) as total_clients')
             )
             ->groupBy('company_routes.id', 'company_routes.name')
-            ->orderByDesc(DB::raw('COUNT(master_clients.id)'))
+            ->orderByDesc(DB::raw('COUNT(master_client_polar.id)'))
             ->get();
 
         $data = $rows->map(function ($row) {
