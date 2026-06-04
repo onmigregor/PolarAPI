@@ -9,5 +9,6 @@ class MasterCompanyServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->app->register(MasterCompanyRoutingServiceProvider::class);
+        $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
     }
 }
