@@ -46,7 +46,7 @@ class SyncMasterProductsAction
             }
 
             // 2. Sync Product Families (cl1)
-            $families = $db->table('product_families')->get();
+            $families = $db->table('product_class1')->get();
             foreach ($families as $family) {
                 $cl1Code = trim($family->cl1_code);
                 MasterProductFamily::updateOrCreate(
@@ -57,7 +57,7 @@ class SyncMasterProductsAction
             }
 
             // 3. Sync Product Categories (cl2)
-            $categories = $db->table('product_categories')->get();
+            $categories = $db->table('product_class2')->get();
             foreach ($categories as $category) {
                 $cl2Code = trim($category->cl2_code);
                 MasterProductCategory::updateOrCreate(
@@ -71,7 +71,7 @@ class SyncMasterProductsAction
             }
 
             // 4. Sync Product Class 3 (cl3)
-            $class3s = $db->table('product_class_3')->get();
+            $class3s = $db->table('product_class3')->get();
             foreach ($class3s as $c3) {
                 $cl3Code = trim($c3->cl3_code);
                 MasterProductClass3::updateOrCreate(
@@ -85,7 +85,7 @@ class SyncMasterProductsAction
             }
 
             // 4.5. Sync Product Class 4 (cl4)
-            $class4s = $db->table('product_class4s')->get();
+            $class4s = $db->table('product_class4')->get();
             foreach ($class4s as $c4) {
                 $cl4Code = trim($c4->cl4_code);
                 MasterProductClass4::withTrashed()->updateOrCreate(
