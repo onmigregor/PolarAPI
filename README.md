@@ -87,3 +87,42 @@ docker exec -it polar_api php artisan products:sync
 La API es accesible mediante:
 - **Localhost**: `http://localhost:8090`
 - **VHost**: `http://api.polar.localhost:8090` (Requiere mapeo en archivo `hosts` hacia `127.0.0.1`)
+
+---
+
+## Entorno de Producción y Despliegue (VPS)
+
+### 1. Arquitectura Docker en el VPS
+En el servidor VPS (`vmi3342666`), este proyecto se ejecuta bajo el servicio **`apimet`** dentro de `/home/docker-compose.yml`:
+- **Directorio de código en VPS:** `/home/apimet_source`
+- **Puerto expuesto:** `8092`
+- **Contexto de Construcción:** `./apimet_source` (apunta a la carpeta del repositorio actualizado).
+
+### 2. Configuración Automática de Entorno (`.env`)
+Para asegurar la resiliencia del entorno y evitar fallos por falta de la clave de encriptación al iniciar o reconstruir los contenedores, se implementó un script de punto de entrada ([entrypoint.sh](file:///c:/xampp/htdocs/POLAR/PolarAPI/entrypoint.sh)):
+- **Funcionamiento:** Al iniciar el contenedor, el script verifica la existencia de `.env`. Si no existe, realiza un fallback automático copiando el archivo de producción `.env-main` (`cp .env-main .env`).
+- **Instalación de Dependencias:** Si no existe la carpeta `vendor`, ejecuta `composer install` de forma automática.
+- **Configuración en Dockerfile:** El [Dockerfile](file:///c:/xampp/htdocs/POLAR/PolarAPI/Dockerfile) copia este script a `/usr/local/bin/entrypoint.sh`, le otorga permisos de ejecución, y lo define como:
+  ```dockerfile
+  ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+  CMD ["apache2-foreground"]
+  ```
+
+### 3. Despliegue Continuo (CI/CD)
+El flujo de despliegue está automatizado mediante GitHub Actions en [.github/workflows/deploy.yml](file:///c:/xampp/htdocs/POLAR/PolarAPI/.github/workflows/deploy.yml):
+- **Activación:** Se dispara tras cada `git push` a la rama `master`.
+- **Flujo de Ejecución:**
+  1. Conexión SSH al VPS.
+  2. Actualización de `/home/apimet_source` vía `git pull origin master`.
+  3. Copia caliente del código al contenedor en ejecución con `docker cp`.
+  4. Copia de `.env-main` a `.env` dentro del contenedor.
+  5. Ejecución de `composer install --no-dev --optimize-autoloader`.
+  6. Migración de bases de datos (`php artisan migrate --force`).
+  7. Limpieza de cachés de configuración, rutas y vistas.
+
+> [!NOTE]
+> Si realizas cambios estructurales en el `Dockerfile` o en el `entrypoint.sh`, es necesario ingresar al VPS y recompilar el servicio manualmente con:
+> ```bash
+> cd /home
+> docker compose up -d --build apimet
+> ```
