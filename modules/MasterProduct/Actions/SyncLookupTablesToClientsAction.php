@@ -11,11 +11,11 @@ use Illuminate\Support\Facades\Log;
 class SyncLookupTablesToClientsAction
 {
     private const TABLES_MAP = [
-        'master_product_families'   => 'producto_class1',
-        'master_product_categories' => 'producto_class2',
-        'master_product_class_3'    => 'producto_class3',
-        'master_product_class_4'    => 'producto_class4',
-        'master_product_units'      => 'producto_units',
+        'master_product_families'   => 'product_class1',
+        'master_product_categories' => 'product_class2',
+        'master_product_class_3'    => 'product_class3',
+        'master_product_class_4'    => 'product_class4',
+        'master_product_units'      => 'product_units',
     ];
 
     public function __construct(

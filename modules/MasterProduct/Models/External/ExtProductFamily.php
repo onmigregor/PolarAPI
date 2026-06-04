@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class ExtProductFamily extends Model
 {
     protected $connection = 'tenant';
-    protected $table = 'producto_class1';
+    protected $table = 'product_class1';
     protected $primaryKey = 'id';
     public $timestamps = false;
 }
