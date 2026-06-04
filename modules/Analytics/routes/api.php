@@ -6,6 +6,7 @@ use Modules\Analytics\Http\Controllers\AnalyticsController;
 Route::middleware(['internal_key'])->prefix('analytics')->group(function () {
     // Filters & Sync
     Route::middleware('internal_key')->get('/filters', [AnalyticsController::class, 'getFilters']);
+    Route::middleware('internal_key')->get('/filters/clients', [AnalyticsController::class, 'getClientsByRoutes']);
     Route::middleware('internal_key')->post('/sync-products', [AnalyticsController::class, 'syncProducts']);
 
     // Reports

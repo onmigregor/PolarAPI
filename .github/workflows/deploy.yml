@@ -1,0 +1,51 @@
+name: Deploy PolarAPI to Docker Container
+
+on:
+  push:
+    branches:
+      - master  # Se activará cuando subas cambios a la rama master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ejecutar comandos de despliegue en el VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            # 1. Crear carpeta temporal de código en el servidor
+            mkdir -p /home/apimet_source
+            cd /home/apimet_source
+
+            # 2. Clonar o actualizar el repositorio de la API
+            if [ ! -d ".git" ]; then
+              git clone https://github.com/onmigregor/PolarAPI.git .
+            else
+              git pull origin master
+            fi
+
+            # 3. Copiar los archivos directamente al contenedor de Docker 'apimet'
+            echo "Copiando archivos al contenedor Docker apimet..."
+            docker cp /home/apimet_source/. apimet:/var/www/html/
+
+            # 4. Copiar .env-main a .env dentro de Docker
+            echo "Estableciendo archivo .env de producción..."
+            docker exec -t apimet cp /var/www/html/.env-main /var/www/html/.env
+
+            # 5. Ejecutar optimizaciones y comandos de Laravel dentro de Docker
+            echo "Instalando dependencias de Composer..."
+            docker exec -t apimet composer install --no-dev --optimize-autoloader --no-interaction
+
+            echo "Ejecutando migraciones..."
+            docker exec -t apimet php artisan migrate --force
+
+            echo "Limpiando caches de Laravel..."
+            docker exec -t apimet php artisan config:clear
+            docker exec -t apimet php artisan cache:clear
+            docker exec -t apimet php artisan route:clear
+
+            echo "Despliegue de API completado con éxito."

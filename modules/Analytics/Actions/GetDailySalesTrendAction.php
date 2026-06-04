@@ -16,7 +16,7 @@ class GetDailySalesTrendAction
 
     public function execute(ReportFilterData $filters): array
     {
-        $clients = $this->tenantService->resolveClients($filters->client_ids, $filters->region_ids);
+        $clients = $this->tenantService->resolveClients($filters->routes, $filters->region_ids);
 
         $aggregated = [];
 
@@ -33,8 +33,8 @@ class GetDailySalesTrendAction
                 ->where('eliminado', 0)
                 ->whereBetween('Fecha', [$filters->start_date, $filters->end_date]);
 
-            if (!empty($filters->routes)) {
-                $query->whereIn('Ruta', $filters->routes);
+            if (!empty($filters->client_ids)) {
+                $query->whereIn('IdCliente', $filters->client_ids);
             }
 
             return $query

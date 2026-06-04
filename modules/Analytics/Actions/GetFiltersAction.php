@@ -13,14 +13,15 @@ class GetFiltersAction
     public function execute(): array
     {
         return [
-            'clients' => CompanyRoute::select('id', 'name', 'region_id')
+            'routes' => CompanyRoute::select('id', 'name', 'db_name', 'region_id')
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get()
-                ->map(fn($client) => [
-                    'id' => $client->id,
-                    'name' => $client->name,
-                    'region_id' => $client->region_id,
+                ->map(fn($route) => [
+                    'id' => $route->id,
+                    'name' => $route->name,
+                    'db_name' => $route->db_name,
+                    'region_id' => $route->region_id,
                 ]),
 
             'regions' => Region::select('id', 'citCode', 'citName')

@@ -15,22 +15,22 @@ class GetTopProductsAction
 
     public function execute(ReportFilterData $filters, int $limit = 10): array
     {
-        $clients = $this->tenantService->resolveClients($filters->client_ids, $filters->region_ids);
+        $clients = $this->tenantService->resolveClients($filters->routes, $filters->region_ids);
 
         $aggregated = [];
 
         $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters) {
             $query = DB::connection('tenant')
-                ->table('ventas_detalle')
+                ->table('ventas_detalle as vd')
                 ->select(
-                    'idproducto',
-                    'producto',
-                    DB::raw('SUM(cantidad) as total_quantity'),
-                    DB::raw('SUM(montodivisas) as total_amount_usd'),
-                    DB::raw('SUM(cantidad * precioventa) as total_amount_bs')
+                    'vd.idproducto',
+                    'vd.producto',
+                    DB::raw('SUM(vd.cantidad) as total_quantity'),
+                    DB::raw('SUM(vd.montodivisas) as total_amount_usd'),
+                    DB::raw('SUM(vd.cantidad * vd.precioventa) as total_amount_bs')
                 )
-                ->where('eliminado', 0)
-                ->whereBetween('fecha', [$filters->start_date, $filters->end_date]);
+                ->where('vd.eliminado', 0)
+                ->whereBetween('vd.fecha', [$filters->start_date, $filters->end_date]);
 
             // Filter by product SKUs if provided or hierarchical filters
             $skusToFilter = $this->tenantService->resolveProductSkus($filters);
@@ -39,7 +39,7 @@ class GetTopProductsAction
                 // If skusToFilter is empty array, it means hierarchical filter yielded 0 results
                 if (empty($skusToFilter)) {
                     // Force an empty result for this tenant by searching for an impossible ID
-                    $query->where('idproducto', -1);
+                    $query->where('vd.idproducto', -1);
                 } else {
                     $productIds = ExtProduct::on('tenant')
                         ->whereIn('codigoSKU', $skusToFilter)
@@ -47,21 +47,22 @@ class GetTopProductsAction
                         ->toArray();
 
                     if (!empty($productIds)) {
-                        $query->whereIn('idproducto', $productIds);
+                        $query->whereIn('vd.idproducto', $productIds);
                     } else {
                         // SKUs matched hierarchy but tenant doesn't have these products active
-                        $query->where('idproducto', -1);
+                        $query->where('vd.idproducto', -1);
                     }
                 }
             }
 
-            // Filter by routes if provided
-            if (!empty($filters->routes)) {
-                $query->whereIn('ruta', $filters->routes);
+            // Filter by actual clients if provided (JOIN with ventaspxc since ventas_detalle has no client column)
+            if (!empty($filters->client_ids)) {
+                $query->join('ventaspxc as v', 'v.IdVenta', '=', 'vd.IdVenta')
+                      ->whereIn('v.IdCliente', $filters->client_ids);
             }
 
             return $query
-                ->groupBy('idproducto', 'producto')
+                ->groupBy('vd.idproducto', 'vd.producto')
                 ->get()
                 ->toArray();
         });

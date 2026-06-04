@@ -14,6 +14,7 @@ use Modules\Analytics\Actions\GetSalesByRouteAction;
 use Modules\Analytics\Actions\GetTopGroupsByLitersAction;
 use Modules\Analytics\Actions\GetTopGroupsByKilosAction;
 use Modules\Analytics\Actions\GetClientsByTenantAction;
+use Modules\Analytics\Actions\GetClientsByRoutesAction;
 use Modules\Analytics\Http\Requests\ReportFilterRequest;
 use Modules\Analytics\DataTransferObjects\ReportFilterData;
 
@@ -26,6 +27,21 @@ class AnalyticsController extends Controller
         return response()->json([
             'success' => true,
             'data' => $filters,
+        ]);
+    }
+
+    public function getClientsByRoutes(\Illuminate\Http\Request $request, GetClientsByRoutesAction $action): JsonResponse
+    {
+        $routeIds = $request->input('routes', []);
+        if (!is_array($routeIds)) {
+            $routeIds = [$routeIds];
+        }
+        
+        $clients = $action->execute($routeIds);
+
+        return response()->json([
+            'success' => true,
+            'data' => $clients,
         ]);
     }
 

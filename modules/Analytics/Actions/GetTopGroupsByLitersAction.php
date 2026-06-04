@@ -28,7 +28,7 @@ class GetTopGroupsByLitersAction
             ];
         }
 
-        $clients = $this->tenantService->resolveClients($filters->client_ids, $filters->region_ids);
+        $clients = $this->tenantService->resolveClients($filters->routes, $filters->region_ids);
         $aggregated = [];
 
         $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $groupNames) {
@@ -55,8 +55,9 @@ class GetTopGroupsByLitersAction
                 )
                 ->groupBy('p.grupo');
 
-            if (!empty($filters->routes)) {
-                $query->whereIn('vd.ruta', $filters->routes);
+            if (!empty($filters->client_ids)) {
+                $query->join('ventaspxc as v', 'v.IdVenta', '=', 'vd.IdVenta')
+                      ->whereIn('v.IdCliente', $filters->client_ids);
             }
 
             if (!empty($filters->product_skus)) {

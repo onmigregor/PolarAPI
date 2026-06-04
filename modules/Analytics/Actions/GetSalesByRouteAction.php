@@ -14,7 +14,7 @@ class GetSalesByRouteAction
 
     public function execute(ReportFilterData $filters): array
     {
-        $clients = $this->tenantService->resolveClients($filters->client_ids, $filters->region_ids);
+        $clients = $this->tenantService->resolveClients($filters->routes, $filters->region_ids);
 
         $aggregated = [];
 
@@ -30,9 +30,9 @@ class GetSalesByRouteAction
                 ->where('eliminado', 0)
                 ->whereBetween('Fecha', [$filters->start_date, $filters->end_date]);
 
-            // Filter by routes if provided
-            if (!empty($filters->routes)) {
-                $query->whereIn('Ruta', $filters->routes);
+            // Filter by actual clients if provided
+            if (!empty($filters->client_ids)) {
+                $query->whereIn('IdCliente', $filters->client_ids);
             }
 
             return $query

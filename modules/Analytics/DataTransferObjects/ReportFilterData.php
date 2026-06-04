@@ -8,8 +8,10 @@ class ReportFilterData
         public readonly string $start_date,
         public readonly string $end_date,
         public readonly ?array $region_ids = null,
+        /** @var array|null Array of MasterClient external_ids (CodCliente in tenant DB) */
         public readonly ?array $client_ids = null,
         public readonly ?array $product_skus = null,
+        /** @var array|null Array of CompanyRoute IDs (Tenants) */
         public readonly ?array $routes = null,
         public readonly ?array $cl1_codes = null,
         public readonly ?array $cl2_codes = null,
