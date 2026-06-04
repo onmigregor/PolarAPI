@@ -48,11 +48,16 @@ WORKDIR /var/www/html
 # Copy existing application directory permissions
 COPY --chown=www-data:www-data . /var/www/html
 
+# Copy entrypoint script
+COPY --chown=www-data:www-data entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 # Change current user to www
 USER www-data
 
 # Expose port 80
 EXPOSE 80
 
-# Start Apache
+# Set entrypoint and start Apache
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["apache2-foreground"]
