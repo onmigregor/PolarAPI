@@ -39,6 +39,8 @@ class MasterClientBulkSyncAction
             'errors' => [],
         ];
 
+        Log::info("MasterClientBulkSyncAction: Starting execution. Payload counts - data: " . count($data) . ", customer_routes: " . count($customerRoutes));
+
         // Homologación: Limpiar todos los ceros a la izquierda de cus_code
         $data = array_map(function($item) {
             if (isset($item['cus_code'])) {
@@ -224,6 +226,11 @@ class MasterClientBulkSyncAction
                                 $crCleanCode = ltrim(strtolower((string)$cr->code), 'v');
                                 return $crCleanRouteName === $cleanRot || $crCleanCode === $cleanRot;
                             });
+                        if (!$routesCache[$routeName]) {
+                            Log::warning("MasterClientBulkSyncAction: CompanyRoute NOT FOUND in DB for route_name: {$routeName} (cleaned: {$cleanRot})");
+                        } else {
+                            Log::info("MasterClientBulkSyncAction: Found CompanyRoute for route_name: {$routeName} -> DB: {$routesCache[$routeName]->db_name}");
+                        }
                     }
                     $companyRoute = $routesCache[$routeName];
                 }
@@ -341,6 +348,12 @@ class MasterClientBulkSyncAction
                         'fre_week4'          => $freqFlags ? $freqFlags->fre_week4 : null,
                         'fre_customer'       => $freqFlags ? $freqFlags->fre_customer : null,
                     ];
+                } else {
+                    static $skippedCount = 0;
+                    if ($skippedCount < 5) {
+                        Log::warning("MasterClientBulkSyncAction: Skipping tenant push for customer {$item['cus_code']} because companyRoute is null or has no db_name");
+                        $skippedCount++;
+                    }
                 }
 
             } catch (\Exception $e) {
