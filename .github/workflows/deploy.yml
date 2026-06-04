@@ -36,6 +36,10 @@ jobs:
             echo "Estableciendo archivo .env de producción..."
             docker exec -t apimet cp /var/www/html/.env-main /var/www/html/.env
 
+            # Borrar archivos de caché de bootstrap obsoletos para evitar el error de PailServiceProvider
+            echo "Eliminando caché de bootstrap obsoleta..."
+            docker exec -t apimet rm -f /var/www/html/bootstrap/cache/packages.php /var/www/html/bootstrap/cache/services.php /var/www/html/bootstrap/cache/config.php
+
             # 5. Ejecutar optimizaciones y comandos de Laravel dentro de Docker
             echo "Instalando dependencias de Composer..."
             docker exec -t apimet composer install --no-dev --optimize-autoloader --no-interaction
