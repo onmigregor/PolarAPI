@@ -212,12 +212,13 @@ class MasterClientBulkSyncAction
         foreach ($data as $item) {
             try {
                 $routeName = $item['route_name'] ?? null;
+                $tenantRouteName = $item['tenant_route_name'] ?? $routeName; // Fallback a route_name si no viene
                 $companyRoute = null;
 
-                if ($routeName) {
-                    if (!isset($routesCache[$routeName])) {
-                        $cleanRot = ltrim(strtolower((string)$routeName), 'v');
-                        $routesCache[$routeName] = CompanyRoute::all()
+                if ($tenantRouteName) {
+                    if (!isset($routesCache[$tenantRouteName])) {
+                        $cleanRot = ltrim(strtolower((string)$tenantRouteName), 'v');
+                        $routesCache[$tenantRouteName] = CompanyRoute::all()
                             ->sortBy(function($cr) {
                                 return $cr->cep ? 0 : 1;
                             })
@@ -226,13 +227,13 @@ class MasterClientBulkSyncAction
                                 $crCleanCode = ltrim(strtolower((string)$cr->code), 'v');
                                 return $crCleanRouteName === $cleanRot || $crCleanCode === $cleanRot;
                             });
-                        if (!$routesCache[$routeName]) {
-                            Log::warning("MasterClientBulkSyncAction: CompanyRoute NOT FOUND in DB for route_name: {$routeName} (cleaned: {$cleanRot})");
+                        if (!$routesCache[$tenantRouteName]) {
+                            Log::warning("MasterClientBulkSyncAction: CompanyRoute NOT FOUND in DB for tenant_route_name: {$tenantRouteName} (cleaned: {$cleanRot})");
                         } else {
-                            Log::info("MasterClientBulkSyncAction: Found CompanyRoute for route_name: {$routeName} -> DB: {$routesCache[$routeName]->db_name}");
+                            Log::info("MasterClientBulkSyncAction: Found CompanyRoute for tenant_route_name: {$tenantRouteName} -> DB: {$routesCache[$tenantRouteName]->db_name}");
                         }
                     }
-                    $companyRoute = $routesCache[$routeName];
+                    $companyRoute = $routesCache[$tenantRouteName];
                 }
 
                 // A. Guardar en Master
