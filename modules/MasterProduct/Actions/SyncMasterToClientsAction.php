@@ -114,6 +114,8 @@ class SyncMasterToClientsAction
                     ->pluck('Field')
                     ->toArray();
 
+                $routeCode = strtoupper($client->code);
+
                 foreach ($masterProducts as $master) {
                     $sku = $master->sku;
 
@@ -132,6 +134,7 @@ class SyncMasterToClientsAction
                         'prodamegereturnsallowed' => $master->pro_damage_returns_allowed,
                         'proavailableforsale' => $master->pro_available_for_sale,
                         'procustomerinventoryallowed' => $master->pro_customer_inventory_allowed,
+                        'ruta'      => $routeCode,
                     ];
 
                     // Filtrar solo las columnas que existen en este tenant
