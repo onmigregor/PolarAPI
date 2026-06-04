@@ -32,24 +32,24 @@ jobs:
             echo "Copiando archivos al contenedor Docker apimet..."
             docker cp /home/apimet_source/. apimet:/var/www/html/
 
-            # 4. Copiar .env-main a .env dentro de Docker
+            # 4. Copiar .env-main a .env dentro de Docker (como usuario root)
             echo "Estableciendo archivo .env de producción..."
-            docker exec -t apimet cp /var/www/html/.env-main /var/www/html/.env
+            docker exec -u root -t apimet cp /var/www/html/.env-main /var/www/html/.env
 
-            # Borrar archivos de caché de bootstrap obsoletos para evitar el error de PailServiceProvider
+            # Borrar archivos de caché de bootstrap obsoletos (como usuario root)
             echo "Eliminando caché de bootstrap obsoleta..."
-            docker exec -t apimet rm -f /var/www/html/bootstrap/cache/packages.php /var/www/html/bootstrap/cache/services.php /var/www/html/bootstrap/cache/config.php
+            docker exec -u root -t apimet rm -f /var/www/html/bootstrap/cache/packages.php /var/www/html/bootstrap/cache/services.php /var/www/html/bootstrap/cache/config.php
 
-            # 5. Ejecutar optimizaciones y comandos de Laravel dentro de Docker
+            # 5. Ejecutar optimizaciones y comandos de Laravel dentro de Docker (como usuario root)
             echo "Instalando dependencias de Composer..."
-            docker exec -t apimet composer install --no-dev --optimize-autoloader --no-interaction
+            docker exec -u root -t apimet composer install --no-dev --optimize-autoloader --no-interaction
 
             echo "Ejecutando migraciones..."
-            docker exec -t apimet php artisan migrate --force
+            docker exec -u root -t apimet php artisan migrate --force
 
             echo "Limpiando caches de Laravel..."
-            docker exec -t apimet php artisan config:clear
-            docker exec -t apimet php artisan cache:clear
-            docker exec -t apimet php artisan route:clear
+            docker exec -u root -t apimet php artisan config:clear
+            docker exec -u root -t apimet php artisan cache:clear
+            docker exec -u root -t apimet php artisan route:clear
 
             echo "Despliegue de API completado con éxito."
