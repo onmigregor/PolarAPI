@@ -154,7 +154,9 @@ class SyncOfficialCustomersAction
                     $cleanRotCode = ltrim(strtolower($companyRoute->route_name), 'v');
                 } else {
                     $cleanRotCode = $rot_code;
-                    $dbName = 'www_' . $cleanRotCode;
+                    $prefix = config('tenants.prefix', 'www_');
+                    $suffix = config('tenants.suffix', 'p');
+                    $dbName = $prefix . 'v' . $cleanRotCode . $suffix;
                 }
 
                 // Ensure infrastructure (DB + Table)
@@ -203,9 +205,9 @@ class SyncOfficialCustomersAction
             CompanyRoute::updateOrCreate(
                 ['db_name' => $dbName],
                 [
-                    'code'       => $exists ? $exists->code : $rot_code,
-                    'name'       => $exists ? $exists->name : $rot_code,
-                    'route_name' => $exists ? $exists->route_name : $rot_code,
+                    'code'       => $exists ? $exists->code : 'v' . ltrim($rot_code, 'v'),
+                    'name'       => $exists ? $exists->name : 'v' . ltrim($rot_code, 'v'),
+                    'route_name' => $exists ? $exists->route_name : 'v' . ltrim($rot_code, 'v'),
                     'is_active'  => true,
                 ]
             );

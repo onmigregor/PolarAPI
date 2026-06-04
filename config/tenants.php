@@ -10,6 +10,6 @@ return [
     | Example: prefix 'www_' + tenant 'v1234a' + suffix 'p' = 'www_v1234ap'
     |
     */
-    'prefix' => 'www_',
-    'suffix' => 'p', // Change to '' for production
+    'prefix' => env('TENANT_DB_PREFIX', 'www_'),
+    'suffix' => env('TENANT_DB_SUFFIX', 'p'),
 ];

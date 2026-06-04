@@ -96,12 +96,14 @@ class SyncDiscountsToClientsAction
         ];
 
         // 1. Obtener Tenants activos
+        $prefix = config('tenants.prefix', 'www_');
+        $suffix = config('tenants.suffix', 'p');
         $tenants = CompanyRoute::where('is_active', true)
-            ->where('db_name', 'LIKE', 'www_v%p')
+            ->where('db_name', 'LIKE', "{$prefix}v%{$suffix}")
             ->get();
 
         if ($tenants->isEmpty()) {
-            Log::warning("SyncDiscountsToClients: No se encontraron Tenants activos con formato www_v*p");
+            Log::warning("SyncDiscountsToClients: No se encontraron Tenants activos con formato {$prefix}v*{$suffix}");
             return $results;
         }
 
@@ -271,20 +273,24 @@ class SyncDiscountsToClientsAction
 
     private function extractRotCode(string $code, ?string $dbName = null): ?string
     {
-        if (preg_match('/_V(\d+)$/i', $code, $matches)) {
+        if (preg_match('/_V([a-z0-9]+)$/i', $code, $matches)) {
             return $matches[1];
         }
 
-        if (preg_match('/^v(\d+)$/i', $code, $matches)) {
+        if (preg_match('/^v([a-z0-9]+)$/i', $code, $matches)) {
             return $matches[1];
         }
 
-        if (preg_match('/^\d+$/', $code)) {
+        if (preg_match('/^[a-z0-9]+$/i', $code)) {
             return $code;
         }
 
-        if ($dbName && preg_match('/www_v(\d+)p/i', $dbName, $matches)) {
-            return $matches[1];
+        if ($dbName) {
+            $prefix = preg_quote(config('tenants.prefix', 'www_'), '/');
+            $suffix = preg_quote(config('tenants.suffix', 'p'), '/');
+            if (preg_match('/' . $prefix . 'v([a-z0-9]+)' . $suffix . '$/i', $dbName, $matches)) {
+                return $matches[1];
+            }
         }
 
         return null;

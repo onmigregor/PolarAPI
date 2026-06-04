@@ -27,8 +27,10 @@ class SyncRouteMetadataAction
 
         try {
             // 1. Obtener todas las rutas registradas en el HUB (las oficiales con db_name)
+            $prefix = config('tenants.prefix', 'www_');
+            $suffix = config('tenants.suffix', 'p');
             $routes = CompanyRoute::where('is_active', true)
-                ->where('db_name', 'LIKE', 'www_v%p')
+                ->where('db_name', 'LIKE', "{$prefix}v%{$suffix}")
                 ->get();
 
             // 2. Conectar a la base de datos origen

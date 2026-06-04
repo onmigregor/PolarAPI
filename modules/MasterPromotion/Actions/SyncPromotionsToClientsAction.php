@@ -129,13 +129,15 @@ class SyncPromotionsToClientsAction
             'errors'               => [],
         ];
 
-        // 1. Obtener todos los Tenants activos (los que tienen el formato www_v*p)
+        // 1. Obtener todos los Tenants activos
+        $prefix = config('tenants.prefix', 'www_');
+        $suffix = config('tenants.suffix', 'p');
         $tenants = CompanyRoute::where('is_active', true)
-            ->where('db_name', 'LIKE', 'www_v%p')
+            ->where('db_name', 'LIKE', "{$prefix}v%{$suffix}")
             ->get();
 
         if ($tenants->isEmpty()) {
-            Log::warning("SyncPromotionsToClients: No se encontraron Tenants activos con formato www_v*p");
+            Log::warning("SyncPromotionsToClients: No se encontraron Tenants activos con formato {$prefix}v*{$suffix}");
             return $results;
         }
 
@@ -349,23 +351,27 @@ class SyncPromotionsToClientsAction
     private function extractRotCode(string $code, ?string $dbName = null): ?string
     {
         // Patrón: *_V{rot_code} → extraer lo que está después de _V
-        if (preg_match('/_V(\d+)$/i', $code, $matches)) {
+        if (preg_match('/_V([a-z0-9]+)$/i', $code, $matches)) {
             return $matches[1];
         }
 
         // Patrón: v{rot_code} (común en nuevos tenants)
-        if (preg_match('/^v(\d+)$/i', $code, $matches)) {
+        if (preg_match('/^v([a-z0-9]+)$/i', $code, $matches)) {
             return $matches[1];
         }
 
-        // Si el código es directamente un número (formato legacy)
-        if (preg_match('/^\d+$/', $code)) {
+        // Si el código es directamente alfanumérico
+        if (preg_match('/^[a-z0-9]+$/i', $code)) {
             return $code;
         }
 
-        // Si todo falla, intentar extraer de db_name (www_v{rot_code}p)
-        if ($dbName && preg_match('/www_v(\d+)p/i', $dbName, $matches)) {
-            return $matches[1];
+        // Si todo falla, intentar extraer de db_name (e.g. www_v{rot_code}p)
+        if ($dbName) {
+            $prefix = preg_quote(config('tenants.prefix', 'www_'), '/');
+            $suffix = preg_quote(config('tenants.suffix', 'p'), '/');
+            if (preg_match('/' . $prefix . 'v([a-z0-9]+)' . $suffix . '$/i', $dbName, $matches)) {
+                return $matches[1];
+            }
         }
 
         return null;
