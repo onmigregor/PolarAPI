@@ -13,7 +13,7 @@ class MasterClientGetFiltersAction
         $tp2 = $filters['tp2_code'] ?? null;
 
         // Query TP1 codes
-        $tp1Query = DB::table('master_clients')
+        $tp1Query = DB::table('master_client_polar')
             ->select('tp1_code')
             ->distinct()
             ->whereNotNull('tp1_code')
@@ -25,7 +25,7 @@ class MasterClientGetFiltersAction
         ])->toArray();
 
         // Query TP2 codes (Branches) joined with master_clients_type2 for names
-        $tp2Query = DB::table('master_clients as mc')
+        $tp2Query = DB::table('master_client_polar as mc')
             ->leftJoin('master_clients_type2 as t2', 'mc.tp2_code', '=', 't2.tp2_code')
             ->select('mc.tp2_code as code', DB::raw('COALESCE(t2.tp2_name, mc.tp2_code) as name'))
             ->distinct()
@@ -42,7 +42,7 @@ class MasterClientGetFiltersAction
         ])->toArray();
 
         // Query CIT codes (Cities/Regions) joined with regions for names
-        $citQuery = DB::table('master_clients as mc')
+        $citQuery = DB::table('master_client_polar as mc')
             ->leftJoin('regions as r', 'mc.cit_code', '=', 'r.citCode')
             ->select('mc.cit_code as code', DB::raw('COALESCE(r.citName, mc.cit_code) as name'))
             ->distinct()

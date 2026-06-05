@@ -12,9 +12,9 @@ class MasterClientResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'cep' => $this->cep,
-            'cliente' => $this->cliente,
-            'ruta' => $this->ruta,
+            'cep' => $this->cus_code,
+            'cliente' => $this->cus_business_name ?? $this->cus_name,
+            'ruta' => $this->companyRoute?->route_name,
             'company_route_id' => $this->company_route_id,
             'company_route_name' => $this->companyRoute?->name,
             'company_route_db' => $this->companyRoute?->db_name,

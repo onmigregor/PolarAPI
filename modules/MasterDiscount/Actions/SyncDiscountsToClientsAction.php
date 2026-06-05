@@ -110,9 +110,9 @@ class SyncDiscountsToClientsAction
         Log::info("SyncDiscountsToClients: Encontrados {$tenants->count()} Tenants activos");
 
         // Cargar mapa de clientes a códigos de ruta desde la tabla maestra de clientes
-        $clients = DB::table('master_clients as clients')
+        $clients = DB::table('master_client_polar as clients')
             ->join('company_routes as routes', 'routes.id', '=', 'clients.company_route_id')
-            ->select('clients.cep', 'routes.code as route_code', 'routes.db_name')
+            ->select('clients.cus_code as cep', 'routes.code as route_code', 'routes.db_name')
             ->get();
             
         $clientToRouteMap = [];

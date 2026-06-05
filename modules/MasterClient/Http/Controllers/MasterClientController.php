@@ -24,12 +24,16 @@ class MasterClientController extends Controller
 
     public function index(MasterClientListRequest $request): JsonResponse
     {
-        return response()->json([
-            'debug_master_clients_count' => \Illuminate\Support\Facades\DB::table('master_clients')->count(),
-            'debug_master_client_polar_count' => \Illuminate\Support\Facades\DB::table('master_client_polar')->count(),
-            'has_table_master_clients' => \Illuminate\Support\Facades\Schema::hasTable('master_clients'),
-            'has_table_master_client_polar' => \Illuminate\Support\Facades\Schema::hasTable('master_client_polar'),
-        ]);
+        $filters = $request->validated();
+        $clients = $this->getPaginatedAction->execute(
+            $filters,
+            $request->has('per_page') ? (int)$request->input('per_page') : null
+        );
+
+        return $this->success(
+            MasterClientResource::collection($clients),
+            'Master clients retrieved successfully'
+        );
     }
 
     public function getFilters(Request $request): JsonResponse

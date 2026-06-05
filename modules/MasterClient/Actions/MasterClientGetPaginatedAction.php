@@ -14,7 +14,7 @@ class MasterClientGetPaginatedAction
 
         return MasterClient::query()
             ->filter($filters)
-            ->orderBy('cliente')
+            ->orderBy('cus_name')
             ->paginate($limit)
             ->withQueryString();
     }

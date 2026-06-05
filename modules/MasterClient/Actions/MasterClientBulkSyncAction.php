@@ -244,6 +244,12 @@ class MasterClientBulkSyncAction
                         'cus_business_name' => $item['cus_business_name'] ?? null,
                         'cus_administrator' => $item['cus_administrator'] ?? null,
                         'company_route_id' => $companyRoute?->id,
+                        'tp1_code' => $item['tp1_code'] ?? null,
+                        'tp2_code' => $item['tp2_code'] ?? null,
+                        'cit_code' => $item['cit_code'] ?? null,
+                        'cus_tax_id1' => $item['cus_tax_id1'] ?? null,
+                        'cus_phone' => $item['cus_phone'] ?? ($item['phone'] ?? null),
+                        'cus_email' => $item['cus_email'] ?? null,
                     ]
                 );
 
@@ -380,6 +386,10 @@ class MasterClientBulkSyncAction
                             $clientData
                         );
                     $results['pushed_to_tenants']++;
+
+                    // Marcar como registrado en tenant en la tabla maestra
+                    MasterClientPolar::where('cus_code', $clientData['cep'])
+                        ->update(['registered_at_tenant' => now()]);
                 }
 
                 // C. Sincronizar Pools en el Tenant

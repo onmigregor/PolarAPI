@@ -9,7 +9,7 @@ use Modules\MasterClient\Actions\SyncMasterClientsAction;
 class SyncMasterClients extends Command
 {
     protected $signature = 'master-client:sync';
-    protected $description = 'Sync clients from tenant databases to master_clients table';
+    protected $description = 'Sync clients from tenant databases to master_client_polar table';
 
     public function handle(SyncMasterClientsAction $action): int
     {

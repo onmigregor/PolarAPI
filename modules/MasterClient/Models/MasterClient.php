@@ -8,41 +8,21 @@ use Modules\CompanyRoute\Models\CompanyRoute;
 
 class MasterClient extends Model
 {
+    protected $table = 'master_client_polar';
+
     protected $fillable = [
         'company_route_id',
-        'external_id',
-        'cep',
-        'cliente',
-        'ruta',
+        'cus_code',
         'cus_name',
         'cus_business_name',
-        'cus_duns',
-        'cus_comm_id',
+        'cus_administrator',
         'tp1_code',
         'tp2_code',
         'cit_code',
-        'txn_code',
-        'cus_phone',
-        'cus_fax',
-        'cus_street1',
-        'cus_street2',
-        'cus_street3',
         'cus_tax_id1',
-        'brc_code',
-        'cus_latitude',
-        'cus_longitude',
-        'prc_code_for_sale',
-        'prc_code_for_return',
-        'cus_contact_person',
+        'cus_phone',
         'cus_email',
-        'con_code',
-        'cus_credit_limit',
-        'cus_balance',
-        'fre_week1',
-        'fre_week2',
-        'fre_week3',
-        'fre_week4',
-        'fre_customer',
+        'registered_at_tenant',
     ];
 
     public function companyRoute()
@@ -57,7 +37,7 @@ class MasterClient extends Model
             'master_customer_pools',
             'cus_code',
             'pol_code',
-            'cep',
+            'cus_code',
             'pol_code'
         );
     }
@@ -66,11 +46,11 @@ class MasterClient extends Model
     {
         $query->when($filters['query'] ?? null, function ($q, $search) {
             $q->where(function ($query) use ($search) {
-                $query->where('cliente', 'like', "%{$search}%")
-                      ->orWhere('cus_name', 'like', "%{$search}%")
+                $query->where('cus_name', 'like', "%{$search}%")
                       ->orWhere('cus_business_name', 'like', "%{$search}%")
+                      ->orWhere('cus_administrator', 'like', "%{$search}%")
                       ->orWhere('cus_tax_id1', 'like', "%{$search}%")
-                      ->orWhere('cep', 'like', "%{$search}%");
+                      ->orWhere('cus_code', 'like', "%{$search}%");
             });
         });
 
@@ -90,7 +70,7 @@ class MasterClient extends Model
             $hasCep = filter_var($filters['has_cep'], FILTER_VALIDATE_BOOLEAN);
             if ($hasCep) {
                 $query->where(function ($q) {
-                    $q->whereNull('cep')->orWhere('cep', '');
+                    $q->whereNull('cus_code')->orWhere('cus_code', '');
                 });
             }
         }

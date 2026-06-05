@@ -20,14 +20,6 @@ class SyncMasterClientsAction
 
         foreach ($companyRoutes as $companyRoute) {
             try {
-                // Eliminar clientes que se sincronizaron incorrectamente (EMILINADO = typo de ELIMINADO)
-                MasterClient::where('company_route_id', $companyRoute->id)
-                    ->where(function ($q) {
-                        $q->whereRaw("UPPER(ruta) LIKE ?", ['%ELIMINADO%'])
-                            ->orWhereRaw("UPPER(ruta) LIKE ?", ['%EMILINADO%']);
-                    })
-                    ->delete();
-
                 Config::set('database.connections.tenant.database', $companyRoute->db_name);
                 DB::purge('tenant');
 
@@ -38,15 +30,19 @@ class SyncMasterClientsAction
                     ->get();
 
                 foreach ($clients as $client) {
+                    if (!$client->cep) {
+                        continue;
+                    }
+
                     MasterClient::updateOrCreate(
                         [
-                            'company_route_id' => $companyRoute->id,
-                            'external_id' => $client->IdCliente,
+                            'cus_code' => ltrim((string)$client->cep, '0'),
                         ],
                         [
-                            'cep' => $client->cep ? ltrim((string)$client->cep, '0') : null,
-                            'cliente' => $client->Cliente ?? '',
-                            'ruta' => $client->Ruta ?? null,
+                            'company_route_id' => $companyRoute->id,
+                            'cus_name' => $client->Cliente ?? '',
+                            'cus_business_name' => $client->Cliente ?? '',
+                            'registered_at_tenant' => now(),
                         ]
                     );
                     $syncedCount++;

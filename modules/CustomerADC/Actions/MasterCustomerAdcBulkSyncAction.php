@@ -92,25 +92,13 @@ class MasterCustomerAdcBulkSyncAction
         $recordsWithTenants = [];
 
         // Para resolver por BD (fallback), precargamos los clientes con su db_name y cep de la ruta
-        $hasMasterClients = DB::table('master_clients')->count() > 0;
-        $clientDbMap = [];
-        if ($hasMasterClients) {
-            $clientDbMap = DB::table('master_clients as clients')
-                ->join('company_routes as routes', 'routes.id', '=', 'clients.company_route_id')
-                ->select(DB::raw('CAST(clients.cep AS UNSIGNED) as cep_num'), 'routes.db_name', 'routes.cep as route_cep')
-                ->get()
-                ->keyBy('cep_num')
-                ->map(fn($item) => (array)$item)
-                ->toArray();
-        } else {
-            $clientDbMap = DB::table('master_client_polar as clients')
-                ->join('company_routes as routes', 'routes.id', '=', 'clients.company_route_id')
-                ->select(DB::raw('CAST(clients.cus_code AS UNSIGNED) as cep_num'), 'routes.db_name', 'routes.cep as route_cep')
-                ->get()
-                ->keyBy('cep_num')
-                ->map(fn($item) => (array)$item)
-                ->toArray();
-        }
+        $clientDbMap = DB::table('master_client_polar as clients')
+            ->join('company_routes as routes', 'routes.id', '=', 'clients.company_route_id')
+            ->select(DB::raw('CAST(clients.cus_code AS UNSIGNED) as cep_num'), 'routes.db_name', 'routes.cep as route_cep')
+            ->get()
+            ->keyBy('cep_num')
+            ->map(fn($item) => (array)$item)
+            ->toArray();
 
         foreach ($allAdc as $record) {
             $serial = $record->serial;

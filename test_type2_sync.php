@@ -29,8 +29,10 @@ $branchesPayload = [
 ];
 
 // Payload de un cliente que pertenece a esa tipología para ver la propagación al tenant
-$clientWithThisType = DB::table('master_clients')
-    ->where('tp2_code', $originalBranch->tp2_code)
+$clientWithThisType = DB::table('master_client_polar as mc')
+    ->leftJoin('company_routes as cr', 'cr.id', '=', 'mc.company_route_id')
+    ->where('mc.tp2_code', $originalBranch->tp2_code)
+    ->select('mc.cus_code as cep', 'mc.cus_name', 'mc.cus_business_name', 'mc.tp2_code', 'mc.cus_tax_id1', 'mc.cus_phone', 'cr.code as ruta')
     ->first();
 
 $dataPayload = [];
@@ -42,12 +44,12 @@ if ($clientWithThisType) {
         'cus_business_name' => $clientWithThisType->cus_business_name,
         'cus_administrator' => '',
         'tp2_code' => $originalBranch->tp2_code,
-        'tp3_code' => $clientWithThisType->tp3_code ?? '',
+        'tp3_code' => '',
         'cus_tax_id1' => $clientWithThisType->cus_tax_id1,
-        'address' => $clientWithThisType->cus_street1,
-        'latitude' => $clientWithThisType->cus_latitude,
-        'longitude' => $clientWithThisType->cus_longitude,
-        'contact_person' => $clientWithThisType->cus_contact_person,
+        'address' => '',
+        'latitude' => '',
+        'longitude' => '',
+        'contact_person' => '',
         'phone' => $clientWithThisType->cus_phone,
         'route_name' => $clientWithThisType->ruta,
         'days' => [
