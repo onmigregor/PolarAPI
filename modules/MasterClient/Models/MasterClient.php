@@ -61,4 +61,38 @@ class MasterClient extends Model
             'pol_code'
         );
     }
+
+    public function scopeFilter($query, array $filters): void
+    {
+        $query->when($filters['query'] ?? null, function ($q, $search) {
+            $q->where(function ($query) use ($search) {
+                $query->where('cliente', 'like', "%{$search}%")
+                      ->orWhere('cus_name', 'like', "%{$search}%")
+                      ->orWhere('cus_business_name', 'like', "%{$search}%")
+                      ->orWhere('cus_tax_id1', 'like', "%{$search}%")
+                      ->orWhere('cep', 'like', "%{$search}%");
+            });
+        });
+
+        $query->when($filters['tp1_code'] ?? null, function ($q, $tp1) {
+            $q->where('tp1_code', $tp1);
+        });
+
+        $query->when($filters['tp2_code'] ?? null, function ($q, $tp2) {
+            $q->where('tp2_code', $tp2);
+        });
+
+        $query->when($filters['cit_code'] ?? null, function ($q, $cit) {
+            $q->where('cit_code', $cit);
+        });
+
+        if (isset($filters['has_cep'])) {
+            $hasCep = filter_var($filters['has_cep'], FILTER_VALIDATE_BOOLEAN);
+            if ($hasCep) {
+                $query->where(function ($q) {
+                    $q->whereNull('cep')->orWhere('cep', '');
+                });
+            }
+        }
+    }
 }

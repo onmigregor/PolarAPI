@@ -5,10 +5,45 @@ namespace Modules\MasterClient\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
+use App\Traits\ApiResponse;
+use Illuminate\Http\Request;
+use Modules\MasterClient\Http\Requests\MasterClientListRequest;
+use Modules\MasterClient\Http\Resources\MasterClientResource;
+use Modules\MasterClient\Actions\MasterClientGetPaginatedAction;
+use Modules\MasterClient\Actions\MasterClientGetFiltersAction;
 use Modules\MasterClient\Actions\SyncMasterClientsAction;
 
 class MasterClientController extends Controller
 {
+    use ApiResponse;
+
+    public function __construct(
+        private readonly MasterClientGetPaginatedAction $getPaginatedAction,
+        private readonly MasterClientGetFiltersAction $getFiltersAction
+    ) {}
+
+    public function index(MasterClientListRequest $request): JsonResponse
+    {
+        $response = $this->getPaginatedAction->execute(
+            $request->only(['query', 'tp1_code', 'tp2_code', 'cit_code', 'has_cep']),
+            $request->input('per_page') ? (int)$request->input('per_page') : null
+        );
+
+        return $this->success(
+            MasterClientResource::collection($response),
+            'Master clients retrieved successfully'
+        );
+    }
+
+    public function getFilters(Request $request): JsonResponse
+    {
+        $filters = $this->getFiltersAction->execute(
+            $request->only(['tp1_code', 'tp2_code'])
+        );
+
+        return $this->success($filters, 'Master client filter options retrieved successfully');
+    }
+
     public function sync(SyncMasterClientsAction $action): JsonResponse
     {
         $result = $action->execute();
