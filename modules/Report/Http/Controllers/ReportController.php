@@ -59,10 +59,8 @@ class ReportController extends Controller
 
 
         $now = now();
-        $isLocal = config('app.env') === 'local';
-        // En producción usamos dos puntos (:), en local usamos guion bajo (_) porque Windows no permite (:)
-        $timeFormat = $isLocal ? 'Ymd_His' : 'Ymd_H:i:s';
-        $timestamp = $now->format($timeFormat);
+        // El formato Ymd_His genera la nomenclatura AAAAMMDD_HHMMSS (sin dos puntos) requerida por el SFTP
+        $timestamp = $now->format('Ymd_His');
 
         $ventasFilename = "VENTA_{$timestamp}.txt";
         $obsqFilename = "OBSEQUIO_{$timestamp}.txt";
