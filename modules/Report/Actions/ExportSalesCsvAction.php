@@ -25,7 +25,6 @@ class ExportSalesCsvAction
         6 => 'SABADO',
     ];
 
-    private const GENERIC_CEP_CODE = 'PV12345678';
 
     public array $errors = [];
 
@@ -57,6 +56,21 @@ class ExportSalesCsvAction
             $routeCode = $client->code;
             $cep = $client->cep ?? '';
             $tenantRows = [];
+
+            // Obtener cep_ocasional desde la tabla configuraciones del tenant
+            $cepOcasional = null;
+            try {
+                $configVal = DB::connection('tenant')
+                    ->table('configuraciones')
+                    ->where('clave_configuracion', 'cep_ocasional')
+                    ->value('valor_configuracion');
+
+                if (!empty($configVal)) {
+                    $cepOcasional = $configVal;
+                }
+            } catch (\Exception $e) {
+                // Silently fallback if table/key is not found
+            }
 
             // PASO 1: Join Base (Venta + Detalle + Producto)
             $queryBase = DB::connection('tenant')
@@ -124,8 +138,12 @@ class ExportSalesCsvAction
                 // Cl. Doc: Siempre FVTA para este reporte (los obsequios van por separado)
                 $clDoc = 'FVTA';
 
-                $clientCep = !empty($row->client_cep) ? $row->client_cep : $row->IdCliente;
-                $clientCep = str_pad((string)$clientCep, 10, '0', STR_PAD_LEFT);
+                $clientCep = !empty($row->client_cep) ? $row->client_cep : $cepOcasional;
+                if (!empty($clientCep)) {
+                    $clientCep = str_pad((string)$clientCep, 10, '0', STR_PAD_LEFT);
+                } else {
+                    $clientCep = '';
+                }
 
                 $tenantRows[] = [
                     'fq_redi'       => $cep, // El CEP del Tenant va ahora en FQ/REDI
@@ -160,8 +178,12 @@ class ExportSalesCsvAction
                     ->get();
 
                 foreach ($clientesRJ as $clienteRJ) {
-                    $clientCepRJ = !empty($clienteRJ->client_cep) ? $clienteRJ->client_cep : $clienteRJ->IdCliente;
-                    $clientCepRJ = str_pad((string)$clientCepRJ, 10, '0', STR_PAD_LEFT);
+                    $clientCepRJ = !empty($clienteRJ->client_cep) ? $clienteRJ->client_cep : $cepOcasional;
+                    if (!empty($clientCepRJ)) {
+                        $clientCepRJ = str_pad((string)$clientCepRJ, 10, '0', STR_PAD_LEFT);
+                    } else {
+                        $clientCepRJ = '';
+                    }
 
                     $tenantRows[] = [
                         'fq_redi'       => $cep,

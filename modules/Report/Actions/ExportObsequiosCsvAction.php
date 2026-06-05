@@ -11,7 +11,6 @@ use Carbon\Carbon;
 
 class ExportObsequiosCsvAction
 {
-    private const GENERIC_CEP_CODE = 'PV12345678';
 
     public array $errors = [];
 
@@ -30,6 +29,21 @@ class ExportObsequiosCsvAction
             $cep = $client->cep ?? '';
             $routeCode = $client->codigo ?? 'N/A';
             $tenantRows = [];
+
+            // Obtener cep_ocasional desde la tabla configuraciones del tenant
+            $cepOcasional = null;
+            try {
+                $configVal = DB::connection('tenant')
+                    ->table('configuraciones')
+                    ->where('clave_configuracion', 'cep_ocasional')
+                    ->value('valor_configuracion');
+
+                if (!empty($configVal)) {
+                    $cepOcasional = $configVal;
+                }
+            } catch (\Exception $e) {
+                // Silently fallback if table/key is not found
+            }
 
             // Solo procesar si existe la tabla de plan táctico
             if (!Schema::connection('tenant')->hasTable('recepcion_plan_tactico')) {
@@ -75,8 +89,12 @@ class ExportObsequiosCsvAction
             foreach ($results as $row) {
                 $um = ((int)$row->unidadesporcaja === 1) ? 'UND' : 'CJS';
                 
-                $clientCep = !empty($row->client_cep) ? $row->client_cep : $row->IdCliente;
-                $clientCep = str_pad((string)$clientCep, 10, '0', STR_PAD_LEFT);
+                $clientCep = !empty($row->client_cep) ? $row->client_cep : $cepOcasional;
+                if (!empty($clientCep)) {
+                    $clientCep = str_pad((string)$clientCep, 10, '0', STR_PAD_LEFT);
+                } else {
+                    $clientCep = '';
+                }
 
                 $tenantRows[] = [
                     'fq_redi'       => $cep,
