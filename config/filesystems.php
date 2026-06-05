@@ -69,6 +69,7 @@ return [
             'port' => (int) env('SFTP_PORT', 22),
             'root' => env('SFTP_ROOT_VENTAS', '/'),
             'timeout' => 30,
+            'throw' => true,
         ],
 
         'sftp_obsequios' => [
@@ -79,6 +80,7 @@ return [
             'port' => (int) env('SFTP_PORT', 22),
             'root' => env('SFTP_ROOT_OBSEQUIOS', '/'),
             'timeout' => 30,
+            'throw' => true,
         ],
 
         'ftp' => [
