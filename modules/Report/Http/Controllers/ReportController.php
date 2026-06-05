@@ -59,6 +59,7 @@ class ReportController extends Controller
 
 
         $now = now();
+        $isLocal = config('app.env') === 'local';
         // El formato Ymd_His genera la nomenclatura AAAAMMDD_HHMMSS (sin dos puntos) requerida por el SFTP
         $timestamp = $now->format('Ymd_His');
 
