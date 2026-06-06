@@ -38,10 +38,21 @@ class SyncRouteMetadataAction
 
             foreach ($routes as $route) {
                 try {
-                    // Match por nombre
-                    $metadata = $sourceDb->table('companies_logins')
-                        ->where('lgn_name', $route->name)
-                        ->first();
+                    // Match por lgn_code / cep (si tiene cep)
+                    $metadata = null;
+                    if (!empty($route->cep)) {
+                        $lgnCode = str_pad($route->cep, 10, '0', STR_PAD_LEFT);
+                        $metadata = $sourceDb->table('companies_logins')
+                            ->where('lgn_code', $lgnCode)
+                            ->first();
+                    }
+
+                    // Fallback a lgn_name si no tiene cep o no encontró por cep
+                    if (!$metadata && !empty($route->name)) {
+                        $metadata = $sourceDb->table('companies_logins')
+                            ->where('lgn_name', $route->name)
+                            ->first();
+                    }
 
                     if ($metadata) {
                         // Separar Zona de Venta de Dirección 1 (ej: "N016 Ocumare del Tuy")

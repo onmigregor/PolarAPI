@@ -151,9 +151,29 @@ class SyncPromotionsToClientsAction
 
         Log::info("SyncPromotionsToClients: HUB tiene {$masterPromotions->count()} promociones, {$masterDetails->count()} detalles, {$masterProducts->count()} productos");
 
+        // Cargar mapa de rutas hijas a padres desde origen
+        $routeMap = [];
+        try {
+            $territories = DB::connection('productos_polar')->table('companies_territories')->get();
+            foreach ($territories as $t) {
+                if (empty($t->try_code)) continue;
+                $parts = explode('-', $t->try_code);
+                if (count($parts) === 2) {
+                    $parent = ltrim(strtolower(trim($parts[0])), 'v');
+                    $child = ltrim(strtolower(trim($parts[1])), 'v');
+                    $routeMap[$child] = $parent;
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning("SyncPromotionsToClients: No se pudo cargar companies_territories: " . $e->getMessage());
+        }
+
         // 3. Indexar detalles y productos por rot_code para distribución rápida
-        // Agrupar detalles por rot_code
-        $detailsByRoute = $masterDetails->groupBy('rot_code');
+        // Agrupar detalles por rot_code (mapeado a su ruta padre)
+        $detailsByRoute = $masterDetails->groupBy(function($detail) use ($routeMap) {
+            $rawRot = ltrim(strtolower(trim($detail->rot_code)), 'v');
+            return $routeMap[$rawRot] ?? $rawRot;
+        });
         // Agrupar productos por pdl_code para acceso rápido
         $productsByDetail = $masterProducts->groupBy('pdl_code');
 
@@ -182,11 +202,15 @@ class SyncPromotionsToClientsAction
                 $this->ensureTables($tenant->db_name);
 
                 // Obtener los detalles que aplican a esta ruta
-                $routeDetails = $detailsByRoute->get($rotCode, collect());
+                $routeDetails = $detailsByRoute->get(strtolower($rotCode), collect());
 
                 // También incluir promociones asignadas por la tabla master_promotion_routes
                 $prmCodesFromRoutes = $masterRoutes
-                    ->where('rot_code', $rotCode)
+                    ->filter(function($r) use ($rotCode, $routeMap) {
+                        $rawRot = ltrim(strtolower(trim($r->rot_code)), 'v');
+                        $mappedRot = $routeMap[$rawRot] ?? $rawRot;
+                        return $mappedRot === strtolower($rotCode);
+                    })
                     ->pluck('prm_code')
                     ->unique();
 
