@@ -15,192 +15,188 @@ class DistributeInvoicesToTenantsAction
     {
         if (empty($data)) return;
 
-        // 1. Obtener Tenants activos con sale_zone
-        $prefix = config('tenants.prefix', 'www_');
-        $suffix = config('tenants.suffix', 'p');
-        $tenants = DB::table('company_routes')
-            ->where('is_active', true)
-            ->where('db_name', 'LIKE', "{$prefix}v%{$suffix}")
-            ->whereNotNull('sale_zone')
-            ->where('sale_zone', '!=', '')
-            ->get();
+        // 1. Agrupar facturas por la columna 'zona_venta' (que contiene el código de la ruta, ej: V1262A)
+        $groupedByZone = collect($data)->groupBy('zona_venta');
 
-        // 2. Mapa REDI (sale_zone) -> [Tenants] (un REDI puede tener múltiples tenants)
-        $rediToTenants = [];
-        foreach ($tenants as $t) {
-            $rediCode = strtoupper(trim($t->sale_zone));
-            $rediToTenants[$rediCode][] = $t;
-        }
-
-        // 3. Agrupar facturas por fq_redi
-        $groupedByRedi = collect($data)->groupBy(function($item) {
-            return strtoupper(trim($item['fq_redi'] ?? ''));
-        });
-
-        // 4. Distribuir a cada Tenant asociado a ese REDI
-        foreach ($groupedByRedi as $redi => $items) {
-            if (empty($redi) || !isset($rediToTenants[$redi])) {
-                Log::warning("DistributeInvoicesToTenantsAction: Sin tenant para REDI {$redi}. Saltando grupo.");
+        // 2. Distribuir a cada ruta correspondiente
+        foreach ($groupedByZone as $zone => $items) {
+            if (empty($zone)) {
+                Log::warning("DistributeInvoicesToTenantsAction: Grupo de facturas sin 'zona_venta'. Saltando.");
                 continue;
             }
 
-            foreach ($rediToTenants[$redi] as $company) {
-                $dbName = $company->db_name;
-                $routeName = $company->route_name ?? $company->name;
+            $cleanZone = ltrim(strtolower(trim($zone)), 'v');
 
-                try {
-                    // Configurar conexión dinámica
-                    $this->switchToTenant($dbName);
+            // Buscar la ruta/tenant que corresponda a este código
+            $company = DB::table('company_routes')
+                ->where('is_active', true)
+                ->where(function($query) use ($cleanZone) {
+                    $query->where('route_name', $cleanZone)
+                          ->orWhere('zone', $cleanZone)
+                          ->orWhere('code', 'LIKE', "%_{$cleanZone}");
+                })
+                ->first();
 
-                    // Verificar si la tabla compras existe en este tenant
-                    $hasTable = DB::connection('tenant')->select("SHOW TABLES LIKE 'compras'");
-                    if (empty($hasTable)) {
-                        Log::warning("DistributeInvoicesToTenantsAction: La tabla 'compras' no existe en el tenant $dbName. Saltando tenant.");
+            if (!$company) {
+                Log::warning("DistributeInvoicesToTenantsAction: No se encontró tenant para la ruta '$zone' (limpio: '$cleanZone'). Saltando grupo.");
+                continue;
+            }
+
+            $dbName = $company->db_name;
+            $routeName = $company->route_name ?? $company->name;
+
+            try {
+                // Configurar conexión dinámica
+                $this->switchToTenant($dbName);
+
+                // Verificar si la tabla compras existe en este tenant
+                $hasTable = DB::connection('tenant')->select("SHOW TABLES LIKE 'compras'");
+                if (empty($hasTable)) {
+                    Log::warning("DistributeInvoicesToTenantsAction: La tabla 'compras' no existe en el tenant $dbName. Saltando tenant.");
+                    continue;
+                }
+
+                // Agrupar por No Factura para crear cabeceras
+                $groupedByInvoice = $items->groupBy('no_factura');
+
+                foreach ($groupedByInvoice as $nroFactura => $lines) {
+                    $validLines = [];
+                    $firstLine = $lines->first();
+                    $fecha = $this->formatDate($firstLine['fecha_creacion']);
+                    $tasa = (float)($firstLine['tasa'] ?? 0);
+
+                    // 1. Validar qué líneas tienen productos existentes
+                    foreach ($lines as $line) {
+                        $material = trim($line['material']);
+                        $product = DB::connection('tenant')->table('productos')
+                            ->where('codigoSKU', $material)
+                            ->orWhere('codigoSKU', ltrim($material, '0'))
+                            ->first();
+
+                        if ($product) {
+                            $validLines[] = [
+                                'line' => $line,
+                                'product' => $product
+                            ];
+                        } else {
+                            Log::warning("DistributeInvoicesToTenantsAction: SKU $material no encontrado en tenant $dbName. Saltando linea.");
+                        }
+                    }
+
+                    if (empty($validLines)) {
+                        Log::warning("DistributeInvoicesToTenantsAction: La factura $nroFactura no tiene ningun producto valido en tenant $dbName. Saltando factura completa.");
                         continue;
                     }
 
-                    // Agrupar por No Factura para crear cabeceras
-                    $groupedByInvoice = $items->groupBy('no_factura');
+                    // 2. Calcular totales solo con lineas validas
+                    $totalFactura = collect($validLines)->sum(fn($vl) => ($vl['line']['cantidad'] ?? 0) * ($vl['line']['precio'] ?? 0));
+                    $totalIvaAmount = collect($validLines)->sum(fn($vl) => ($vl['line']['iva'] ?? 0) * ($vl['line']['cantidad'] ?? 1));
 
-                    foreach ($groupedByInvoice as $nroFactura => $lines) {
-                        $validLines = [];
-                        $firstLine = $lines->first();
-                        $fecha = $this->formatDate($firstLine['fecha_creacion']);
-                        $tasa = (float)($firstLine['tasa'] ?? 0);
+                    // Obtener info del proveedor
+                    $providerInfo = $this->getProviderInfo($firstLine['codigo_polar_negocio']);
+                    $montoDivisas = $tasa > 0 ? (($totalFactura + $totalIvaAmount) / $tasa) : 0;
 
-                        // 1. Validar qué líneas tienen productos existentes
-                        foreach ($lines as $line) {
-                            $material = trim($line['material']);
-                            $product = DB::connection('tenant')->table('productos')
-                                ->where('codigoSKU', $material)
-                                ->orWhere('codigoSKU', ltrim($material, '0'))
-                                ->first();
+                    // 3. Crear/Actualizar Cabecera
+                    DB::connection('tenant')->table('compras')->updateOrInsert(
+                        ['nrofactura' => $nroFactura],
+                        [
+                            'idcompra_detalle' => 0,
+                            'nrocontrol' => $firstLine['no_control'] ?? '',
+                            'fecha' => $fecha,
+                            'fechavencimiento' => $fecha,
+                            'ruta' => $routeName,
+                            'proveedor' => $providerInfo['name'],
+                            'tipofactura' => 'FAC',
+                            'status' => 'PENDIENTE',
+                            'aportes' => 0,
+                            'envasesentregados' => 0,
+                            'baseimponible' => $totalFactura,
+                            'totalcomprasconiva' => $totalFactura + $totalIvaAmount,
+                            'totalfactura' => $totalFactura + $totalIvaAmount,
+                            'itf' => 0,
+                            'montopendiente' => $totalFactura + $totalIvaAmount,
+                            'iva' => $totalIvaAmount > 0 ? 1 : 0,
+                            'ivaretenido' => 0,
+                            'nrocomprobante' => '0',
+                            'fecharetencion' => $fecha,
+                            'periodofiscal' => '',
+                            'c' => 0,
+                            'm' => 0,
+                            's' => 0,
+                            'pcv' => 0,
+                            'apc' => 0,
+                            'pomar' => 0,
+                            'pg' => 0,
+                            'vaciocuarto' => 0,
+                            'vaciotercio' => 0,
+                            'vacio350' => 0,
+                            'vacio125' => 0,
+                            'debecuarto' => 0,
+                            'debetercio' => 0,
+                            'debe350' => 0,
+                            'debe125' => 0,
+                            'comentario' => '',
+                            'fecha_tasa' => $fecha,
+                            'tasa' => $tasa,
+                            'montodivisas' => $montoDivisas,
+                            'totalpagarbs' => $totalFactura + $totalIvaAmount,
+                            'enlace' => '',
+                            'horaRegistro' => now()->format('Y-m-d H:i:s'),
+                            'cep' => $firstLine['fq_redi'] ?? '',
+                            'idusuario' => 1,
+                            'idproveedor' => $providerInfo['id'],
+                            'eliminado' => 0,
+                        ]
+                    );
 
-                            if ($product) {
-                                $validLines[] = [
-                                    'line' => $line,
-                                    'product' => $product
-                                ];
-                            } else {
-                                Log::warning("DistributeInvoicesToTenantsAction: SKU $material no encontrado en tenant $dbName. Saltando linea.");
-                            }
-                        }
+                    $idCompraReal = DB::connection('tenant')->table('compras')
+                        ->where('nrofactura', $nroFactura)
+                        ->value('idcompra');
 
-                        if (empty($validLines)) {
-                            Log::warning("DistributeInvoicesToTenantsAction: La factura $nroFactura no tiene ningun producto valido en tenant $dbName. Saltando factura completa.");
-                            continue;
-                        }
+                    DB::connection('tenant')->table('compras')
+                        ->where('idcompra', $idCompraReal)
+                        ->update(['idcompra_detalle' => $idCompraReal]);
 
-                        // 2. Calcular totales solo con lineas validas
-                        $totalFactura = collect($validLines)->sum(fn($vl) => ($vl['line']['cantidad'] ?? 0) * ($vl['line']['precio'] ?? 0));
-                        $totalIvaAmount = collect($validLines)->sum(fn($vl) => ($vl['line']['iva'] ?? 0) * ($vl['line']['cantidad'] ?? 1));
+                    // 4. Insertar Detalles
+                    foreach ($validLines as $vl) {
+                        $line = $vl['line'];
+                        $product = $vl['product'];
+                        $precioCompra = (float)($line['precio'] ?? 0);
+                        $cantidad = (int)($line['cantidad'] ?? 0);
 
-                        // Obtener info del proveedor
-                        $providerInfo = $this->getProviderInfo($firstLine['codigo_polar_negocio']);
-                        $montoDivisas = $tasa > 0 ? (($totalFactura + $totalIvaAmount) / $tasa) : 0;
-
-                        // 3. Crear/Actualizar Cabecera
-                        DB::connection('tenant')->table('compras')->updateOrInsert(
-                            ['nrofactura' => $nroFactura],
+                        DB::connection('tenant')->table('compras_detalle')->updateOrInsert(
                             [
-                                'idcompra_detalle' => 0,
-                                'nrocontrol' => $firstLine['no_control'] ?? '',
-                                'fecha' => $fecha,
-                                'fechavencimiento' => $fecha,
                                 'ruta' => $routeName,
-                                'proveedor' => $providerInfo['name'],
-                                'tipofactura' => 'FAC',
-                                'status' => 'PENDIENTE',
-                                'aportes' => 0,
-                                'envasesentregados' => 0,
-                                'baseimponible' => $totalFactura,
-                                'totalcomprasconiva' => $totalFactura + $totalIvaAmount,
-                                'totalfactura' => $totalFactura + $totalIvaAmount,
-                                'itf' => 0,
-                                'montopendiente' => $totalFactura + $totalIvaAmount,
-                                'iva' => $totalIvaAmount > 0 ? 1 : 0,
-                                'ivaretenido' => 0,
-                                'nrocomprobante' => '0',
-                                'fecharetencion' => $fecha,
-                                'periodofiscal' => '',
-                                'c' => 0,
-                                'm' => 0,
-                                's' => 0,
-                                'pcv' => 0,
-                                'apc' => 0,
-                                'pomar' => 0,
-                                'pg' => 0,
-                                'vaciocuarto' => 0,
-                                'vaciotercio' => 0,
-                                'vacio350' => 0,
-                                'vacio125' => 0,
-                                'debecuarto' => 0,
-                                'debetercio' => 0,
-                                'debe350' => 0,
-                                'debe125' => 0,
-                                'comentario' => '',
-                                'fecha_tasa' => $fecha,
+                                'idcompra' => $idCompraReal,
+                                'idproducto' => $product->idproducto,
+                            ],
+                            [
+                                'fecha' => $fecha,
+                                'producto' => $product->producto,
+                                'cantidad' => $cantidad,
+                                'preciocompra' => $precioCompra,
+                                'precioventa' => $precioCompra,
                                 'tasa' => $tasa,
-                                'montodivisas' => $montoDivisas,
-                                'totalpagarbs' => $totalFactura + $totalIvaAmount,
-                                'enlace' => '',
-                                'horaRegistro' => now()->format('Y-m-d H:i:s'),
-                                'cep' => $firstLine['fq_redi'] ?? '',
+                                'fecha_tasa' => $fecha,
+                                'montodivisas' => $cantidad * $precioCompra,
+                                'porcentaje_rentab' => 0,
+                                'rentabilidad' => 0,
+                                'fideicomiso' => 0,
+                                'sync' => 1,
                                 'idusuario' => 1,
-                                'idproveedor' => $providerInfo['id'],
+                                'clave_configuracion' => '',
+                                'exento_iva' => ($line['iva'] ?? 0) > 0 ? 0 : 1,
                                 'eliminado' => 0,
                             ]
                         );
-
-                        $idCompraReal = DB::connection('tenant')->table('compras')
-                            ->where('nrofactura', $nroFactura)
-                            ->value('idcompra');
-
-                        DB::connection('tenant')->table('compras')
-                            ->where('idcompra', $idCompraReal)
-                            ->update(['idcompra_detalle' => $idCompraReal]);
-
-                        // 4. Insertar Detalles
-                        foreach ($validLines as $vl) {
-                            $line = $vl['line'];
-                            $product = $vl['product'];
-                            $precioCompra = (float)($line['precio'] ?? 0);
-                            $cantidad = (int)($line['cantidad'] ?? 0);
-
-                            DB::connection('tenant')->table('compras_detalle')->updateOrInsert(
-                                [
-                                    'ruta' => $routeName,
-                                    'idcompra' => $idCompraReal,
-                                    'idproducto' => $product->idproducto,
-                                ],
-                                [
-                                    'fecha' => $fecha,
-                                    'producto' => $product->producto,
-                                    'cantidad' => $cantidad,
-                                    'preciocompra' => $precioCompra,
-                                    'precioventa' => $precioCompra,
-                                    'tasa' => $tasa,
-                                    'fecha_tasa' => $fecha,
-                                    'montodivisas' => $cantidad * $precioCompra,
-                                    'porcentaje_rentab' => 0,
-                                    'rentabilidad' => 0,
-                                    'fideicomiso' => 0,
-                                    'sync' => 1,
-                                    'idusuario' => 1,
-                                    'clave_configuracion' => '',
-                                    'exento_iva' => ($line['iva'] ?? 0) > 0 ? 0 : 1,
-                                    'eliminado' => 0,
-                                ]
-                            );
-                        }
                     }
-
-                    Log::info("DistributeInvoicesToTenantsAction: Procesado tenant $dbName con " . count($items) . " registros.");
-
-                } catch (\Exception $e) {
-                    Log::error("DistributeInvoicesToTenantsAction Error en tenant $dbName: " . $e->getMessage());
-                    // Continuamos con el siguiente tenant
                 }
+
+                Log::info("DistributeInvoicesToTenantsAction: Procesado tenant $dbName con " . count($items) . " registros de facturas.");
+
+            } catch (\Exception $e) {
+                Log::error("DistributeInvoicesToTenantsAction Error en tenant $dbName: " . $e->getMessage());
+                // Continuamos con el siguiente tenant
             }
         }
     }

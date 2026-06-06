@@ -4,6 +4,7 @@ namespace Modules\CompanyRoute\Actions;
 
 use Modules\CompanyRoute\Models\CompanyRoute;
 use Illuminate\Support\Facades\Log;
+use Modules\CompanyRoute\Actions\SyncRouteMetadataAction;
 
 class CompanyRouteBulkSyncAction
 {
@@ -65,6 +66,15 @@ class CompanyRouteBulkSyncAction
                 Log::error("Error syncing company route {$item['cep']}: " . $e->getMessage());
                 $results['errors'][] = "CEP {$item['cep']}: " . $e->getMessage();
             }
+        }
+
+        // Ejecutar la sincronización de metadatos de rutas al finalizar para poblar sale_zone
+        try {
+            $syncMetadataAction = app(SyncRouteMetadataAction::class);
+            $metadataResult = $syncMetadataAction->execute();
+            Log::info("CompanyRouteBulkSyncAction: Metadatos de rutas sincronizados automáticamente.", $metadataResult);
+        } catch (\Exception $e) {
+            Log::error("CompanyRouteBulkSyncAction: Error al sincronizar metadatos de rutas: " . $e->getMessage());
         }
 
         return $results;
