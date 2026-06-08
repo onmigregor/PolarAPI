@@ -269,7 +269,7 @@ class MasterClientBulkSyncAction
 
                     // Resolver banderas y Días de Visita de las tablas Master recién sincronizadas
                     $paddedCusCode = $item['cus_code'];
-                    $rotCode = $routeName;
+                    $rotCode = ltrim((string)$routeName, 'vV');
 
                     $cspFlags = \Modules\MasterClient\Models\MasterCustomerPrice::where('rot_code', $rotCode)
                         ->where('cus_code', $paddedCusCode)
