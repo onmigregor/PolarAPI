@@ -14,6 +14,9 @@ class SyncMasterClientsAction
 {
     public function execute(): array
     {
+        // Desactivar el log de consultas de la base de datos principal para evitar consumo de memoria acumulativo
+        DB::connection('mysql')->disableQueryLog();
+
         $companyRoutes = CompanyRoute::where('is_active', true)->get();
         $syncedCount = 0;
         $errors = [];
@@ -22,6 +25,9 @@ class SyncMasterClientsAction
             try {
                 Config::set('database.connections.tenant.database', $companyRoute->db_name);
                 DB::purge('tenant');
+                
+                // Desactivar el log de consultas para la conexión del tenant
+                DB::connection('tenant')->disableQueryLog();
 
                 // Asegurar que las columnas requeridas (incluyendo synced_to_master) existen en el tenant
                 $this->ensureClientesColumnsExist('tenant');
@@ -83,12 +89,18 @@ class SyncMasterClientsAction
 
                     $syncedCount++;
                 }
+
+                unset($clients); // Liberar memoria de la colección de clientes
+
             } catch (\Exception $e) {
                 Log::error("Error syncing clients for {$companyRoute->name}: " . $e->getMessage());
                 $errors[] = [
                     'company_route' => $companyRoute->name,
                     'error' => $e->getMessage(),
                 ];
+            } finally {
+                // Desconectar explícitamente para liberar el socket de conexión a base de datos y memoria
+                DB::disconnect('tenant');
             }
         }
 
