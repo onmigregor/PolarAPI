@@ -25,15 +25,22 @@ class MasterClientController extends Controller
     public function index(MasterClientListRequest $request): JsonResponse
     {
         $filters = $request->validated();
-        $clients = $this->getPaginatedAction->execute(
+        $paginated = $this->getPaginatedAction->execute(
             $filters,
             $request->has('per_page') ? (int)$request->input('per_page') : null
         );
 
-        return $this->success(
-            MasterClientResource::collection($clients),
-            'Master clients retrieved successfully'
-        );
+        return response()->json([
+            'success' => true,
+            'message' => 'Master clients retrieved successfully',
+            'data' => MasterClientResource::collection($paginated->items()),
+            'meta' => [
+                'current_page' => $paginated->currentPage(),
+                'last_page' => $paginated->lastPage(),
+                'per_page' => $paginated->perPage(),
+                'total' => $paginated->total(),
+            ]
+        ]);
     }
 
     public function getFilters(Request $request): JsonResponse
@@ -42,7 +49,11 @@ class MasterClientController extends Controller
             $request->only(['tp1_code', 'tp2_code'])
         );
 
-        return $this->success($filters, 'Master client filter options retrieved successfully');
+        return response()->json([
+            'success' => true,
+            'message' => 'Master client filter options retrieved successfully',
+            'data' => $filters,
+        ]);
     }
 
     public function sync(SyncMasterClientsAction $action): JsonResponse

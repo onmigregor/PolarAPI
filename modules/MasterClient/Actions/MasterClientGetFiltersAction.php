@@ -3,66 +3,62 @@ declare(strict_types=1);
 
 namespace Modules\MasterClient\Actions;
 
+use Modules\CompanyRoute\Models\CompanyRoute;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 
 class MasterClientGetFiltersAction
 {
     public function execute(array $filters = []): array
     {
-        $tp1 = $filters['tp1_code'] ?? null;
-        $tp2 = $filters['tp2_code'] ?? null;
+        $activeTenants = CompanyRoute::where('is_active', true)->whereNotNull('db_name')->get();
 
-        // Query TP1 codes
-        $tp1Query = DB::table('master_client_polar')
-            ->select('tp1_code')
-            ->distinct()
-            ->whereNotNull('tp1_code')
-            ->where('tp1_code', '!=', '');
-        
-        $tp1Results = $tp1Query->pluck('tp1_code')->map(fn($code) => [
-            'code' => $code,
-            'name' => $code
-        ])->toArray();
+        $tp2Options = [];
+        $citOptions = [];
 
-        // Query TP2 codes (Branches) joined with master_clients_type2 for names
-        $tp2Query = DB::table('master_client_polar as mc')
-            ->leftJoin('master_clients_type2 as t2', 'mc.tp2_code', '=', 't2.tp2_code')
-            ->select('mc.tp2_code as code', DB::raw('COALESCE(t2.tp2_name, mc.tp2_code) as name'))
-            ->distinct()
-            ->whereNotNull('mc.tp2_code')
-            ->where('mc.tp2_code', '!=', '');
+        foreach ($activeTenants as $tenant) {
+            try {
+                Config::set('database.connections.tenant.database', $tenant->db_name);
+                DB::purge('tenant');
 
-        if ($tp1) {
-            $tp2Query->where('mc.tp1_code', $tp1);
-        }
-        
-        $tp2Results = $tp2Query->get()->map(fn($row) => [
-            'code' => $row->code,
-            'name' => $row->name ?: $row->code
-        ])->toArray();
+                $tenT2 = DB::connection('tenant')->table('clientes')
+                    ->distinct()
+                    ->whereNotNull('TipoCliente')
+                    ->where('TipoCliente', '!=', '')
+                    ->pluck('TipoCliente')
+                    ->toArray();
+                $tp2Options = array_merge($tp2Options, $tenT2);
 
-        // Query CIT codes (Cities/Regions) joined with regions for names
-        $citQuery = DB::table('master_client_polar as mc')
-            ->leftJoin('regions as r', 'mc.cit_code', '=', 'r.citCode')
-            ->select('mc.cit_code as code', DB::raw('COALESCE(r.citName, mc.cit_code) as name'))
-            ->distinct()
-            ->whereNotNull('mc.cit_code')
-            ->where('mc.cit_code', '!=', '');
-
-        if ($tp1) {
-            $citQuery->where('mc.tp1_code', $tp1);
-        }
-        if ($tp2) {
-            $citQuery->where('mc.tp2_code', $tp2);
+                $tenT3 = DB::connection('tenant')->table('clientes')
+                    ->distinct()
+                    ->whereNotNull('segmento')
+                    ->where('segmento', '!=', '')
+                    ->pluck('segmento')
+                    ->toArray();
+                $citOptions = array_merge($citOptions, $tenT3);
+            } catch (\Exception $e) {
+                // Ignore tenant errors
+            }
         }
 
-        $citResults = $citQuery->get()->map(fn($row) => [
-            'code' => $row->code,
-            'name' => $row->name ?: $row->code
-        ])->toArray();
+        $tp2Options = array_unique($tp2Options);
+        sort($tp2Options);
+
+        $citOptions = array_unique($citOptions);
+        sort($citOptions);
+
+        $tp2Results = array_map(fn($val) => [
+            'code' => $val,
+            'name' => $val
+        ], $tp2Options);
+
+        $citResults = array_map(fn($val) => [
+            'code' => $val,
+            'name' => $val
+        ], $citOptions);
 
         return [
-            'tp1_codes' => $tp1Results,
+            'tp1_codes' => [],
             'tp2_codes' => $tp2Results,
             'cit_codes' => $citResults,
         ];
