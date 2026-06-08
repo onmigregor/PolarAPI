@@ -13,6 +13,7 @@ class MasterClientGetFiltersAction
     {
         $activeTenants = CompanyRoute::where('is_active', true)->whereNotNull('db_name')->get();
 
+        $tp1Options = [];
         $tp2Options = [];
         $citOptions = [];
 
@@ -20,6 +21,14 @@ class MasterClientGetFiltersAction
             try {
                 Config::set('database.connections.tenant.database', $tenant->db_name);
                 DB::purge('tenant');
+
+                $tenT1 = DB::connection('tenant')->table('clientes')
+                    ->distinct()
+                    ->whereNotNull('tp1_code')
+                    ->where('tp1_code', '!=', '')
+                    ->pluck('tp1_code')
+                    ->toArray();
+                $tp1Options = array_merge($tp1Options, $tenT1);
 
                 $tenT2 = DB::connection('tenant')->table('clientes')
                     ->distinct()
@@ -41,11 +50,19 @@ class MasterClientGetFiltersAction
             }
         }
 
+        $tp1Options = array_unique($tp1Options);
+        sort($tp1Options);
+
         $tp2Options = array_unique($tp2Options);
         sort($tp2Options);
 
         $citOptions = array_unique($citOptions);
         sort($citOptions);
+
+        $tp1Results = array_map(fn($val) => [
+            'code' => $val,
+            'name' => $val
+        ], $tp1Options);
 
         $tp2Results = array_map(fn($val) => [
             'code' => $val,
@@ -58,7 +75,7 @@ class MasterClientGetFiltersAction
         ], $citOptions);
 
         return [
-            'tp1_codes' => [],
+            'tp1_codes' => $tp1Results,
             'tp2_codes' => $tp2Results,
             'cit_codes' => $citResults,
         ];

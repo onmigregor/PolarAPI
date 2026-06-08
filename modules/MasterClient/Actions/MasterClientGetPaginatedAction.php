@@ -25,18 +25,83 @@ class MasterClientGetPaginatedAction
             });
         });
 
+        // Obtener Tenants Activos para filtros dependientes de BD
+        $activeTenants = CompanyRoute::where('is_active', true)->whereNotNull('db_name')->get();
+
         // Filtro Sin Código CEP
         if (isset($filters['has_cep'])) {
             $hasCep = filter_var($filters['has_cep'], FILTER_VALIDATE_BOOLEAN);
             if ($hasCep) {
-                $query->where(function ($q) {
-                    $q->whereNull('cus_code')->orWhere('cus_code', '');
-                });
+                $unlinkedClients = [];
+                foreach ($activeTenants as $tenant) {
+                    try {
+                        Config::set('database.connections.tenant.database', $tenant->db_name);
+                        DB::purge('tenant');
+
+                        $cols = DB::connection('tenant')->select("SHOW COLUMNS FROM clientes");
+                        $fields = array_column($cols, 'Field');
+                        $hasBusinessName = in_array('cus_business_name', $fields);
+
+                        $selectCols = ['IdCliente', 'cep', 'Cliente', 'Ruta', 'RIF', 'tp1_code', 'TipoCliente', 'segmento', 'TelefonoContacto', 'email'];
+                        if ($hasBusinessName) {
+                            $selectCols[] = 'cus_business_name';
+                        }
+
+                        $records = DB::connection('tenant')->table('clientes')
+                            ->select($selectCols)
+                            ->where(function($q) {
+                                $q->whereNull('cep')->orWhere('cep', '');
+                            })
+                            ->get();
+
+                        foreach ($records as $r) {
+                            $client = new \stdClass();
+                            $client->id = $r->IdCliente;
+                            $client->cus_code = null;
+                            $client->cus_name = $r->Cliente;
+                            $client->cus_business_name = $hasBusinessName ? ($r->cus_business_name ?? $r->Cliente) : $r->Cliente;
+                            $client->company_route_id = $tenant->id;
+                            $client->companyRoute = $tenant;
+                            $client->created_at = null;
+                            $client->updated_at = null;
+
+                            $client->cep = null;
+                            $client->cliente = $r->Cliente;
+                            $client->ruta = $r->Ruta;
+                            $client->cus_tax_id1 = $r->RIF;
+                            $client->tp1_code = $r->tp1_code;
+                            $client->tp2_code = $r->TipoCliente;
+                            $client->cit_code = $r->segmento;
+                            $client->cus_phone = $r->TelefonoContacto;
+                            $client->cus_email = $r->email;
+
+                            $unlinkedClients[] = $client;
+                        }
+                    } catch (\Exception $e) {
+                        // Ignore tenant DB errors
+                    }
+                }
+
+                // Filtrar en memoria si hay búsqueda por query
+                if (!empty($filters['query'])) {
+                    $search = strtolower($filters['query']);
+                    $unlinkedClients = array_filter($unlinkedClients, function($c) use ($search) {
+                        return str_contains(strtolower($c->cliente), $search) ||
+                               str_contains(strtolower($c->cus_business_name), $search) ||
+                               str_contains(strtolower((string)$c->id), $search);
+                    });
+                }
+
+                $total = count($unlinkedClients);
+                $page = \Illuminate\Pagination\Paginator::resolveCurrentPage() ?: 1;
+                $slice = array_slice($unlinkedClients, ($page - 1) * $limit, $limit);
+                
+                return new \Illuminate\Pagination\LengthAwarePaginator($slice, $total, $limit, $page, [
+                    'path' => \Illuminate\Pagination\Paginator::resolveCurrentPath(),
+                    'query' => request()->query()
+                ]);
             }
         }
-
-        // Obtener Tenants Activos para filtros dependientes de BD
-        $activeTenants = CompanyRoute::where('is_active', true)->whereNotNull('db_name')->get();
 
         // Filtro por Clase 2 (TipoCliente)
         if (!empty($filters['tp2_code'])) {
