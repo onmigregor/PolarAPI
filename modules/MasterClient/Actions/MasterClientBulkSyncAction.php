@@ -236,27 +236,79 @@ class MasterClientBulkSyncAction
                     $companyRoute = $routesCache[$tenantRouteName];
                 }
 
-                // A. Guardar en Master
-                $client = MasterClientPolar::updateOrCreate(
-                    ['cus_code' => $item['cus_code']],
-                    [
-                        'cus_name' => $item['cus_name'] ?? null,
-                        'cus_business_name' => $item['cus_business_name'] ?? null,
-                        'cus_administrator' => $item['cus_administrator'] ?? null,
-                        'company_route_id' => $companyRoute?->id,
-                        'tp1_code' => $item['tp1_code'] ?? null,
-                        'tp2_code' => $item['tp2_code'] ?? null,
-                        'cit_code' => $item['cit_code'] ?? null,
-                        'cus_tax_id1' => $item['cus_tax_id1'] ?? null,
-                        'cus_phone' => $item['cus_phone'] ?? ($item['phone'] ?? null),
-                        'cus_email' => $item['cus_email'] ?? null,
-                    ]
-                );
+                // A. Guardar en Master (si existe localmente por RIF y no tiene CEP, lo actualizamos asignándole el CEP)
+                $existingLocal = null;
+                if (!empty($item['cus_tax_id1'])) {
+                    $existingLocal = MasterClientPolar::where('cus_tax_id1', $item['cus_tax_id1'])
+                        ->where(function ($q) {
+                            $q->whereNull('cus_code')->orWhere('cus_code', '');
+                        })
+                        ->where('company_route_id', $companyRoute?->id)
+                        ->first();
+                }
 
-                if ($client->wasRecentlyCreated) {
-                    $results['created']++;
-                } else {
+                // Verificar si ya existe otro registro con ese cus_code (CEP) oficial en master
+                $existingOfficial = MasterClientPolar::where('cus_code', $item['cus_code'])->first();
+
+                if ($existingOfficial) {
+                    // Si ya existe el registro oficial con ese CEP en master:
+                    // 1. Actualizamos el registro oficial con toda la información nueva (incluyendo RIF)
+                    $existingOfficial->update([
+                        'cus_name' => $item['cus_name'] ?? $existingOfficial->cus_name,
+                        'cus_business_name' => $item['cus_business_name'] ?? $existingOfficial->cus_business_name,
+                        'cus_administrator' => $item['cus_administrator'] ?? $existingOfficial->cus_administrator,
+                        'company_route_id' => $companyRoute?->id ?? $existingOfficial->company_route_id,
+                        'tp1_code' => $item['tp1_code'] ?? $existingOfficial->tp1_code,
+                        'tp2_code' => $item['tp2_code'] ?? $existingOfficial->tp2_code,
+                        'cit_code' => $item['cit_code'] ?? $existingOfficial->cit_code,
+                        'cus_tax_id1' => $item['cus_tax_id1'] ?? $existingOfficial->cus_tax_id1,
+                        'cus_phone' => $item['cus_phone'] ?? ($item['phone'] ?? $existingOfficial->cus_phone),
+                        'cus_email' => $item['cus_email'] ?? $existingOfficial->cus_email,
+                    ]);
+                    $client = $existingOfficial;
+
+                    // 2. Si existía un registro local temporal sin CEP para este mismo RIF y ruta, lo eliminamos para evitar duplicidades
+                    if ($existingLocal && $existingLocal->id !== $existingOfficial->id) {
+                        $existingLocal->delete();
+                    }
                     $results['updated']++;
+                } else if ($existingLocal) {
+                    // Si no existe registro oficial, pero sí el local temporal, le asignamos el CEP y lo actualizamos
+                    $existingLocal->update([
+                        'cus_code' => $item['cus_code'],
+                        'cus_name' => $item['cus_name'] ?? $existingLocal->cus_name,
+                        'cus_business_name' => $item['cus_business_name'] ?? $existingLocal->cus_business_name,
+                        'cus_administrator' => $item['cus_administrator'] ?? $existingLocal->cus_administrator,
+                        'tp1_code' => $item['tp1_code'] ?? $existingLocal->tp1_code,
+                        'tp2_code' => $item['tp2_code'] ?? $existingLocal->tp2_code,
+                        'cit_code' => $item['cit_code'] ?? $existingLocal->cit_code,
+                        'cus_phone' => $item['cus_phone'] ?? ($item['phone'] ?? $existingLocal->cus_phone),
+                        'cus_email' => $item['cus_email'] ?? $existingLocal->cus_email,
+                    ]);
+                    $client = $existingLocal;
+                    $results['updated']++;
+                } else {
+                    // Si no existe ninguno de los dos, se crea de cero
+                    $client = MasterClientPolar::updateOrCreate(
+                        ['cus_code' => $item['cus_code']],
+                        [
+                            'cus_name' => $item['cus_name'] ?? null,
+                            'cus_business_name' => $item['cus_business_name'] ?? null,
+                            'cus_administrator' => $item['cus_administrator'] ?? null,
+                            'company_route_id' => $companyRoute?->id,
+                            'tp1_code' => $item['tp1_code'] ?? null,
+                            'tp2_code' => $item['tp2_code'] ?? null,
+                            'cit_code' => $item['cit_code'] ?? null,
+                            'cus_tax_id1' => $item['cus_tax_id1'] ?? null,
+                            'cus_phone' => $item['cus_phone'] ?? ($item['phone'] ?? null),
+                            'cus_email' => $item['cus_email'] ?? null,
+                        ]
+                    );
+                    if ($client->wasRecentlyCreated) {
+                        $results['created']++;
+                    } else {
+                        $results['updated']++;
+                    }
                 }
 
                 // B. Preparar para push a Tenant
@@ -311,6 +363,7 @@ class MasterClientBulkSyncAction
                         'PIN' => 0,
                         'vendedor' => '',
                         'tipoclienteplantactico' => '',
+                        'tp1_code' => $item['tp1_code'] ?? '',
                         'TipoCliente' => $branchesMap[$item['tp2_code'] ?? ''] ?? '',
                         'categoria' => '',
                         'licencialicor' => '',
@@ -379,12 +432,34 @@ class MasterClientBulkSyncAction
                 $this->ensureClientesColumnsExist('tenant');
 
                 foreach ($clients as $clientData) {
-                    \Illuminate\Support\Facades\DB::connection('tenant')
-                        ->table('clientes')
-                        ->updateOrInsert(
-                            ['cep' => $clientData['cep']],
-                            $clientData
-                        );
+                    $updated = false;
+                    if (!empty($clientData['RIF'])) {
+                        // Buscar si existe un cliente local con el mismo RIF y sin código CEP
+                        $existingTenantClient = \Illuminate\Support\Facades\DB::connection('tenant')
+                            ->table('clientes')
+                            ->where('RIF', $clientData['RIF'])
+                            ->where(function ($q) {
+                                $q->whereNull('cep')->orWhere('cep', '');
+                            })
+                            ->first();
+
+                        if ($existingTenantClient) {
+                            \Illuminate\Support\Facades\DB::connection('tenant')
+                                ->table('clientes')
+                                ->where('IdCliente', $existingTenantClient->IdCliente)
+                                ->update($clientData);
+                            $updated = true;
+                        }
+                    }
+
+                    if (!$updated) {
+                        \Illuminate\Support\Facades\DB::connection('tenant')
+                            ->table('clientes')
+                            ->updateOrInsert(
+                                ['cep' => $clientData['cep']],
+                                $clientData
+                            );
+                    }
                     $results['pushed_to_tenants']++;
 
                     // Marcar como registrado en tenant en la tabla maestra
