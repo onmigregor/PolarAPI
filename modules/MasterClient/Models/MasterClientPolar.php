@@ -18,6 +18,13 @@ class MasterClientPolar extends Model
         'cus_business_name',
         'cus_administrator',
         'company_route_id',
+        'tp1_code',
+        'tp2_code',
+        'cit_code',
+        'cus_tax_id1',
+        'cus_phone',
+        'cus_email',
+        'registered_at_tenant',
     ];
 
     public function companyRoute()

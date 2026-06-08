@@ -378,42 +378,21 @@ class SyncOfficialCustomersAction
 
                     $paddedCusCode = ltrim((string)$customer->cus_code, '0');
 
-                    // D1. Sync to Master
+                    // D1. Sync to Master (master_client_polar via MasterClient model)
                     MasterClient::updateOrCreate(
-                        ['cep' => $paddedCusCode],
+                        ['cus_code' => $paddedCusCode],
                         [
                             'company_route_id'  => $companyRoute->id,
-                            'cliente'           => $customer->cus_name ?? '',
-                            'ruta'              => $assignment->rot_code,
                             'cus_name'          => $customer->cus_name,
                             'cus_business_name' => $customer->cus_business_name,
-                            'cus_duns'          => $customer->cus_duns,
-                            'cus_comm_id'       => $customer->cus_comm_id,
+                            'cus_administrator' => $customer->cus_administrator ?? null,
                             'tp1_code'          => $customer->tp1_code,
                             'tp2_code'          => $customer->tp2_code,
                             'cit_code'          => $customer->cit_code,
-                            'txn_code'          => $customer->txn_code,
-                            'cus_phone'         => $customer->cus_phone,
-                            'cus_fax'           => $customer->cus_fax,
-                            'cus_street1'       => $customer->cus_street1,
-                            'cus_street2'       => $customer->cus_street2,
-                            'cus_street3'       => $customer->cus_street3,
                             'cus_tax_id1'       => $customer->cus_tax_id1,
-                            'brc_code'          => $customer->brc_code,
-                            'cus_latitude'      => $customer->cus_latitude,
-                            'cus_longitude'     => $customer->cus_longitude,
-                            'prc_code_for_sale' => $customer->prc_code_for_sale,
-                            'prc_code_for_return'=> $customer->prc_code_for_return,
-                            'cus_contact_person'=> $customer->cus_contact_person,
+                            'cus_phone'         => $customer->cus_phone,
                             'cus_email'         => $customer->cus_email,
-                            'con_code'          => $customer->con_code ?? null,
-                            'cus_credit_limit'  => $customer->cus_credit_limit ?? null,
-                            'cus_balance'       => $customer->cus_balance ?? null,
-                            'fre_week1'         => $assignment->fre_week1,
-                            'fre_week2'         => $assignment->fre_week2,
-                            'fre_week3'         => $assignment->fre_week3,
-                            'fre_week4'         => $assignment->fre_week4,
-                            'fre_customer'      => $assignment->fre_customer,
+                            'registered_at_tenant' => now(),
                         ]
                     );
                     $summary['customers_synced_master']++;
