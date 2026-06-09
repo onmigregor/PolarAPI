@@ -220,17 +220,6 @@ class SyncDiscountsToClientsAction
                     continue;
                 }
 
-                // Limpieza segura
-                $deletedDiscounts = DB::connection('tenant')->table('descuentos_polar')->count();
-                $deletedProducts = DB::connection('tenant')->table('descuentos_polar_productos')->count();
-
-                DB::connection('tenant')->table('descuentos_polar_productos')->delete();
-                DB::connection('tenant')->table('descuentos_polar')->delete();
-
-                $results['discounts_deleted'] += $deletedDiscounts;
-
-                Log::info("SyncDiscountsToClients: Limpiados {$deletedDiscounts} descuentos y {$deletedProducts} productos en {$tenant->db_name}");
-
                 $discountData = [];
                 $productData = [];
                 $now = now();
@@ -297,21 +286,35 @@ class SyncDiscountsToClientsAction
                     }
                 }
 
-                // Batch Inserts
-                if (!empty($discountData)) {
-                    foreach (array_chunk($discountData, 200) as $chunk) {
-                        DB::connection('tenant')->table('descuentos_polar')->insert($chunk);
-                    }
-                    $results['discounts_synced'] += count($discountData);
-                }
+                // Ejecutar limpieza e inserción dentro de una transacción para asegurar atomicidad
+                $deletedDiscounts = 0;
+                $deletedProducts = 0;
 
-                if (!empty($productData)) {
-                    foreach (array_chunk($productData, 200) as $chunk) {
-                        DB::connection('tenant')->table('descuentos_polar_productos')->insert($chunk);
-                    }
-                    $results['products_synced'] += count($productData);
-                }
+                DB::connection('tenant')->transaction(function () use (&$deletedDiscounts, &$deletedProducts, $discountData, $productData) {
+                    $deletedDiscounts = DB::connection('tenant')->table('descuentos_polar')->count();
+                    $deletedProducts = DB::connection('tenant')->table('descuentos_polar_productos')->count();
 
+                    DB::connection('tenant')->table('descuentos_polar_productos')->delete();
+                    DB::connection('tenant')->table('descuentos_polar')->delete();
+
+                    if (!empty($discountData)) {
+                        foreach (array_chunk($discountData, 200) as $chunk) {
+                            DB::connection('tenant')->table('descuentos_polar')->insert($chunk);
+                        }
+                    }
+
+                    if (!empty($productData)) {
+                        foreach (array_chunk($productData, 200) as $chunk) {
+                            DB::connection('tenant')->table('descuentos_polar_productos')->insert($chunk);
+                        }
+                    }
+                });
+
+                $results['discounts_deleted'] += $deletedDiscounts;
+                Log::info("SyncDiscountsToClients: Limpiados {$deletedDiscounts} descuentos y {$deletedProducts} productos en {$tenant->db_name}");
+
+                $results['discounts_synced'] += count($discountData);
+                $results['products_synced'] += count($productData);
                 Log::info("SyncDiscountsToClients: Tenant '{$tenant->name}' sincronizado con éxito. Descuentos: " . count($discountData) . ", Productos: " . count($productData));
                 $results['tenants_processed']++;
 

@@ -67,7 +67,13 @@ class ExportCustomerConsolidatedAction
                     'status as estado'
                 ];
 
-                $data = $tenantConn->table('clientes')->select($selectFields)->get();
+                $data = $tenantConn->table('clientes')
+                    ->select($selectFields)
+                    ->where(function ($query) {
+                        $query->whereNull('cep')
+                            ->orWhere('cep', '');
+                    })
+                    ->get();
 
                 foreach ($data as $row) {
                     $allData[] = (array)$row;

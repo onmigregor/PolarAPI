@@ -47,10 +47,11 @@ class SyncRouteMetadataAction
                             ->first();
                     }
 
-                    // Fallback a lgn_name si no tiene cep o no encontró por cep
+                    // Fallback a lgn_name si no tiene cep o no encontró por cep (usando el nombre normalizado en mayúsculas y sin sufijo)
                     if (!$metadata && !empty($route->name)) {
+                        $cleanName = strtoupper(trim(preg_replace('/\s*-\s*v[0-9a-z]+$/i', '', $route->name)));
                         $metadata = $sourceDb->table('companies_logins')
-                            ->where('lgn_name', $route->name)
+                            ->where('lgn_name', $cleanName)
                             ->first();
                     }
 
@@ -97,10 +98,9 @@ class SyncRouteMetadataAction
         config(['database.connections.tenant.database' => $route->db_name]);
         DB::purge('tenant');
 
-        // Asegurar tabla (Recrear para asegurar esquema actualizado)
-        DB::connection('tenant')->statement("DROP TABLE IF EXISTS `sucursal_polar` ");
+        // Asegurar tabla (Solo crear si no existe, sin borrarla)
         DB::connection('tenant')->statement("
-            CREATE TABLE `sucursal_polar` (
+            CREATE TABLE IF NOT EXISTS `sucursal_polar` (
                 `id` int(11) NOT NULL AUTO_INCREMENT,
                 `nombre` varchar(255) DEFAULT NULL,
                 `direccion_1` varchar(255) DEFAULT NULL,
@@ -113,15 +113,19 @@ class SyncRouteMetadataAction
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         ");
 
-        // Insertar (Full Refresh)
-        DB::connection('tenant')->table('sucursal_polar')->insert([
-            'nombre'      => $route->name,
-            'direccion_1' => $route->address_street1,
-            'direccion_2' => $route->address_street2,
-            'direccion_3' => $route->address_street3,
-            'sub_region'  => $route->subregion_code,
-            'zona_venta'  => $route->sale_zone,
-            'synced_at'   => now(),
-        ]);
+        // Ejecutar borrado e inserción dentro de una transacción para asegurar atomicidad
+        DB::connection('tenant')->transaction(function () use ($route) {
+            DB::connection('tenant')->table('sucursal_polar')->delete();
+
+            DB::connection('tenant')->table('sucursal_polar')->insert([
+                'nombre'      => strtoupper($route->name),
+                'direccion_1' => $route->address_street1,
+                'direccion_2' => $route->address_street2,
+                'direccion_3' => $route->address_street3,
+                'sub_region'  => $route->subregion_code,
+                'zona_venta'  => $route->sale_zone,
+                'synced_at'   => now(),
+            ]);
+        });
     }
 }
