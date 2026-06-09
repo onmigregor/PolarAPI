@@ -124,6 +124,23 @@ class SyncDiscountsToClientsAction
             }
         }
 
+        // Cargar mapa de rutas hijas a padres desde origen
+        $routeMap = [];
+        try {
+            $territories = DB::connection('productos_polar')->table('companies_territories')->get();
+            foreach ($territories as $t) {
+                if (empty($t->try_code)) continue;
+                $parts = explode('-', $t->try_code);
+                if (count($parts) === 2) {
+                    $parent = ltrim(strtolower(trim($parts[0])), 'v');
+                    $child = ltrim(strtolower(trim($parts[1])), 'v');
+                    $routeMap[$child] = $parent;
+                }
+            }
+        } catch (\Exception $e) {
+            Log::warning("SyncDiscountsToClients: No se pudo cargar companies_territories: " . $e->getMessage());
+        }
+
         // 2. Cargar datos maestros en memoria
         $masterDiscounts = DB::table('master_discounts')->get()->keyBy('dis_code');
         $masterDetails = DB::table('master_discount_details')->get();
@@ -160,7 +177,7 @@ class SyncDiscountsToClientsAction
                 $this->ensureTables();
 
                 // Filtrar descuentos aplicables para esta ruta específica
-                $allDetailsForTenant = $masterDetails->filter(function($detail) use ($rotCodeLower, $isC3Branch, $clientToRouteMap, $masterRoutes) {
+                $allDetailsForTenant = $masterDetails->filter(function($detail) use ($rotCodeLower, $isC3Branch, $clientToRouteMap, $masterRoutes, $routeMap) {
                     // Caso A: Por cliente específico (cus_code)
                     if (!empty($detail->cus_code)) {
                         $cleanedCusCode = ltrim($detail->cus_code, '0');
@@ -171,11 +188,12 @@ class SyncDiscountsToClientsAction
 
                     // Caso B: Por ruta específica (rot_code_customer)
                     if (!empty($detail->rot_code_customer)) {
-                        $rotCust = strtolower(trim($detail->rot_code_customer));
-                        if ($rotCust === 'c3') {
+                        $rotCust = ltrim(strtolower(trim($detail->rot_code_customer)), 'v');
+                        $mappedRotCust = $routeMap[$rotCust] ?? $rotCust;
+                        if ($mappedRotCust === 'c3') {
                             return $isC3Branch;
                         }
-                        if ($rotCust === $rotCodeLower) {
+                        if ($mappedRotCust === $rotCodeLower) {
                             return true;
                         }
                     }
@@ -183,11 +201,12 @@ class SyncDiscountsToClientsAction
                     // Caso C: Por rutas asociadas al descuento principal
                     $disRoutes = $masterRoutes->where('dis_code', $detail->dis_code);
                     foreach ($disRoutes as $r) {
-                        $rCode = strtolower(trim($r->rot_code));
-                        if ($rCode === 'c3' && $isC3Branch) {
+                        $rCode = ltrim(strtolower(trim($r->rot_code)), 'v');
+                        $mappedRCode = $routeMap[$rCode] ?? $rCode;
+                        if ($mappedRCode === 'c3' && $isC3Branch) {
                             return true;
                         }
-                        if ($rCode === $rotCodeLower) {
+                        if ($mappedRCode === $rotCodeLower) {
                             return true;
                         }
                     }

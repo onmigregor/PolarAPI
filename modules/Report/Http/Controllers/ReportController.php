@@ -60,9 +60,8 @@ class ReportController extends Controller
 
         $now = now();
         $isLocal = config('app.env') === 'local';
-        // En producción usamos dos puntos (:), en local usamos guion bajo (_) porque Windows no permite (:)
-        $timeFormat = $isLocal ? 'Ymd_His' : 'Ymd_H:i:s';
-        $timestamp = $now->format($timeFormat);
+        // El formato Ymd_His genera la nomenclatura AAAAMMDD_HHMMSS (sin dos puntos) requerida por el SFTP
+        $timestamp = $now->format('Ymd_His');
 
         $ventasFilename = "VENTA_{$timestamp}.txt";
         $obsqFilename = "OBSEQUIO_{$timestamp}.txt";
@@ -83,21 +82,33 @@ class ReportController extends Controller
                     mkdir(storage_path('ftp'), 0777, true);
                 }
                 // Guardar localmente solo en LOCAL
+                \Illuminate\Support\Facades\Log::info("Entorno local detectado. Guardando archivos localmente en storage/ftp...");
                 file_put_contents(storage_path("ftp/{$ventasFilename}"), $ventasCsv);
                 file_put_contents(storage_path("ftp/{$obsqFilename}"), $obsqCsv);
                 file_put_contents(storage_path("ftp/{$obsqSapFilename}"), $obsqSapCsv);
+                \Illuminate\Support\Facades\Log::info("Archivos locales guardados exitosamente.");
             } else {
-                // Generar ZIPs en memoria para PRODUCCIÓN
+                \Illuminate\Support\Facades\Log::info("Entorno producción detectado. Iniciando compresión ZIP en memoria...");
+                
                 $ventasZipContent = $this->createZipContent($ventasFilename, $ventasCsv);
                 $obsqZipContent = $this->createZipContent($obsqFilename, $obsqCsv);
                 $obsqSapZipContent = $this->createZipContent($obsqSapFilename, $obsqSapCsv);
+                
+                \Illuminate\Support\Facades\Log::info("ZIPs en memoria generados. Tamaños: Ventas = " . strlen($ventasZipContent) . " bytes, Obsequios = " . strlen($obsqZipContent) . " bytes, Obsequios SAP = " . strlen($obsqSapZipContent) . " bytes.");
 
                 // Subir ventas al SFTP de ventas (Automatico)
-                \Illuminate\Support\Facades\Storage::disk('sftp_ventas')->put($ventasZipFilename, $ventasZipContent);
+                \Illuminate\Support\Facades\Log::info("Subiendo ventas ({$ventasZipFilename}) al disco sftp_ventas...");
+                $resVentas = \Illuminate\Support\Facades\Storage::disk('sftp_ventas')->put($ventasZipFilename, $ventasZipContent);
+                \Illuminate\Support\Facades\Log::info("Resultado subida ventas: " . ($resVentas ? 'ÉXITO' : 'FALLIDO'));
 
                 // Subir obsequios al SFTP de obsequios (Manual)
-                \Illuminate\Support\Facades\Storage::disk('sftp_obsequios')->put($obsqZipFilename, $obsqZipContent);
-                \Illuminate\Support\Facades\Storage::disk('sftp_obsequios')->put($obsqSapZipFilename, $obsqSapZipContent);
+                \Illuminate\Support\Facades\Log::info("Subiendo obsequios ({$obsqZipFilename}) al disco sftp_obsequios...");
+                $resObsq = \Illuminate\Support\Facades\Storage::disk('sftp_obsequios')->put($obsqZipFilename, $obsqZipContent);
+                \Illuminate\Support\Facades\Log::info("Resultado subida obsequios: " . ($resObsq ? 'ÉXITO' : 'FALLIDO'));
+
+                \Illuminate\Support\Facades\Log::info("Subiendo obsequios SAP ({$obsqSapZipFilename}) al disco sftp_obsequios...");
+                $resObsqSap = \Illuminate\Support\Facades\Storage::disk('sftp_obsequios')->put($obsqSapZipFilename, $obsqSapZipContent);
+                \Illuminate\Support\Facades\Log::info("Resultado subida obsequios SAP: " . ($resObsqSap ? 'ÉXITO' : 'FALLIDO'));
             }
 
             return response()->json([
@@ -116,7 +127,7 @@ class ReportController extends Controller
                 ]
             ]);
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error("Error en reporte: " . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error("Error en reporte: " . $e->getMessage() . "\n" . $e->getTraceAsString());
             return response()->json([
                 'success' => false,
                 'message' => "Error al procesar archivos o subir al SFTP: " . $e->getMessage(),

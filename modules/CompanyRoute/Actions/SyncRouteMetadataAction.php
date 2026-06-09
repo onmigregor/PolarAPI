@@ -38,13 +38,22 @@ class SyncRouteMetadataAction
 
             foreach ($routes as $route) {
                 try {
-                    // Limpiar el nombre de la ruta (quitar sufijo " - vXXXX" y pasar a mayúsculas)
-                    $cleanName = strtoupper(trim(preg_replace('/\s*-\s*v[0-9a-z]+$/i', '', $route->name)));
+                    // Match por lgn_code / cep (si tiene cep)
+                    $metadata = null;
+                    if (!empty($route->cep)) {
+                        $lgnCode = str_pad($route->cep, 10, '0', STR_PAD_LEFT);
+                        $metadata = $sourceDb->table('companies_logins')
+                            ->where('lgn_code', $lgnCode)
+                            ->first();
+                    }
 
-                    // Match por nombre normalizado
-                    $metadata = $sourceDb->table('companies_logins')
-                        ->where('lgn_name', $cleanName)
-                        ->first();
+                    // Fallback a lgn_name si no tiene cep o no encontró por cep (usando el nombre normalizado en mayúsculas y sin sufijo)
+                    if (!$metadata && !empty($route->name)) {
+                        $cleanName = strtoupper(trim(preg_replace('/\s*-\s*v[0-9a-z]+$/i', '', $route->name)));
+                        $metadata = $sourceDb->table('companies_logins')
+                            ->where('lgn_name', $cleanName)
+                            ->first();
+                    }
 
                     if ($metadata) {
                         // Separar Zona de Venta de Dirección 1 (ej: "N016 Ocumare del Tuy")

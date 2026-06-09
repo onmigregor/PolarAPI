@@ -15,29 +15,36 @@ class DistributeInvoicesToTenantsAction
     {
         if (empty($data)) return;
 
-        // Agrupar por Zona de Venta para minimizar cambios de conexión
+        // 1. Agrupar facturas por la columna 'zona_venta' (que contiene el código de la ruta, ej: V1262A)
         $groupedByZone = collect($data)->groupBy('zona_venta');
 
+        // 2. Distribuir a cada ruta correspondiente
         foreach ($groupedByZone as $zone => $items) {
-            $prefix = config('tenants.prefix', 'www_');
-            $suffix = config('tenants.suffix', 'p');
-            
-            // Buscar la base de datos correcta usando FQ/REDI y Zona
-            $firstItem = $items->first();
-            $redi = $firstItem['fq_redi'] ?? '';
-            
+            if (empty($zone)) {
+                Log::warning("DistributeInvoicesToTenantsAction: Grupo de facturas sin 'zona_venta'. Saltando.");
+                continue;
+            }
+
+            $cleanZone = ltrim(strtolower(trim($zone)), 'v');
+
+            // Buscar la ruta/tenant que corresponda a este código
             $company = DB::table('company_routes')
-                ->where('cep', $redi)
+                ->where('is_active', true)
+                ->where(function($query) use ($cleanZone) {
+                    $query->where('route_name', $cleanZone)
+                          ->orWhere('zone', $cleanZone)
+                          ->orWhere('code', 'LIKE', "%_{$cleanZone}");
+                })
                 ->first();
 
             if (!$company) {
-                Log::warning("DistributeInvoicesToTenantsAction: No se encontró tenant para REDI $redi y Zona $zone. Saltando grupo.");
+                Log::warning("DistributeInvoicesToTenantsAction: No se encontró tenant para la ruta '$zone' (limpio: '$cleanZone'). Saltando grupo.");
                 continue;
             }
 
             $dbName = $company->db_name;
-            $routeName = $company->route_name ?? $zone; // Usar el nombre de la ruta
-            
+            $routeName = $company->route_name ?? $company->name;
+
             try {
                 // Configurar conexión dinámica
                 $this->switchToTenant($dbName);
@@ -185,7 +192,7 @@ class DistributeInvoicesToTenantsAction
                     }
                 }
 
-                Log::info("DistributeInvoicesToTenantsAction: Procesado tenant $dbName con " . count($items) . " registros.");
+                Log::info("DistributeInvoicesToTenantsAction: Procesado tenant $dbName con " . count($items) . " registros de facturas.");
 
             } catch (\Exception $e) {
                 Log::error("DistributeInvoicesToTenantsAction Error en tenant $dbName: " . $e->getMessage());

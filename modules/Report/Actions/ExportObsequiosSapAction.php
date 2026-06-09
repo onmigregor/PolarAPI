@@ -11,7 +11,6 @@ use Carbon\Carbon;
 
 class ExportObsequiosSapAction
 {
-    private const GENERIC_CEP_CODE = 'PV12345678';
 
     // Valores FIJOS (columnas ROJAS) - No se modifican jamás
     private const CLASE_PEDIDO = 'YCPC';
@@ -46,6 +45,21 @@ class ExportObsequiosSapAction
             $cep = $client->cep ?? '';
             $routeCode = $client->codigo ?? 'N/A';
             $tenantRows = [];
+
+            // Obtener cep_ocasional desde la tabla configuraciones del tenant
+            $cepOcasional = null;
+            try {
+                $configVal = DB::connection('tenant')
+                    ->table('configuraciones')
+                    ->where('clave_configuracion', 'cep_ocasional')
+                    ->value('valor_configuracion');
+
+                if (!empty($configVal)) {
+                    $cepOcasional = $configVal;
+                }
+            } catch (\Exception $e) {
+                // Silently fallback if table/key is not found
+            }
 
             // Solo procesar si existe la tabla de plan táctico
             if (!Schema::connection('tenant')->hasTable('recepcion_plan_tactico')) {
@@ -82,8 +96,12 @@ class ExportObsequiosSapAction
 
             foreach ($results as $row) {
                 // Solicitante: usar cep del cliente, si no existe usar genérico, formateado a 10 dígitos (SAP)
-                $solicitante = !empty($row->client_cep) ? $row->client_cep : self::GENERIC_CEP_CODE;
-                $solicitante = str_pad((string)$solicitante, 10, '0', STR_PAD_LEFT);
+                $solicitante = !empty($row->client_cep) ? $row->client_cep : $cepOcasional;
+                if (!empty($solicitante)) {
+                    $solicitante = str_pad((string)$solicitante, 10, '0', STR_PAD_LEFT);
+                } else {
+                    $solicitante = '';
+                }
 
                 // Fecha en formato SAP (dd.mm.yyyy)
                 $fechaSap = Carbon::parse($row->rpt_fecha)->format('d.m.Y');
