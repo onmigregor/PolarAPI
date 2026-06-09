@@ -203,15 +203,6 @@ class SyncPromotionsToClientsAction
                     continue;
                 }
 
-                // Limpiar promociones anteriores y reemplazar con las actuales (estrategia de refresco completo)
-                $deletedPromos = DB::connection('tenant')->table('promociones_polar')->count();
-                $deletedProducts = DB::connection('tenant')->table('promociones_polar_productos')->count();
-                DB::connection('tenant')->table('promociones_polar_productos')->delete();
-                DB::connection('tenant')->table('promociones_polar')->delete();
-                $results['promotions_deleted'] += $deletedPromos;
-
-                Log::info("SyncPromotionsToClients: Limpiados {$deletedPromos} promos y {$deletedProducts} productos previos en {$tenant->db_name}");
-
                 // Insertar promociones para este Tenant (BATCH MODE)
                 $promoData = [];
                 $productData = [];
@@ -308,18 +299,32 @@ class SyncPromotionsToClientsAction
                 }
                 // ---------------------------------------------------------------------------------------------
 
-                // Inserción masiva en bloques para optimizar velocidad y memoria
-                if (!empty($promoData)) {
-                    foreach (array_chunk($promoData, 50) as $chunk) {
-                        DB::connection('tenant')->table('promociones_polar')->insert($chunk);
-                    }
-                }
+                // Ejecutar la limpieza e inserción dentro de una transacción para asegurar atomicidad
+                $deletedPromos = 0;
+                $deletedProducts = 0;
 
-                if (!empty($productData)) {
-                    foreach (array_chunk($productData, 100) as $chunk) {
-                        DB::connection('tenant')->table('promociones_polar_productos')->insert($chunk);
+                DB::connection('tenant')->transaction(function () use (&$deletedPromos, &$deletedProducts, $promoData, $productData) {
+                    $deletedPromos = DB::connection('tenant')->table('promociones_polar')->count();
+                    $deletedProducts = DB::connection('tenant')->table('promociones_polar_productos')->count();
+
+                    DB::connection('tenant')->table('promociones_polar_productos')->delete();
+                    DB::connection('tenant')->table('promociones_polar')->delete();
+
+                    if (!empty($promoData)) {
+                        foreach (array_chunk($promoData, 50) as $chunk) {
+                            DB::connection('tenant')->table('promociones_polar')->insert($chunk);
+                        }
                     }
-                }
+
+                    if (!empty($productData)) {
+                        foreach (array_chunk($productData, 100) as $chunk) {
+                            DB::connection('tenant')->table('promociones_polar_productos')->insert($chunk);
+                        }
+                    }
+                });
+
+                $results['promotions_deleted'] += $deletedPromos;
+                Log::info("SyncPromotionsToClients: Limpiados {$deletedPromos} promos y {$deletedProducts} productos previos en {$tenant->db_name}");
 
                 $promoCount = count($promoData);
                 $productCount = count($productData);
