@@ -515,39 +515,47 @@ class SyncOfficialCustomersAction
     {
         Log::info('SyncOfficialCustomers: Starting sync of customer routes.');
 
-        $routes = $officialDb->table('customer_routes')->get();
-        $synced = 0;
+        try {
+            $routes = $officialDb->table('customer_routes')->get();
+            $routeData = [];
+            $now = now();
 
-        foreach ($routes as $route) {
-            try {
-                MasterCustomerRoute::updateOrCreate(
-                    [
-                        'rot_code' => $route->rot_code,
-                        'cus_code' => ltrim((string)$route->cus_code, '0'),
-                    ],
-                    [
-                        'fre_code'           => $route->fre_code,
-                        'ctr_monday'         => $route->ctr_monday,
-                        'ctr_tuesday'        => $route->ctr_tuesday,
-                        'ctr_wednesday'      => $route->ctr_wednesday,
-                        'ctr_thursday'       => $route->ctr_thursday,
-                        'ctr_friday'         => $route->ctr_friday,
-                        'ctr_saturday'       => $route->ctr_saturday,
-                        'ctr_sunday'         => $route->ctr_sunday,
-                        'ctr_contact_person' => $route->ctr_contact_person,
-                        'ctr_balance'        => $route->ctr_balance,
-                        'prc_code_for_sale'  => $route->prc_code_for_sale,
-                        'con_code'           => $route->con_code,
-                    ]
-                );
-                $synced++;
-            } catch (\Exception $e) {
-                $summary['errors'][] = "Error syncing customer route for cus_code {$route->cus_code}: " . $e->getMessage();
+            foreach ($routes as $route) {
+                $routeData[] = [
+                    'rot_code'           => $route->rot_code,
+                    'cus_code'           => ltrim((string)$route->cus_code, '0'),
+                    'fre_code'           => $route->fre_code,
+                    'ctr_monday'         => $route->ctr_monday,
+                    'ctr_tuesday'        => $route->ctr_tuesday,
+                    'ctr_wednesday'      => $route->ctr_wednesday,
+                    'ctr_thursday'       => $route->ctr_thursday,
+                    'ctr_friday'         => $route->ctr_friday,
+                    'ctr_saturday'       => $route->ctr_saturday,
+                    'ctr_sunday'         => $route->ctr_sunday,
+                    'ctr_contact_person' => $route->ctr_contact_person,
+                    'ctr_balance'        => $route->ctr_balance,
+                    'prc_code_for_sale'  => $route->prc_code_for_sale,
+                    'con_code'           => $route->con_code,
+                    'created_at'         => $now,
+                    'updated_at'         => $now,
+                ];
             }
-        }
 
-        $summary['customer_routes_synced_master'] = $synced;
-        Log::info("SyncOfficialCustomers: Finished syncing $synced customer routes.");
+            DB::transaction(function () use ($routeData) {
+                DB::table('master_customer_routes')->delete();
+                if (!empty($routeData)) {
+                    foreach (array_chunk($routeData, 500) as $chunk) {
+                        DB::table('master_customer_routes')->insert($chunk);
+                    }
+                }
+            });
+
+            $summary['customer_routes_synced_master'] = count($routeData);
+            Log::info("SyncOfficialCustomers: Finished syncing " . count($routeData) . " customer routes via delete/insert.");
+        } catch (\Exception $e) {
+            $summary['errors'][] = "Error syncing customer routes: " . $e->getMessage();
+            Log::error("SyncOfficialCustomers: Error syncing customer routes: " . $e->getMessage());
+        }
     }
 
     private function syncCustomerFrequencies($officialDb, array &$summary): void
