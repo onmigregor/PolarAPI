@@ -18,8 +18,8 @@ class MasterProductsPriceBulkSyncAction
      */
     private array $fieldMapper = [
         'precio_compra_caja_con_iva' => 'preciocompra',
-        // 'precio_venta_caja_con_iva'  => 'precioventa', // Ejemplo para el futuro
-        // 'iva'                        => 'piva',        // Ejemplo para el futuro
+        'precio_venta_caja_con_iva'  => 'precioventa',
+        'iva'                        => 'iva',
     ];
 
     public function execute(array $data)
@@ -33,6 +33,8 @@ class MasterProductsPriceBulkSyncAction
                 'material'                   => isset($item['material']) ? trim($item['material']) : null,
                 'descripcion'                => $item['descripcion'] ?? null,
                 'precio_compra_caja_con_iva' => $item['precio_compra_caja_con_iva'] ?? null,
+                'precio_venta_caja_con_iva'  => $item['precio_venta_caja_con_iva'] ?? null,
+                'iva'                        => $item['iva'] ?? null,
                 'created_at'                 => now(),
                 'updated_at'                 => now(),
             ];
@@ -93,7 +95,7 @@ class MasterProductsPriceBulkSyncAction
         $chunks = array_chunk($syncData, 500);
         foreach ($chunks as $chunk) {
             MasterProductsPrice::upsert($chunk, ['material', 'lgnstreet1'], [
-                'descripcion', 'precio_compra_caja_con_iva', 'updated_at'
+                'descripcion', 'precio_compra_caja_con_iva', 'precio_venta_caja_con_iva', 'iva', 'updated_at'
             ]);
         }
     }
@@ -147,17 +149,22 @@ class MasterProductsPriceBulkSyncAction
                     }
                 }
 
+                // Inyectar excento_iva basado en el valor de IVA
+                if (isset($updateData['iva'])) {
+                    $updateData['excento_iva'] = ((float)$updateData['iva'] > 0) ? 0 : 1;
+                }
+
                 if (!empty($updateData)) {
-                    // Actualizamos todas las filas de portafolio que tengan este idproducto (sin importar la ruta)
-                    $tenantConnection->table('portafolio')
-                        ->where('idproducto', $idProductoTenant)
+                    // Actualizamos la tabla productos del tenant usando el codigoSKU (material)
+                    $tenantConnection->table('productos')
+                        ->where('codigoSKU', $material)
                         ->update($updateData);
                     
                     $updatesCount++;
                 }
             }
             $tenantConnection->commit();
-            Log::info("Tenant {$dbName}: Se actualizaron precios para {$updatesCount} productos en el portafolio.");
+            Log::info("Tenant {$dbName}: Se actualizaron precios e IVA para {$updatesCount} productos en la tabla productos.");
         } catch (\Exception $e) {
             $tenantConnection->rollBack();
             throw $e;

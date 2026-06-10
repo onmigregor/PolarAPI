@@ -13,5 +13,7 @@ class MasterProductsPrice extends Model
         'material',
         'descripcion',
         'precio_compra_caja_con_iva',
+        'precio_venta_caja_con_iva',
+        'iva',
     ];
 }
