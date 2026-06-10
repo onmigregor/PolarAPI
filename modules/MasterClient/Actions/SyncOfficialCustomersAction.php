@@ -286,6 +286,11 @@ class SyncOfficialCustomersAction
             'fre_week3'          => 'VARCHAR(10) DEFAULT NULL',
             'fre_week4'          => 'VARCHAR(10) DEFAULT NULL',
             'fre_customer'       => 'VARCHAR(10) DEFAULT NULL',
+            'cus_duns'           => 'VARCHAR(50) DEFAULT NULL',
+            'cus_comm_id'        => 'VARCHAR(50) DEFAULT NULL',
+            'cus_street1'        => 'VARCHAR(255) DEFAULT NULL',
+            'cus_street2'        => 'VARCHAR(255) DEFAULT NULL',
+            'cus_street3'        => 'VARCHAR(255) DEFAULT NULL',
         ];
 
         foreach ($toAdd as $col => $definition) {
@@ -392,6 +397,8 @@ class SyncOfficialCustomersAction
                             'cus_tax_id1'       => $customer->cus_tax_id1,
                             'cus_phone'         => $customer->cus_phone,
                             'cus_email'         => $customer->cus_email,
+                            'cus_duns'          => $customer->cusDuns ?? null,
+                            'cus_comm_id'       => $customer->cusCommId ?? null,
                             'registered_at_tenant' => now(),
                         ]
                     );
@@ -454,6 +461,11 @@ class SyncOfficialCustomersAction
                             'fre_week3'         => $assignment->fre_week3,
                             'fre_week4'         => $assignment->fre_week4,
                             'fre_customer'      => $assignment->fre_customer,
+                            'cus_duns'          => $customer->cusDuns ?? null,
+                            'cus_comm_id'       => $customer->cusCommId ?? null,
+                            'cus_street1'       => $customer->cus_street1 ?? '',
+                            'cus_street2'       => $customer->cus_street2 ?? '',
+                            'cus_street3'       => $customer->cus_street3 ?? '',
                         ]
                     );
 
