@@ -55,13 +55,28 @@ class MasterProductsPriceBulkSyncAction
                 'precio_compra_caja_con_iva' => $compraConIva,
                 'precio_venta_caja_con_iva'  => $ventaConIva,
                 'iva'                        => $ivaFloat > 0 ? $ivaFloat : null,
+                'categoria'                  => $item['categoria'] ?? null,
+                'ud_por_cj'                  => $item['ud_por_cj'] ?? null,
                 'created_at'                 => now(),
                 'updated_at'                 => now(),
             ];
         }, $data);
 
-        // 2. Upsert masivo en la tabla maestra central (PolarAPI)
-        $this->upsertMasterData($syncData);
+        // 2. Filtrar y limpiar los campos que van al Upsert en la Maestra central para evitar fallos de base de datos
+        $dbMasterData = array_map(function($record) {
+            return [
+                'lgnstreet1'                 => $record['lgnstreet1'],
+                'material'                   => $record['material'],
+                'descripcion'                => $record['descripcion'],
+                'precio_compra_caja_con_iva' => $record['precio_compra_caja_con_iva'],
+                'precio_venta_caja_con_iva'  => $record['precio_venta_caja_con_iva'],
+                'iva'                        => $record['iva'],
+                'created_at'                 => $record['created_at'],
+                'updated_at'                 => $record['updated_at'],
+            ];
+        }, $syncData);
+
+        $this->upsertMasterData($dbMasterData);
 
         // 3. Obtener todas las rutas (Tenants) disponibles activos con sus metadatos
         $prefix = config('tenants.prefix', 'www_');
@@ -172,6 +187,17 @@ class MasterProductsPriceBulkSyncAction
                 // Inyectar excento_iva basado en el valor de IVA
                 if (isset($updateData['iva'])) {
                     $updateData['excento_iva'] = ((float)$updateData['iva'] > 0) ? 0 : 1;
+                }
+
+                // Aplicar división condicional del precio de venta para categorías específicas
+                $categoria = isset($record['categoria']) ? strtoupper(trim($record['categoria'])) : '';
+                $specialCategories = ['NAACFH', 'NAACMA', 'VECVIN'];
+                
+                if (in_array($categoria, $specialCategories)) {
+                    $udPorCj = isset($record['ud_por_cj']) ? (int)$record['ud_por_cj'] : 0;
+                    if ($udPorCj > 0 && isset($updateData['precioventa'])) {
+                        $updateData['precioventa'] = round((float)$updateData['precioventa'] / $udPorCj, 4);
+                    }
                 }
 
                 if (!empty($updateData)) {
