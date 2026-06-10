@@ -32,14 +32,29 @@ class MasterProductsPriceBulkSyncAction
             if (is_string($iva)) {
                 $iva = trim(str_replace(['%', ','], ['', '.'], $iva));
             }
+            $ivaFloat = ($iva !== null && $iva !== '') ? (float)$iva : 0;
+
+            $compraConIva = $item['precio_compra_caja_con_iva'] ?? null;
+            $ventaConIva  = $item['precio_venta_caja_con_iva'] ?? null;
+
+            if ($ivaFloat > 0) {
+                if (empty($compraConIva) && isset($item['precio_compra_caja_sin_iva'])) {
+                    $compraSinIva = (float)$item['precio_compra_caja_sin_iva'];
+                    $compraConIva = round($compraSinIva * (1 + ($ivaFloat / 100)), 2);
+                }
+                if (empty($ventaConIva) && isset($item['precio_venta_caja_sin_iva'])) {
+                    $ventaSinIva = (float)$item['precio_venta_caja_sin_iva'];
+                    $ventaConIva = round($ventaSinIva * (1 + ($ivaFloat / 100)), 2);
+                }
+            }
 
             return [
                 'lgnstreet1'                 => isset($item['lgnstreet1']) ? trim($item['lgnstreet1']) : null,
                 'material'                   => isset($item['material']) ? trim($item['material']) : null,
                 'descripcion'                => $item['descripcion'] ?? null,
-                'precio_compra_caja_con_iva' => $item['precio_compra_caja_con_iva'] ?? null,
-                'precio_venta_caja_con_iva'  => $item['precio_venta_caja_con_iva'] ?? null,
-                'iva'                        => ($iva !== null && $iva !== '') ? (float)$iva : null,
+                'precio_compra_caja_con_iva' => $compraConIva,
+                'precio_venta_caja_con_iva'  => $ventaConIva,
+                'iva'                        => $ivaFloat > 0 ? $ivaFloat : null,
                 'created_at'                 => now(),
                 'updated_at'                 => now(),
             ];

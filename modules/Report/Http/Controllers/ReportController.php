@@ -231,7 +231,8 @@ class ReportController extends Controller
                 'Condicion Pago',
                 'Lista Precios',
                 'Sucursal',
-                'Estado'
+                'Estado',
+                'Motivo no CEP'
             ];
 
             $filename = "CLIENTES_CONSOLIDADO_" . now()->format('Ymd_His') . ".txt";
@@ -255,6 +256,7 @@ class ReportController extends Controller
                     $row['lista_precios'],
                     $row['sucursal'],
                     $row['estado'],
+                    $row['motivo_no_cep'],
                 ]) . "\r\n";
             }
 
