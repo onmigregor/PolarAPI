@@ -22,6 +22,8 @@ class MasterClient extends Model
         'cus_tax_id1',
         'cus_phone',
         'cus_email',
+        'cus_duns',
+        'cus_comm_id',
         'registered_at_tenant',
     ];
 
