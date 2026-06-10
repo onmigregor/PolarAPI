@@ -26,8 +26,20 @@ class MasterProductsPriceBulkSyncAction
     {
         Log::info("Iniciando sincronización masiva de Precios hacia Tenants");
 
+        // Obtener códigos SKU únicos (materiales) del payload
+        $materiales = array_unique(array_filter(array_map(fn($item) => isset($item['material']) ? trim($item['material']) : null, $data)));
+
+        // Cargar las categorías (cl2_code) desde master_products del Hub
+        $masterCategories = [];
+        if (!empty($materiales)) {
+            $masterCategories = DB::table('master_products')
+                ->whereIn('sku', $materiales)
+                ->pluck('cl2_code', 'sku')
+                ->toArray();
+        }
+
         // 1. Mapear data del Admin a la estructura de la Maestra Central
-        $syncData = array_map(function($item) {
+        $syncData = array_map(function($item) use ($masterCategories) {
             $iva = $item['iva'] ?? null;
             if (is_string($iva)) {
                 $iva = trim(str_replace(['%', ','], ['', '.'], $iva));
@@ -48,14 +60,17 @@ class MasterProductsPriceBulkSyncAction
                 }
             }
 
+            $material = isset($item['material']) ? trim($item['material']) : null;
+            $categoriaMaster = $masterCategories[$material] ?? null;
+
             return [
                 'lgnstreet1'                 => isset($item['lgnstreet1']) ? trim($item['lgnstreet1']) : null,
-                'material'                   => isset($item['material']) ? trim($item['material']) : null,
+                'material'                   => $material,
                 'descripcion'                => $item['descripcion'] ?? null,
                 'precio_compra_caja_con_iva' => $compraConIva,
                 'precio_venta_caja_con_iva'  => $ventaConIva,
                 'iva'                        => $ivaFloat > 0 ? $ivaFloat : null,
-                'categoria'                  => $item['categoria'] ?? null,
+                'categoria'                  => $categoriaMaster,
                 'ud_por_cj'                  => $item['ud_por_cj'] ?? null,
                 'created_at'                 => now(),
                 'updated_at'                 => now(),
