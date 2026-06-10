@@ -217,7 +217,10 @@ class SyncPromotionsToClientsAction
                 // Obtener detalles adicionales por prm_code de la tabla de rutas
                 $additionalDetails = $masterDetails
                     ->whereIn('prm_code', $prmCodesFromRoutes)
-                    ->whereNotIn('pdl_code', $routeDetails->pluck('pdl_code'));
+                    ->whereNotIn('pdl_code', $routeDetails->pluck('pdl_code'))
+                    ->filter(function($detail) {
+                        return empty(trim($detail->rot_code ?? ''));
+                    });
 
                 $allDetailsForTenant = $routeDetails->merge($additionalDetails);
 

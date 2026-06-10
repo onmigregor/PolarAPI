@@ -563,6 +563,7 @@ class MasterClientBulkSyncAction
                 'nota'               => 'TEXT DEFAULT NULL',
                 'perfilUsuario'      => 'VARCHAR(10) DEFAULT NULL',
                 'perfilUsuarioApp'   => 'VARCHAR(10) DEFAULT NULL',
+                'motivo_no_cep'      => 'VARCHAR(255) DEFAULT NULL',
             ];
 
             foreach ($toAdd as $col => $definition) {

@@ -64,7 +64,8 @@ class ExportCustomerConsolidatedAction
                     in_array('con_code', $columns) ? 'con_code as condicion_pago' : DB::raw("'' as condicion_pago"),
                     in_array('prc_code_for_sale', $columns) ? 'prc_code_for_sale as lista_precios' : DB::raw("'' as lista_precios"),
                     in_array('brc_code', $columns) ? 'brc_code as sucursal' : DB::raw("'' as sucursal"),
-                    'status as estado'
+                    'status as estado',
+                    in_array('motivo_no_cep', $columns) ? 'motivo_no_cep' : DB::raw("'' as motivo_no_cep")
                 ];
 
                 $data = $tenantConn->table('clientes')
