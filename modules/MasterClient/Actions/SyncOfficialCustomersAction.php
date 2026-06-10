@@ -288,6 +288,9 @@ class SyncOfficialCustomersAction
             'fre_customer'       => 'VARCHAR(10) DEFAULT NULL',
             'cus_duns'           => 'VARCHAR(50) DEFAULT NULL',
             'cus_comm_id'        => 'VARCHAR(50) DEFAULT NULL',
+            'cus_street1'        => 'VARCHAR(255) DEFAULT NULL',
+            'cus_street2'        => 'VARCHAR(255) DEFAULT NULL',
+            'cus_street3'        => 'VARCHAR(255) DEFAULT NULL',
         ];
 
         foreach ($toAdd as $col => $definition) {
@@ -460,6 +463,9 @@ class SyncOfficialCustomersAction
                             'fre_customer'      => $assignment->fre_customer,
                             'cus_duns'          => $customer->cusDuns ?? null,
                             'cus_comm_id'       => $customer->cusCommId ?? null,
+                            'cus_street1'       => $customer->cus_street1 ?? '',
+                            'cus_street2'       => $customer->cus_street2 ?? '',
+                            'cus_street3'       => $customer->cus_street3 ?? '',
                         ]
                     );
 
