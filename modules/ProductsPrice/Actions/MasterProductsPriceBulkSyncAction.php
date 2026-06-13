@@ -29,17 +29,22 @@ class MasterProductsPriceBulkSyncAction
         // Obtener códigos SKU únicos (materiales) del payload
         $materiales = array_unique(array_filter(array_map(fn($item) => isset($item['material']) ? trim($item['material']) : null, $data)));
 
-        // Cargar las categorías (cl2_code) desde master_products del Hub
+        // Cargar las categorías (cl2_code y cl3_code) desde master_products del Hub
         $masterCategories = [];
+        $masterCategoriesCl3 = [];
         if (!empty($materiales)) {
             $masterCategories = DB::table('master_products')
                 ->whereIn('sku', $materiales)
                 ->pluck('cl2_code', 'sku')
                 ->toArray();
+            $masterCategoriesCl3 = DB::table('master_products')
+                ->whereIn('sku', $materiales)
+                ->pluck('cl3_code', 'sku')
+                ->toArray();
         }
 
         // 1. Mapear data del Admin a la estructura de la Maestra Central
-        $syncData = array_map(function($item) use ($masterCategories) {
+        $syncData = array_map(function($item) use ($masterCategories, $masterCategoriesCl3) {
             $iva = $item['iva'] ?? null;
             if (is_string($iva)) {
                 $iva = trim(str_replace(['%', ','], ['', '.'], $iva));
@@ -62,6 +67,7 @@ class MasterProductsPriceBulkSyncAction
 
             $material = isset($item['material']) ? trim($item['material']) : null;
             $categoriaMaster = $masterCategories[$material] ?? null;
+            $categoriaCl3Master = $masterCategoriesCl3[$material] ?? null;
 
             return [
                 'lgnstreet1'                 => isset($item['lgnstreet1']) ? trim($item['lgnstreet1']) : null,
@@ -71,6 +77,7 @@ class MasterProductsPriceBulkSyncAction
                 'precio_venta_caja_con_iva'  => $ventaConIva,
                 'iva'                        => $ivaFloat > 0 ? $ivaFloat : null,
                 'categoria'                  => $categoriaMaster,
+                'categoria_cl3'              => $categoriaCl3Master,
                 'ud_por_cj'                  => $item['ud_por_cj'] ?? null,
                 'created_at'                 => now(),
                 'updated_at'                 => now(),
@@ -206,9 +213,11 @@ class MasterProductsPriceBulkSyncAction
 
                 // Aplicar división condicional del precio de venta para categorías específicas
                 $categoria = isset($record['categoria']) ? strtoupper(trim($record['categoria'])) : '';
-                $specialCategories = ['NAACFH', 'NAACMA', 'VECVIN'];
+                $categoriaCl3 = isset($record['categoria_cl3']) ? strtoupper(trim($record['categoria_cl3'])) : '';
+                $specialCategories = ['NAACFH', 'NAACMA'];
+                $specialCategoriesCl3 = ['VECVINESPU'];
                 
-                if (in_array($categoria, $specialCategories)) {
+                if (in_array($categoria, $specialCategories) || in_array($categoriaCl3, $specialCategoriesCl3)) {
                     $udPorCj = isset($record['ud_por_cj']) ? (int)$record['ud_por_cj'] : 0;
                     if ($udPorCj > 0 && isset($updateData['precioventa'])) {
                         $updateData['precioventa'] = round((float)$updateData['precioventa'] / $udPorCj, 4);

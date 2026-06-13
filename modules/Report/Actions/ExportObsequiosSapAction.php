@@ -20,10 +20,9 @@ class ExportObsequiosSapAction
     private const MOTIVO = 'PB2';
     private const CONDICION_PAGO = 'ZB05';
     private const CENTRO = 'A024';
-    private const RESPONSABLE_PEDIDO = 'A10AGARCIA2';
     private const INDICADOR_UTILIZACION = '01';
     private const NUMERO_MATERIAL_CLIENTE = 'MATERIAL-CLTE';
-    private const ELEMENTO_PEP = 'PM-26-OC-CVE-P007-P07-07';
+    private const ELEMENTO_PEP = 'PM-26-OC-CVE-P005-P01-01';
 
     public array $errors = [];
 
@@ -141,7 +140,7 @@ class ExportObsequiosSapAction
                     '',                            // 22. Función Interlocutor (VACÍO)
                     '',                            // 23. Interlocutor (VACÍO)
                     '',                            // 24. Texto de Cabecera (VACÍO)
-                    self::RESPONSABLE_PEDIDO,      // 25. Nombre del Responsable (ROJO)
+                    '',                            // 25. Nombre del Responsable (VACÍO)
                     self::INDICADOR_UTILIZACION,   // 26. Indicador de Utilización (ROJO)
                     self::NUMERO_MATERIAL_CLIENTE, // 27. Número de material del cliente (ROJO)
                     self::ELEMENTO_PEP,            // 28. Elemento PEP (ROJO)
