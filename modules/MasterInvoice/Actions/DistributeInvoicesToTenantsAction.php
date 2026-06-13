@@ -63,6 +63,8 @@ class DistributeInvoicesToTenantsAction
                     $validLines = [];
                     $firstLine = $lines->first();
                     $fecha = $this->formatDate($firstLine['fecha_creacion']);
+                    $fechaVencimientoRaw = !empty($firstLine['fecha_vencimiento']) ? $firstLine['fecha_vencimiento'] : $firstLine['fecha_creacion'];
+                    $fechaVencimiento = $this->formatDate($fechaVencimientoRaw);
                     $tasa = (float)($firstLine['tasa'] ?? 0);
 
                     // 1. Validar qué líneas tienen productos existentes
@@ -103,7 +105,7 @@ class DistributeInvoicesToTenantsAction
                             'idcompra_detalle' => 0,
                             'nrocontrol' => $firstLine['no_control'] ?? '',
                             'fecha' => $fecha,
-                            'fechavencimiento' => $fecha,
+                            'fechavencimiento' => $fechaVencimiento,
                             'ruta' => $routeName,
                             'proveedor' => $providerInfo['name'],
                             'tipofactura' => 'FAC',

@@ -12,6 +12,7 @@ return new class extends Migration
             $table->id();
             $table->string('fq_redi', 50)->nullable();
             $table->string('fecha_creacion', 50)->nullable();
+            $table->string('fecha_vencimiento', 50)->nullable();
             $table->string('codigo_polar_negocio', 50)->nullable();
             $table->string('no_factura', 100)->nullable();
             $table->string('no_control', 100)->nullable();
