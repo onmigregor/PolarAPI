@@ -206,7 +206,7 @@ class MasterProductsPriceBulkSyncAction
 
                 // Aplicar división condicional del precio de venta para categorías específicas
                 $categoria = isset($record['categoria']) ? strtoupper(trim($record['categoria'])) : '';
-                $specialCategories = ['NAACFH', 'NAACMA', 'VECVIN'];
+                $specialCategories = ['NAACFH', 'NAACMA'];
                 
                 if (in_array($categoria, $specialCategories)) {
                     $udPorCj = isset($record['ud_por_cj']) ? (int)$record['ud_por_cj'] : 0;
