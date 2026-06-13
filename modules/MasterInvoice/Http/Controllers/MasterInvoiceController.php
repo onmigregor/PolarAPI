@@ -38,6 +38,7 @@ class MasterInvoiceController extends Controller
                 $upsertData[] = [
                     'fq_redi' => isset($item['fq_redi']) ? trim($item['fq_redi']) : null,
                     'fecha_creacion' => isset($item['fecha_creacion']) ? trim($item['fecha_creacion']) : null,
+                    'fecha_vencimiento' => isset($item['fecha_vencimiento']) ? trim($item['fecha_vencimiento']) : null,
                     'codigo_polar_negocio' => isset($item['codigo_polar_negocio']) ? trim($item['codigo_polar_negocio']) : null,
                     'no_factura' => isset($item['no_factura']) ? trim($item['no_factura']) : null,
                     'no_control' => isset($item['no_control']) ? trim($item['no_control']) : null,
@@ -61,7 +62,7 @@ class MasterInvoiceController extends Controller
                         $upsertData,
                         ['no_factura', 'material'],
                         [
-                            'fq_redi', 'fecha_creacion', 'codigo_polar_negocio', 'no_control', 'zona_venta',
+                            'fq_redi', 'fecha_creacion', 'fecha_vencimiento', 'codigo_polar_negocio', 'no_control', 'zona_venta',
                             'cantidad', 'um', 'precio', 'iva', 'descuento', 'otro_margen', 'envases', 'lisaea_unidad', 'tasa', 'updated_at'
                         ]
                     );
@@ -74,7 +75,7 @@ class MasterInvoiceController extends Controller
                     $upsertData,
                     ['no_factura', 'material'],
                     [
-                        'fq_redi', 'fecha_creacion', 'codigo_polar_negocio', 'no_control', 'zona_venta',
+                        'fq_redi', 'fecha_creacion', 'fecha_vencimiento', 'codigo_polar_negocio', 'no_control', 'zona_venta',
                         'cantidad', 'um', 'precio', 'iva', 'descuento', 'otro_margen', 'envases', 'lisaea_unidad', 'tasa', 'updated_at'
                     ]
                 );

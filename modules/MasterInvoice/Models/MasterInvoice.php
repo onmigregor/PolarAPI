@@ -11,6 +11,7 @@ class MasterInvoice extends Model
     protected $fillable = [
         'fq_redi',
         'fecha_creacion',
+        'fecha_vencimiento',
         'codigo_polar_negocio',
         'no_factura',
         'no_control',
