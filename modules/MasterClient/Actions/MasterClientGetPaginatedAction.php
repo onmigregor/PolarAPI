@@ -103,6 +103,25 @@ class MasterClientGetPaginatedAction
             }
         }
 
+        // Filtro por Clase 1 (tp1_code)
+        if (!empty($filters['tp1_code'])) {
+            $matchingCeps = [];
+            foreach ($activeTenants as $tenant) {
+                try {
+                    Config::set('database.connections.tenant.database', $tenant->db_name);
+                    DB::purge('tenant');
+                    $ceps = DB::connection('tenant')->table('clientes')
+                        ->where('tp1_code', $filters['tp1_code'])
+                        ->pluck('cep')
+                        ->toArray();
+                    $matchingCeps = array_merge($matchingCeps, $ceps);
+                } catch (\Exception $e) {
+                    // Ignore DB errors
+                }
+            }
+            $query->whereIn('cus_code', array_unique($matchingCeps));
+        }
+
         // Filtro por Clase 2 (TipoCliente)
         if (!empty($filters['tp2_code'])) {
             $matchingCeps = [];

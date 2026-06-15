@@ -59,9 +59,15 @@ class MasterClientGetFiltersAction
         $citOptions = array_unique($citOptions);
         sort($citOptions);
 
+        $tp1Descriptions = [
+            '408' => 'NO CADENA',
+            '641' => 'REF-DUPLICADOS-SAP',
+            '9999' => 'CLIENTE LOCAL',
+        ];
+
         $tp1Results = array_map(fn($val) => [
             'code' => $val,
-            'name' => $val
+            'name' => $tp1Descriptions[$val] ?? $val
         ], $tp1Options);
 
         $tp2Results = array_map(fn($val) => [
