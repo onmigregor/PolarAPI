@@ -23,9 +23,11 @@ class MasterClientBulkSyncAction
         array $customerPools = [],
         array $customerRoutes = [],
         array $customerPrices = [],
-        array $customerFrequencies = []
+        array $customerFrequencies = [],
+        array $types1 = []
     ): array {
         $results = [
+            'types1_synced' => 0,
             'branches_synced' => 0,
             'segments_synced' => 0,
             'pools_synced' => 0,
@@ -74,6 +76,17 @@ class MasterClientBulkSyncAction
                 }
                 return $cp;
             }, $customerPrices);
+        }
+
+        // 00. Procesar Clase 1 (Types1)
+        if (!empty($types1)) {
+            foreach ($types1 as $t1) {
+                \Modules\MasterClient\Models\MasterClientType1::updateOrCreate(
+                    ['tp1_code' => $t1['tp1_code']],
+                    ['tp1_name' => $t1['tp1_name']]
+                );
+                $results['types1_synced']++;
+            }
         }
 
         // 0a. Procesar Sucursales (Branches)

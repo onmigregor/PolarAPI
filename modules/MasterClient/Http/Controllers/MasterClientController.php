@@ -78,6 +78,7 @@ class MasterClientController extends Controller
             $customerRoutes = $request->input('customer_routes', []);
             $customerPrices = $request->input('customer_prices', []);
             $customerFrequencies = $request->input('customer_frequencies', []);
+            $types1 = $request->input('types1', []);
             
             $result = $action->execute(
                 $data, 
@@ -87,7 +88,8 @@ class MasterClientController extends Controller
                 $customerPools, 
                 $customerRoutes, 
                 $customerPrices, 
-                $customerFrequencies
+                $customerFrequencies,
+                $types1
             );
 
             return response()->json([
