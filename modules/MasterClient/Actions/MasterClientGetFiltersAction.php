@@ -59,15 +59,11 @@ class MasterClientGetFiltersAction
         $citOptions = array_unique($citOptions);
         sort($citOptions);
 
-        $tp1Descriptions = [
-            '408' => 'NO CADENA',
-            '641' => 'REF-DUPLICADOS-SAP',
-            '9999' => 'CLIENTE LOCAL',
-        ];
+        $tp1Names = \Modules\MasterClient\Models\MasterClientType1::pluck('tp1_name', 'tp1_code')->toArray();
 
         $tp1Results = array_map(fn($val) => [
             'code' => $val,
-            'name' => $tp1Descriptions[$val] ?? $val
+            'name' => $tp1Names[$val] ?? $val
         ], $tp1Options);
 
         $tp2Results = array_map(fn($val) => [
