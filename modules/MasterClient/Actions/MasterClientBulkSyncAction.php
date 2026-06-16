@@ -358,11 +358,14 @@ class MasterClientBulkSyncAction
                         'cep' => $item['cus_code'],
                         'Cliente' => $item['cus_business_name'] ?? ($item['cus_name'] ?? ''),
                         'cus_business_name' => $item['cus_business_name'] ?? '',
-                        'Ruta' => $routeName,
+                        'Ruta' => strtoupper($tenantRouteName ?? $routeName),
                         'RIF' => $item['cus_tax_id1'] ?? '',
                         'status' => 'Activo',
                         // Campos de texto reales mapeados
                         'Direccion' => $item['address'] ?? '',
+                        'cus_street1' => $item['cus_street1'] ?? '',
+                        'cus_street2' => $item['cus_street2'] ?? '',
+                        'cus_street3' => $item['cus_street3'] ?? '',
                         'latitud' => $item['latitude'] ?? '',
                         'longitud' => $item['longitude'] ?? '',
                         'PersonaContacto' => $item['contact_person'] ?? '',
@@ -577,6 +580,9 @@ class MasterClientBulkSyncAction
                 'perfilUsuario'      => 'VARCHAR(10) DEFAULT NULL',
                 'perfilUsuarioApp'   => 'VARCHAR(10) DEFAULT NULL',
                 'motivo_no_cep'      => 'VARCHAR(255) DEFAULT NULL',
+                'cus_street1'        => 'VARCHAR(255) DEFAULT NULL',
+                'cus_street2'        => 'VARCHAR(255) DEFAULT NULL',
+                'cus_street3'        => 'VARCHAR(255) DEFAULT NULL',
             ];
 
             foreach ($toAdd as $col => $definition) {

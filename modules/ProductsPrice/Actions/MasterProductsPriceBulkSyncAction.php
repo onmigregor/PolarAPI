@@ -98,6 +98,11 @@ class MasterProductsPriceBulkSyncAction
             ];
         }, $syncData);
 
+        // Borrar precios anteriores de la tabla maestra antes de la nueva carga
+        // (Requerimiento: cada vez que se suban precios, se borran los anteriores)
+        MasterProductsPrice::truncate();
+        Log::info("MasterProductsPriceBulkSyncAction: Precios anteriores eliminados de la maestra central.");
+
         $this->upsertMasterData($dbMasterData);
 
         // 3. Obtener todas las rutas (Tenants) disponibles activos con sus metadatos
@@ -220,6 +225,7 @@ class MasterProductsPriceBulkSyncAction
                 if (in_array($categoria, $specialCategories) || in_array($categoriaCl3, $specialCategoriesCl3)) {
                     $udPorCj = isset($record['ud_por_cj']) ? (int)$record['ud_por_cj'] : 0;
                     if ($udPorCj > 0 && isset($updateData['precioventa'])) {
+                        Log::info("PRECIO DIVIDIDO: tenant={$dbName}, material={$material}, cl2={$categoria}, cl3={$categoriaCl3}, ud_por_cj={$udPorCj}, precio_original={$updateData['precioventa']}");
                         $updateData['precioventa'] = round((float)$updateData['precioventa'] / $udPorCj, 4);
                     }
                 }

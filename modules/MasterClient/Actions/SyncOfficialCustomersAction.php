@@ -437,7 +437,7 @@ class SyncOfficialCustomersAction
                             'tp1_code'      => $customer->tp1_code ?? '',
                             'Direccion'     => ($customer->cus_street1 . ' ' . $customer->cus_street2 . ' ' . $customer->cus_street3),
                             'email'         => $customer->cus_email ?? '',
-                            'Ruta'          => $assignment->rot_code,
+                            'Ruta'          => strtoupper($companyRoute->route_name),
                             'latitud'       => $customer->cus_latitude ?? '',
                             'longitud'      => $customer->cus_longitude ?? '',
                             'status'        => 'Activo',
