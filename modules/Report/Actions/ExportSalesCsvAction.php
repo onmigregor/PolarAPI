@@ -25,6 +25,16 @@ class ExportSalesCsvAction
         6 => 'SABADO',
     ];
 
+    private const DAY_COLUMN_MAP = [
+        0 => 'ctr_sunday',
+        1 => 'ctr_monday',
+        2 => 'ctr_tuesday',
+        3 => 'ctr_wednesday',
+        4 => 'ctr_thursday',
+        5 => 'ctr_friday',
+        6 => 'ctr_saturday',
+    ];
+
 
     public array $errors = [];
 
@@ -51,7 +61,7 @@ class ExportSalesCsvAction
         
         $dayOfWeek = self::DAY_MAP[$startDate->dayOfWeek];
 
-        // 2. Por cada tenant, obtener ventas + detalles + RJ
+        // 2. Por cada tenant, obtener ventas + detalles + RJ/NV
         $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $startDate, $endDate, $isRange, $dayOfWeek) {
             $routeCode = $client->code;
             $cep = $client->cep ?? '';
@@ -71,6 +81,16 @@ class ExportSalesCsvAction
             } catch (\Exception $e) {
                 // Silently fallback if table/key is not found
             }
+
+            // Buscar clientes planificados PMI para el día correspondiente en el Hub
+            $dayColumn = self::DAY_COLUMN_MAP[$startDate->dayOfWeek];
+            $pmiCustomers = DB::table('master_customer_routes')
+                ->where('rot_code', $routeCode)
+                ->where($dayColumn, '1')
+                ->where('prc_code_for_sale', 'like', 'PMI%')
+                ->pluck('cus_code')
+                ->map(fn($code) => ltrim((string)$code, '0'))
+                ->toArray();
 
             // PASO 1: Join Base (Venta + Detalle + Producto)
             $queryBase = DB::connection('tenant')
@@ -121,6 +141,8 @@ class ExportSalesCsvAction
                     'p.codigoSKU',
                     'p.producto',
                     'p.unidadesporcaja',
+                    'p.class2',
+                    'p.class3',
                     'c.RIF',
                     'c.cep as client_cep'
                 );
@@ -132,8 +154,17 @@ class ExportSalesCsvAction
             $salesData = $queryBase->get();
 
             foreach ($salesData as $row) {
-                // UM: unidadesporcaja = 1 → UND, > 1 → CJS
-                $um = ($row->unidadesporcaja && $row->unidadesporcaja > 1) ? 'CJS' : 'UND';
+                // UM: especiales class2 y class3 a PZA, el resto a CJS
+                $class2 = strtoupper(trim($row->class2 ?? ''));
+                $class3 = strtoupper(trim($row->class3 ?? ''));
+                $specialClass2 = ['NAACFH', 'NAACMA'];
+                $specialClass3 = ['VECVINESPU'];
+
+                if (in_array($class2, $specialClass2) || in_array($class3, $specialClass3)) {
+                    $um = 'PZA';
+                } else {
+                    $um = 'CJS';
+                }
 
                 // Cl. Doc: Siempre FVTA para este reporte (los obsequios van por separado)
                 $clDoc = 'FVTA';
@@ -145,10 +176,15 @@ class ExportSalesCsvAction
                     $clientCep = '';
                 }
 
+                $motivo = $row->reaCode ?? '';
+                if (empty($motivo) && (float)$row->cantidad == 0 && in_array((string)$row->IdCliente, $pmiCustomers)) {
+                    $motivo = 'NV';
+                }
+
                 $tenantRows[] = [
                     'fq_redi'       => $cep, // El CEP del Tenant va ahora en FQ/REDI
                     'cep'           => $clientCep,
-                    'fecha'         => Carbon::parse($row->Fecha)->format('d-m-Y'),
+                    'fecha'         => Carbon::parse($row->Fecha)->format('d.m.Y'), // Fecha con formato .
                     'deudor'        => $row->IdCliente,
                     'doc_fq_redi'   => $row->IdVenta,
                     'material'      => $row->codigoSKU,
@@ -156,11 +192,11 @@ class ExportSalesCsvAction
                     'um'            => $um,
                     'rif_ci_clte'   => $row->RIF ?? '',
                     'cl_doc'        => $clDoc,
-                    'motivo'        => $row->reaCode ?? '',
+                    'motivo'        => $motivo,
                 ];
             }
 
-            // Lógica RJ: Solo si NO es un rango (es un reporte diario específico)
+            // Lógica RJ y NV: Solo si NO es un rango (es un reporte diario específico)
             if (!$isRange) {
                 $clientesConVenta = DB::connection('tenant')
                     ->table('ventaspxc')
@@ -168,12 +204,48 @@ class ExportSalesCsvAction
                     ->whereDate('Fecha', $filters->start_date)
                     ->pluck('IdCliente')
                     ->unique()
+                    ->map(fn($id) => ltrim((string)$id, '0'))
                     ->toArray();
 
+                // 1. Agregar clientes PMI planificados para hoy que NO tuvieron ventas como "NV"
+                $clientesPmiSinVenta = array_diff($pmiCustomers, $clientesConVenta);
+                if (!empty($clientesPmiSinVenta)) {
+                    $clientesNV = DB::connection('tenant')
+                        ->table('clientes')
+                        ->whereIn('IdCliente', $clientesPmiSinVenta)
+                        ->select('IdCliente', 'RIF', 'cep as client_cep')
+                        ->get();
+
+                    foreach ($clientesNV as $clienteNV) {
+                        $clientCepNV = !empty($clienteNV->client_cep) ? $clienteNV->client_cep : $cepOcasional;
+                        if (!empty($clientCepNV)) {
+                            $clientCepNV = str_pad((string)$clientCepNV, 10, '0', STR_PAD_LEFT);
+                        } else {
+                            $clientCepNV = '';
+                        }
+
+                        $tenantRows[] = [
+                            'fq_redi'       => $cep,
+                            'cep'           => $clientCepNV,
+                            'fecha'         => $startDate->format('d.m.Y'), // Fecha con formato .
+                            'deudor'        => $clienteNV->IdCliente,
+                            'doc_fq_redi'   => '',
+                            'material'      => '',
+                            'cantidad'      => 0,
+                            'um'            => '',
+                            'rif_ci_clte'   => $clienteNV->RIF ?? '',
+                            'cl_doc'        => '',
+                            'motivo'        => 'NV',
+                        ];
+                    }
+                }
+
+                // 2. Agregar clientes que corresponden al día de despacho como "RJ" (excluyendo a los clientes PMI ya procesados)
                 $clientesRJ = DB::connection('tenant')
                     ->table('clientes')
                     ->where('DiaDespacho1', $dayOfWeek)
                     ->whereNotIn('IdCliente', $clientesConVenta)
+                    ->whereNotIn('IdCliente', $pmiCustomers) // Excluir PMI de RJ para evitar duplicados
                     ->select('IdCliente', 'RIF', 'cep as client_cep')
                     ->get();
 
@@ -188,7 +260,7 @@ class ExportSalesCsvAction
                     $tenantRows[] = [
                         'fq_redi'       => $cep,
                         'cep'           => $clientCepRJ,
-                        'fecha'         => $startDate->format('d-m-Y'),
+                        'fecha'         => $startDate->format('d.m.Y'), // Fecha con formato .
                         'deudor'        => $clienteRJ->IdCliente,
                         'doc_fq_redi'   => '',
                         'material'      => '',
