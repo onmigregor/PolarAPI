@@ -411,7 +411,7 @@ class MaterialesMasterSeeder extends Seeder
 
         $inserted = 0;
         foreach ($data as $row) {
-            DB::table('materiales_master')->updateOrInsert(
+            DB::table('master_materiales')->updateOrInsert(
                 ['material' => $row['material']],
                 [
                     'se_comercializa' => $row['se_comercializa'],
@@ -426,6 +426,6 @@ class MaterialesMasterSeeder extends Seeder
             $inserted++;
         }
 
-        $this->command->info("Se importaron/actualizaron {$inserted} materiales en materiales_master.");
+        $this->command->info("Se importaron/actualizaron {$inserted} materiales en master_materiales.");
     }
 }

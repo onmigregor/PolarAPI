@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('materiales_master', function (Blueprint $table) {
+        Schema::create('master_materiales', function (Blueprint $table) {
             $table->id();
             $table->string('se_comercializa', 50)->nullable();
             $table->string('nombre', 255)->nullable();
@@ -28,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('materiales_master');
+        Schema::dropIfExists('master_materiales');
     }
 };

@@ -47,7 +47,7 @@ class ExportSalesCsvAction
         $this->errors = [];
         
         // Obtener el mapeo de materiales con su untcode
-        $materialsMap = DB::table('materiales_master')->pluck('untcode', 'material')->toArray();
+        $materialsMap = DB::table('master_materiales')->pluck('untcode', 'material')->toArray();
         // 1. Resolver rutas: por code específico o todas las activas
         if ($filters->route_code) {
             $clients = CompanyRoute::where('is_active', true)
