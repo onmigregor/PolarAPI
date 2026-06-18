@@ -53,7 +53,7 @@ class ExportCustomerConsolidatedAction
                     'cep as codigo_cliente',
                     'Cliente as nombre',
                     'RIF as rif',
-                    in_array('tp1_code', $columns) ? 'tp1_code as tipo_cliente' : 'TipoCliente as tipo_cliente',
+                    in_array('TipoCliente', $columns) ? 'TipoCliente as tipo_cliente' : (in_array('tp1_code', $columns) ? 'tp1_code as tipo_cliente' : DB::raw("'' as tipo_cliente")),
                     'Direccion as direccion',
                     'Ruta as ruta',
                     'TelefonoContacto as telefono',
