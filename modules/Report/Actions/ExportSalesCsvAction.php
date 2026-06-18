@@ -45,6 +45,9 @@ class ExportSalesCsvAction
     public function execute(ExportSalesCsvFilterData $filters): array
     {
         $this->errors = [];
+        
+        // Obtener el mapeo de materiales con su untcode
+        $materialsMap = DB::table('materiales_master')->pluck('untcode', 'material')->toArray();
         // 1. Resolver rutas: por code específico o todas las activas
         if ($filters->route_code) {
             $clients = CompanyRoute::where('is_active', true)
@@ -62,7 +65,7 @@ class ExportSalesCsvAction
         $dayOfWeek = self::DAY_MAP[$startDate->dayOfWeek];
 
         // 2. Por cada tenant, obtener ventas + detalles + RJ/PJ
-        $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $startDate, $endDate, $isRange, $dayOfWeek) {
+        $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $startDate, $endDate, $isRange, $dayOfWeek, $materialsMap) {
             $routeCode = $client->code;
             $cep = $client->cep ?? '';
             $tenantRows = [];
@@ -154,17 +157,9 @@ class ExportSalesCsvAction
             $salesData = $queryBase->get();
 
             foreach ($salesData as $row) {
-                // UM: especiales class2 y class3 a PZA, el resto a CJS
-                $class2 = strtoupper(trim($row->class2 ?? ''));
-                $class3 = strtoupper(trim($row->class3 ?? ''));
-                $specialClass2 = ['NAACFH', 'NAACMA'];
-                $specialClass3 = ['VECVINESPU'];
-
-                if (in_array($class2, $specialClass2) || in_array($class3, $specialClass3)) {
-                    $um = 'PZA';
-                } else {
-                    $um = 'CJS';
-                }
+                // UM: Buscar untcode correspondiente al SKU del material en el maestro. Si no existe, fallback a PZA.
+                $sku = $row->codigoSKU ?? '';
+                $um = $materialsMap[$sku] ?? 'PZA';
 
                 // Cl. Doc: Siempre FVTA para este reporte (los obsequios van por separado)
                 $clDoc = 'FVTA';
