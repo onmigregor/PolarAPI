@@ -61,7 +61,7 @@ class ExportSalesCsvAction
         
         $dayOfWeek = self::DAY_MAP[$startDate->dayOfWeek];
 
-        // 2. Por cada tenant, obtener ventas + detalles + RJ/NV
+        // 2. Por cada tenant, obtener ventas + detalles + RJ/PJ
         $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $startDate, $endDate, $isRange, $dayOfWeek) {
             $routeCode = $client->code;
             $cep = $client->cep ?? '';
@@ -178,7 +178,7 @@ class ExportSalesCsvAction
 
                 $motivo = $row->reaCode ?? '';
                 if (empty($motivo) && (float)$row->cantidad == 0 && in_array((string)$row->IdCliente, $pmiCustomers)) {
-                    $motivo = 'NV';
+                    $motivo = 'PJ';
                 }
 
                 $tenantRows[] = [
@@ -207,7 +207,7 @@ class ExportSalesCsvAction
                     ->map(fn($id) => ltrim((string)$id, '0'))
                     ->toArray();
 
-                // 1. Agregar clientes PMI planificados para hoy que NO tuvieron ventas como "NV"
+                // 1. Agregar clientes PMI planificados para hoy que NO tuvieron ventas como "PJ"
                 $clientesPmiSinVenta = array_diff($pmiCustomers, $clientesConVenta);
                 if (!empty($clientesPmiSinVenta)) {
                     $clientesNV = DB::connection('tenant')
@@ -235,7 +235,7 @@ class ExportSalesCsvAction
                             'um'            => '',
                             'rif_ci_clte'   => $clienteNV->RIF ?? '',
                             'cl_doc'        => '',
-                            'motivo'        => 'NV',
+                            'motivo'        => 'PJ',
                         ];
                     }
                 }
