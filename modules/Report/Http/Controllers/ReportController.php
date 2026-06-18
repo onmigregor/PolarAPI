@@ -60,15 +60,12 @@ class ReportController extends Controller
 
         $isLocal = config('app.env') === 'local';
 
-        // Generar sufijo basado en el rango de fechas de ventas
+        // Generar sufijo basado en la fecha de inicio seleccionada y la hora actual
         $startDateStr = str_replace('-', '', $filters->start_date);
-        $dateSuffix = $startDateStr;
-        if ($filters->end_date && $filters->end_date !== $filters->start_date) {
-            $endDateStr = str_replace('-', '', $filters->end_date);
-            $dateSuffix .= '_' . $endDateStr;
-        }
+        $timeStr = now()->format('His');
+        $dateSuffix = "{$startDateStr}_{$timeStr}";
 
-        $ventasFilename = "VENTAS_{$dateSuffix}.txt";
+        $ventasFilename = "VENTA_{$dateSuffix}.txt";
         $obsqFilename = "OBSEQUIO_{$dateSuffix}.txt";
         $obsqSapFilename = "OBSEQUIO_SAP_{$dateSuffix}.csv";
 
@@ -76,7 +73,7 @@ class ReportController extends Controller
         $obsqCsv = $this->generateCsvContent($headers, $obsqRows);
         $obsqSapCsv = $obsqSapAction->generateCsvContent($obsqSapRows);
 
-        $ventasZipFilename = "VENTAS_{$dateSuffix}.ZIP";
+        $ventasZipFilename = "VENTA_{$dateSuffix}.ZIP";
         $obsqZipFilename = "OBSEQUIO_{$dateSuffix}.ZIP";
         $obsqSapZipFilename = "OBSEQUIO_SAP_{$dateSuffix}.ZIP";
 
