@@ -60,31 +60,30 @@ class ExportObsequiosSapAction
                 // Silently fallback if table/key is not found
             }
 
-            // Solo procesar si existe la tabla de plan táctico
-            if (!Schema::connection('tenant')->hasTable('recepcion_plan_tactico')) {
+            // Solo procesar si existe la tabla de seguimiento de cajas
+            if (!Schema::connection('tenant')->hasTable('seguimiento_cajas_promocion')) {
                 return [];
             }
 
-            // Query base: Obsequios + Ventas + Detalle + Productos + Clientes
+            // Query base: Obsequios + Ventas + Productos
             $queryBase = DB::connection('tenant')
-                ->table('recepcion_plan_tactico as rpt')
-                ->join('ventaspxc as v', 'rpt.IdVenta', '=', 'v.IdVenta')
-                ->join('ventas_detalle as vd', 'v.IdVenta', '=', 'vd.IdVenta')
-                ->join('productos as p', 'vd.idproducto', '=', 'p.idproducto')
-                ->leftJoin('clientes as c', 'v.IdCliente', '=', 'c.IdCliente')
-                ->where('vd.eliminado', 0)
-                ->where('v.eliminado', 0);
+                ->table('seguimiento_cajas_promocion as scp')
+                ->join('ventaspxc as v', 'scp.id_venta', '=', 'v.IdVenta')
+                ->join('productos as p', 'scp.codigoSKU', '=', 'p.codigoSKU')
+                ->leftJoin('clientes as c', 'scp.id_cliente', '=', 'c.IdCliente')
+                ->where('v.eliminado', 0)
+                ->where('scp.status', 'entregado');
 
             // Filtro de fecha
             if ($isRange) {
-                $queryBase->whereBetween('rpt.fecha', [$filters->start_date . ' 00:00:00', $filters->end_date . ' 23:59:59']);
+                $queryBase->whereBetween('scp.fecha_entrega', [$filters->start_date, $filters->end_date]);
             } else {
-                $queryBase->whereDate('rpt.fecha', $filters->start_date);
+                $queryBase->whereDate('scp.fecha_entrega', $filters->start_date);
             }
 
             $results = $queryBase->select(
-                'rpt.fecha as rpt_fecha',
-                'rpt.obsequios as rpt_cantidad',
+                'scp.fecha_entrega as rpt_fecha',
+                'scp.cajas_entregadas as rpt_cantidad',
                 'p.codigoSKU',
                 'p.unidadesporcaja',
                 'c.cep as client_cep',

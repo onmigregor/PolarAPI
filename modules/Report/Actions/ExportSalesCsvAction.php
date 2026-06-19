@@ -109,9 +109,14 @@ class ExportSalesCsvAction
             $queryBase->where('vd.eliminado', 0)
                 ->where('v.eliminado', 0);
 
-            // EXCLUIR OBSEQUIOS: Si el IdVenta está en la tabla de planes tácticos, no es una venta normal
-            if (Schema::connection('tenant')->hasTable('recepcion_plan_tactico')) {
-                $obsequioIds = DB::connection('tenant')->table('recepcion_plan_tactico')->pluck('IdVenta')->toArray();
+            // EXCLUIR OBSEQUIOS: Si el IdVenta está en la tabla de seguimiento_cajas_promocion, no es una venta normal
+            if (Schema::connection('tenant')->hasTable('seguimiento_cajas_promocion')) {
+                $obsequioIds = DB::connection('tenant')
+                    ->table('seguimiento_cajas_promocion')
+                    ->where('status', 'entregado')
+                    ->pluck('id_venta')
+                    ->filter()
+                    ->toArray();
                 if (!empty($obsequioIds)) {
                     $queryBase->whereNotIn('v.IdVenta', $obsequioIds);
                 }
