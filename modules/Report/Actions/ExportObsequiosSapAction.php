@@ -76,13 +76,13 @@ class ExportObsequiosSapAction
 
             // Filtro de fecha
             if ($isRange) {
-                $queryBase->whereBetween('scp.fecha_entrega', [$filters->start_date, $filters->end_date]);
+                $queryBase->whereBetween('scp.fecha_entrega_cliente', [$filters->start_date . ' 00:00:00', $filters->end_date . ' 23:59:59']);
             } else {
-                $queryBase->whereDate('scp.fecha_entrega', $filters->start_date);
+                $queryBase->whereDate('scp.fecha_entrega_cliente', $filters->start_date);
             }
 
             $results = $queryBase->select(
-                'scp.fecha_entrega as rpt_fecha',
+                'scp.fecha_entrega_cliente as rpt_fecha',
                 'scp.cajas_entregadas as rpt_cantidad',
                 'p.codigoSKU',
                 'p.unidadesporcaja',
