@@ -60,7 +60,7 @@ class ExportSalesCsvAction
         $rows = [];
         $startDate = Carbon::parse($filters->start_date);
         $endDate = $filters->end_date ? Carbon::parse($filters->end_date) : null;
-        $isRange = !is_null($endDate);
+        $isRange = !is_null($endDate) && $startDate->format('Y-m-d') !== $endDate->format('Y-m-d');
         
         $dayOfWeek = self::DAY_MAP[$startDate->dayOfWeek];
 
@@ -87,8 +87,9 @@ class ExportSalesCsvAction
 
             // Buscar clientes planificados PMI para el día correspondiente en el Hub
             $dayColumn = self::DAY_COLUMN_MAP[$startDate->dayOfWeek];
+            $routePrefix = strtoupper($client->route_name ?? '') . '-%';
             $pmiCustomers = DB::table('master_customer_routes')
-                ->where('rot_code', $routeCode)
+                ->where('ctr_contact_person', 'like', $routePrefix)
                 ->where($dayColumn, '1')
                 ->where('prc_code_for_sale', 'like', 'PMI%')
                 ->pluck('cus_code')
