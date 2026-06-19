@@ -1,0 +1,1 @@
+FQ/REDI;Fecha Creacion;Deudor;Doc FQ/REDI;material;Cantidad;UM;RIF_CI_CLTE;Cl. Doc;Motivo

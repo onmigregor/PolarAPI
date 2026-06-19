@@ -200,10 +200,11 @@ class ExportSalesCsvAction
             // Lógica RJ y NV: Solo si NO es un rango (es un reporte diario específico)
             if (!$isRange) {
                 $clientesConVenta = DB::connection('tenant')
-                    ->table('ventaspxc')
-                    ->where('eliminado', 0)
-                    ->whereDate('Fecha', $filters->start_date)
-                    ->pluck('IdCliente')
+                    ->table('ventaspxc as v')
+                    ->join('clientes as c', 'v.IdCliente', '=', 'c.IdCliente')
+                    ->where('v.eliminado', 0)
+                    ->whereDate('v.Fecha', $filters->start_date)
+                    ->pluck('c.cep')
                     ->unique()
                     ->map(fn($id) => ltrim((string)$id, '0'))
                     ->toArray();
@@ -213,7 +214,7 @@ class ExportSalesCsvAction
                 if (!empty($clientesPmiSinVenta)) {
                     $clientesNV = DB::connection('tenant')
                         ->table('clientes')
-                        ->whereIn('IdCliente', $clientesPmiSinVenta)
+                        ->whereIn('cep', $clientesPmiSinVenta)
                         ->select('IdCliente', 'RIF', 'cep as client_cep')
                         ->get();
 
@@ -245,8 +246,8 @@ class ExportSalesCsvAction
                 $clientesRJ = DB::connection('tenant')
                     ->table('clientes')
                     ->where('DiaDespacho1', $dayOfWeek)
-                    ->whereNotIn('IdCliente', $clientesConVenta)
-                    ->whereNotIn('IdCliente', $pmiCustomers) // Excluir PMI de RJ para evitar duplicados
+                    ->whereNotIn('cep', $clientesConVenta)
+                    ->whereNotIn('cep', $pmiCustomers) // Excluir PMI de RJ para evitar duplicados
                     ->select('IdCliente', 'RIF', 'cep as client_cep')
                     ->get();
 
