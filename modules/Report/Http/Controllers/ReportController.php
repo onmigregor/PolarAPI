@@ -30,20 +30,37 @@ class ReportController extends Controller
         $obsqRows = $obsqAction->execute($filters);
         $obsqSapRows = $obsqSapAction->execute($filters);
 
-        // Auditoría/Diagnóstico en el Log del HUB (Nivel Error para forzar visibilidad)
-        \Illuminate\Support\Facades\Log::error("AUDITORIA REPORTE - Filtros: " . json_encode($filters));
-        \Illuminate\Support\Facades\Log::error(" - Ventas encontradas: " . count($ventasRows));
-        \Illuminate\Support\Facades\Log::error(" - Obsequios encontrados: " . count($obsqRows));
-        \Illuminate\Support\Facades\Log::error(" - Obsequios SAP encontrados: " . count($obsqSapRows));
+        // Agrupar filas por fecha (formato d.m.Y)
+        $ventasByDate = [];
+        foreach ($ventasRows as $row) {
+            $ventasByDate[$row['fecha']][] = $row;
+        }
+        
+        $obsqByDate = [];
+        foreach ($obsqRows as $row) {
+            $obsqByDate[$row['fecha']][] = $row;
+        }
+        
+        $obsqSapByDate = [];
+        foreach ($obsqSapRows as $row) {
+            $fechaSap = $row[5] ?? null;
+            if ($fechaSap) {
+                $obsqSapByDate[$fechaSap][] = $row;
+            }
+        }
 
-        // LOG DE ERRORES DE TENANTS (Si los hay)
+        // Auditoría/Diagnóstico en el Log del HUB
+        \Illuminate\Support\Facades\Log::error("AUDITORIA REPORTE - Filtros: " . json_encode($filters));
+        \Illuminate\Support\Facades\Log::error(" - Ventas totales: " . count($ventasRows));
+        \Illuminate\Support\Facades\Log::error(" - Obsequios totales: " . count($obsqRows));
+        \Illuminate\Support\Facades\Log::error(" - Obsequios SAP totales: " . count($obsqSapRows));
+
         if (isset($salesAction->errors) && count($salesAction->errors) > 0) {
             foreach ($salesAction->errors as $error) {
                 \Illuminate\Support\Facades\Log::error(" !!! ERROR EN TENANT [{$error['client']}]: {$error['error']}");
             }
         }
 
-        // Cabeceras del CSV
         $headers = [
             'FQ/REDI',
             'Fecha Creacion',
@@ -57,75 +74,77 @@ class ReportController extends Controller
             'Motivo',
         ];
 
-
         $isLocal = config('app.env') === 'local';
-
-        // Generar sufijo basado en la fecha de inicio seleccionada y la hora actual
-        $startDateStr = str_replace('-', '', $filters->start_date);
         $timeStr = now()->format('His');
-        $dateSuffix = "{$startDateStr}_{$timeStr}";
 
-        $ventasFilename = "VENTA_{$dateSuffix}.txt";
-        $obsqFilename = "OBSEQUIO_{$dateSuffix}.txt";
-        $obsqSapFilename = "OBSEQUIO_SAP_{$dateSuffix}.csv";
-
-        $ventasCsv = $this->generateCsvContent($headers, $ventasRows);
-        $obsqCsv = $this->generateCsvContent($headers, $obsqRows);
-        $obsqSapCsv = $obsqSapAction->generateCsvContent($obsqSapRows);
-
-        $ventasZipFilename = "VENTA_{$dateSuffix}.ZIP";
-        $obsqZipFilename = "OBSEQUIO_{$dateSuffix}.ZIP";
-        $obsqSapZipFilename = "OBSEQUIO_SAP_{$dateSuffix}.ZIP";
+        $startDate = \Carbon\Carbon::parse($filters->start_date);
+        $endDate = $filters->end_date ? \Carbon\Carbon::parse($filters->end_date) : $startDate->copy();
+        
+        $generatedData = [];
+        $currentDate = $startDate->copy();
 
         try {
-            if ($isLocal) {
-                // Asegurar que el directorio existe
-                if (!file_exists(storage_path('ftp'))) {
-                    mkdir(storage_path('ftp'), 0777, true);
+            while ($currentDate->lte($endDate)) {
+                $dateFormatted = $currentDate->format('d.m.Y');
+                $dateSuffix = $currentDate->format('Ymd') . '_' . $timeStr;
+
+                $ventasForDay = $ventasByDate[$dateFormatted] ?? [];
+                $obsqForDay = $obsqByDate[$dateFormatted] ?? [];
+                $obsqSapForDay = $obsqSapByDate[$dateFormatted] ?? [];
+
+                $ventasFilename = "VENTA_{$dateSuffix}.txt";
+                $obsqFilename = "OBSEQUIO_{$dateSuffix}.txt";
+                $obsqSapFilename = "OBSEQUIO_SAP_{$dateSuffix}.csv";
+
+                $ventasCsv = $this->generateCsvContent($headers, $ventasForDay);
+                $obsqCsv = $this->generateCsvContent($headers, $obsqForDay);
+                $obsqSapCsv = $obsqSapAction->generateCsvContent($obsqSapForDay);
+
+                $ventasZipFilename = "VENTA_{$dateSuffix}.ZIP";
+                $obsqZipFilename = "OBSEQUIO_{$dateSuffix}.ZIP";
+                $obsqSapZipFilename = "OBSEQUIO_SAP_{$dateSuffix}.ZIP";
+
+                if ($isLocal) {
+                    if (!file_exists(storage_path('ftp'))) {
+                        mkdir(storage_path('ftp'), 0777, true);
+                    }
+                    file_put_contents(storage_path("ftp/{$ventasFilename}"), $ventasCsv);
+                    file_put_contents(storage_path("ftp/{$obsqFilename}"), $obsqCsv);
+                    file_put_contents(storage_path("ftp/{$obsqSapFilename}"), $obsqSapCsv);
+                } else {
+                    $ventasZipContent = $this->createZipContent($ventasFilename, $ventasCsv);
+                    $obsqZipContent = $this->createZipContent($obsqFilename, $obsqCsv);
+                    $obsqSapZipContent = $this->createZipContent($obsqSapFilename, $obsqSapCsv);
+                    
+                    \Illuminate\Support\Facades\Storage::disk('sftp_ventas')->put($ventasZipFilename, $ventasZipContent);
+                    \Illuminate\Support\Facades\Storage::disk('sftp_obsequios')->put($obsqZipFilename, $obsqZipContent);
+                    \Illuminate\Support\Facades\Storage::disk('sftp_obsequios')->put($obsqSapZipFilename, $obsqSapZipContent);
                 }
-                // Guardar localmente solo en LOCAL
-                \Illuminate\Support\Facades\Log::info("Entorno local detectado. Guardando archivos localmente en storage/ftp...");
-                file_put_contents(storage_path("ftp/{$ventasFilename}"), $ventasCsv);
-                file_put_contents(storage_path("ftp/{$obsqFilename}"), $obsqCsv);
-                file_put_contents(storage_path("ftp/{$obsqSapFilename}"), $obsqSapCsv);
-                \Illuminate\Support\Facades\Log::info("Archivos locales guardados exitosamente.");
-            } else {
-                \Illuminate\Support\Facades\Log::info("Entorno producción detectado. Iniciando compresión ZIP en memoria...");
-                
-                $ventasZipContent = $this->createZipContent($ventasFilename, $ventasCsv);
-                $obsqZipContent = $this->createZipContent($obsqFilename, $obsqCsv);
-                $obsqSapZipContent = $this->createZipContent($obsqSapFilename, $obsqSapCsv);
-                
-                \Illuminate\Support\Facades\Log::info("ZIPs en memoria generados. Tamaños: Ventas = " . strlen($ventasZipContent) . " bytes, Obsequios = " . strlen($obsqZipContent) . " bytes, Obsequios SAP = " . strlen($obsqSapZipContent) . " bytes.");
 
-                // Subir ventas al SFTP de ventas (Automatico)
-                \Illuminate\Support\Facades\Log::info("Subiendo ventas ({$ventasZipFilename}) al disco sftp_ventas...");
-                $resVentas = \Illuminate\Support\Facades\Storage::disk('sftp_ventas')->put($ventasZipFilename, $ventasZipContent);
-                \Illuminate\Support\Facades\Log::info("Resultado subida ventas: " . ($resVentas ? 'ÉXITO' : 'FALLIDO'));
+                $generatedData[] = [
+                    'date' => $dateFormatted,
+                    'ventas_file' => $isLocal ? $ventasFilename : $ventasZipFilename,
+                    'ventas_count' => count($ventasForDay),
+                    'obsq_file' => $isLocal ? $obsqFilename : $obsqZipFilename,
+                    'obsq_count' => count($obsqForDay),
+                    'obsq_sap_file' => $isLocal ? $obsqSapFilename : $obsqSapZipFilename,
+                    'obsq_sap_count' => count($obsqSapForDay),
+                ];
 
-                // Subir obsequios al SFTP de obsequios (Manual)
-                \Illuminate\Support\Facades\Log::info("Subiendo obsequios ({$obsqZipFilename}) al disco sftp_obsequios...");
-                $resObsq = \Illuminate\Support\Facades\Storage::disk('sftp_obsequios')->put($obsqZipFilename, $obsqZipContent);
-                \Illuminate\Support\Facades\Log::info("Resultado subida obsequios: " . ($resObsq ? 'ÉXITO' : 'FALLIDO'));
-
-                \Illuminate\Support\Facades\Log::info("Subiendo obsequios SAP ({$obsqSapZipFilename}) al disco sftp_obsequios...");
-                $resObsqSap = \Illuminate\Support\Facades\Storage::disk('sftp_obsequios')->put($obsqSapZipFilename, $obsqSapZipContent);
-                \Illuminate\Support\Facades\Log::info("Resultado subida obsequios SAP: " . ($resObsqSap ? 'ÉXITO' : 'FALLIDO'));
+                $currentDate->addDay();
             }
 
             return response()->json([
                 'success' => true,
-                'message' => config('app.env') === 'local'
-                    ? "Reportes generados localmente en storage/ftp."
-                    : "Reportes generados y subidos al SFTP correctamente.",
+                'message' => $isLocal
+                    ? "Reportes diarios generados localmente en storage/ftp."
+                    : "Reportes diarios generados y subidos al SFTP correctamente.",
                 'data' => [
-                    'ventas_file' => config('app.env') === 'local' ? $ventasFilename : $ventasZipFilename,
-                    'ventas_count' => count($ventasRows),
-                    'obsq_file' => config('app.env') === 'local' ? $obsqFilename : $obsqZipFilename,
-                    'obsq_count' => count($obsqRows),
-                    'obsq_sap_file' => config('app.env') === 'local' ? $obsqSapFilename : $obsqSapZipFilename,
-                    'obsq_sap_count' => count($obsqSapRows),
-                    'destination' => config('app.env') === 'local' ? 'Local Storage' : 'SFTP Polar (Zipped)',
+                    'files' => $generatedData,
+                    'total_ventas' => count($ventasRows),
+                    'total_obsq' => count($obsqRows),
+                    'total_obsq_sap' => count($obsqSapRows),
+                    'destination' => $isLocal ? 'Local Storage' : 'SFTP Polar (Zipped)',
                 ]
             ]);
         } catch (\Exception $e) {
@@ -290,6 +309,77 @@ class ReportController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => "Error al procesar reporte de Clientes: " . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Exportar solicitudes EP (Nuevos, Actualizacion, Estatus) a CSV y SFTP
+     */
+    public function exportEpRequestsCsv(\Illuminate\Http\Request $request, \Modules\Report\Actions\ExportEpRequestsCsvAction $action): \Illuminate\Http\JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'start_date' => 'required|date',
+                'end_date' => 'required|date|after_or_equal:start_date',
+            ]);
+
+            $startDate = \Carbon\Carbon::parse($validated['start_date']);
+            $endDate = \Carbon\Carbon::parse($validated['end_date']);
+
+            $tables = [
+                'clientes_nuevos_ep',
+                'clientes_actualizacion_ep',
+                'clientes_cambio_estatus_ep'
+            ];
+
+            $isLocal = config('app.env') === 'local';
+            $timeStr = now()->format('His');
+            $generatedData = [];
+
+            foreach ($tables as $table) {
+                // Obtener todos los datos del rango
+                $allRows = $action->execute($table, $startDate->format('Y-m-d'), $endDate->format('Y-m-d'));
+                
+                $csvContent = $action->generateCsvContent($allRows);
+
+                $filename = strtoupper($table) . "_{$timeStr}.csv";
+                $zipFilename = strtoupper($table) . "_{$timeStr}.zip";
+
+                if ($isLocal) {
+                    if (!file_exists(storage_path('ftp'))) {
+                        mkdir(storage_path('ftp'), 0777, true);
+                    }
+                    file_put_contents(storage_path("ftp/{$filename}"), $csvContent);
+                } else {
+                    $zipContent = $this->createZipContent($filename, $csvContent);
+                    // Subir al nuevo disco SFTP sftp_ep (/out/manual)
+                    \Illuminate\Support\Facades\Storage::disk('sftp_ep')->put($zipFilename, $zipContent);
+                }
+
+                $generatedData[] = [
+                    'table' => $table,
+                    'file' => $isLocal ? $filename : $zipFilename,
+                    'count' => count($allRows),
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $isLocal
+                    ? "Reportes EP generados localmente en storage/ftp."
+                    : "Reportes EP generados y subidos al SFTP correctamente.",
+                'data' => [
+                    'files' => $generatedData,
+                    'destination' => $isLocal ? 'Local Storage' : 'SFTP Polar (/out/manual)',
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Error en reporte EP: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            return response()->json([
+                'success' => false,
+                'message' => "Error al procesar reporte EP: " . $e->getMessage(),
             ], 500);
         }
     }
