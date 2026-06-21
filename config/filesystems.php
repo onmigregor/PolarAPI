@@ -89,7 +89,7 @@ return [
             'username' => env('SFTP_USERNAME'),
             'password' => env('SFTP_PASSWORD'),
             'port' => (int) env('SFTP_PORT', 22),
-            'root' => env('SFTP_ROOT_EP', '/out/manual'),
+            'root' => env('SFTP_ROOT_EP', 'out/manual'),
             'timeout' => 30,
             'throw' => true,
         ],
