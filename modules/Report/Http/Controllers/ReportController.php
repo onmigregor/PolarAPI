@@ -353,8 +353,8 @@ class ReportController extends Controller
                     file_put_contents(storage_path("ftp/{$filename}"), $csvContent);
                 } else {
                     $zipContent = $this->createZipContent($filename, $csvContent);
-                    // Subir al nuevo disco SFTP sftp_ep (/out/manual)
-                    \Illuminate\Support\Facades\Storage::disk('sftp_ep')->put($zipFilename, $zipContent);
+                    // Usar el disco de solicitudes (por defecto hereda la ruta de obsequios)
+                    \Illuminate\Support\Facades\Storage::disk('sftp_solicitudes')->put($zipFilename, $zipContent);
                 }
 
                 $generatedData[] = [

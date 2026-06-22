@@ -83,16 +83,18 @@ return [
             'throw' => true,
         ],
 
-        'sftp_ep' => [
+        'sftp_solicitudes' => [
             'driver' => 'sftp',
             'host' => env('SFTP_HOST'),
             'username' => env('SFTP_USERNAME'),
             'password' => env('SFTP_PASSWORD'),
             'port' => (int) env('SFTP_PORT', 22),
-            'root' => env('SFTP_ROOT_EP', 'out/manual'),
+            // Por defecto hereda la ruta de obsequios si no está definida en el .env
+            'root' => env('SFTP_ROOT_SOLICITUDES', env('SFTP_ROOT_OBSEQUIOS', '/')),
             'timeout' => 30,
             'throw' => true,
         ],
+
 
         'ftp' => [
             'driver' => 'local',
