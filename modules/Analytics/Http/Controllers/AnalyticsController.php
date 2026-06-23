@@ -15,6 +15,7 @@ use Modules\Analytics\Actions\GetTopGroupsByLitersAction;
 use Modules\Analytics\Actions\GetTopGroupsByKilosAction;
 use Modules\Analytics\Actions\GetClientsByTenantAction;
 use Modules\Analytics\Actions\GetClientsByRoutesAction;
+use Modules\Analytics\Actions\GetClientsTrendAction;
 use Modules\Analytics\Http\Requests\ReportFilterRequest;
 use Modules\Analytics\DataTransferObjects\ReportFilterData;
 
@@ -186,6 +187,16 @@ class AnalyticsController extends Controller
             'success' => true,
             'data' => $result['data'],
             'meta' => $result['meta'],
+        ]);
+    }
+
+    public function clientsTrend(GetClientsTrendAction $action): JsonResponse
+    {
+        $result = $action->execute();
+
+        return response()->json([
+            'success' => true,
+            'data' => $result['data'],
         ]);
     }
 }

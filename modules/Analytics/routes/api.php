@@ -18,4 +18,5 @@ Route::middleware(['internal_key'])->prefix('analytics')->group(function () {
     Route::middleware('internal_key')->post('/reports/top-groups-by-liters', [AnalyticsController::class, 'topGroupsByLiters']);
     Route::middleware('internal_key')->post('/reports/top-groups-by-kilos', [AnalyticsController::class, 'topGroupsByKilos']);
     Route::middleware('internal_key')->get('/reports/clients-by-tenant', [AnalyticsController::class, 'clientsByTenant']);
+    Route::middleware('internal_key')->get('/reports/clients-trend', [AnalyticsController::class, 'clientsTrend']);
 });
