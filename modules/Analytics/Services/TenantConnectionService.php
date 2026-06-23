@@ -16,14 +16,27 @@ class TenantConnectionService
      * Get the list of clients to query based on filter criteria.
      * If no client_ids provided, returns all active clients.
      */
-    public function resolveClients(?array $routeIds = null, ?array $regionIds = null): Collection
+    public function resolveClients(ReportFilterData $filters): Collection
     {
         return CompanyRoute::where('is_active', true)
-            ->when(!empty($routeIds), function ($query) use ($routeIds) {
-                return $query->whereIn('id', $routeIds);
+            ->when(!empty($filters->routes), function ($query) use ($filters) {
+                return $query->whereIn('id', $filters->routes);
             })
-            ->when(!empty($regionIds) && empty($routeIds), function ($query) use ($regionIds) {
-                return $query->whereIn('region_id', $regionIds);
+            ->when(!empty($filters->region_ids) && empty($filters->routes), function ($query) use ($filters) {
+                return $query->whereIn('region_id', $filters->region_ids);
+            })
+            ->when(!empty($filters->fq_codes), function ($query) use ($filters) {
+                $ceps = array_map(function($fq) { return ltrim($fq, '0'); }, $filters->fq_codes);
+                return $query->whereIn('cep', $ceps);
+            })
+            ->when(!empty($filters->vendor_groups), function ($query) use ($filters) {
+                return $query->whereIn('address_street2', $filters->vendor_groups);
+            })
+            ->when(!empty($filters->offices), function ($query) use ($filters) {
+                return $query->whereIn('address_street1', $filters->offices);
+            })
+            ->when(!empty($filters->territories), function ($query) use ($filters) {
+                return $query->whereIn('subregion_code', $filters->territories);
             })
             ->get();
     }
@@ -37,7 +50,7 @@ class TenantConnectionService
         $hasHierarchyFilters = !empty($filters->cl1_codes) || 
                                !empty($filters->cl2_codes) || 
                                !empty($filters->brand_codes) || 
-                               !empty($filters->segment_codes);
+                               !empty($filters->cl3_codes);
                                
         $skusToFilter = $filters->product_skus;
 
@@ -53,8 +66,8 @@ class TenantConnectionService
             if (!empty($filters->brand_codes)) {
                 $masterQuery->whereIn('brand_code', $filters->brand_codes);
             }
-            if (!empty($filters->segment_codes)) {
-                $masterQuery->whereIn('segment_code', $filters->segment_codes);
+            if (!empty($filters->cl3_codes)) {
+                $masterQuery->whereIn('cl3_code', $filters->cl3_codes);
             }
 
             $hierarchySkus = $masterQuery->pluck('sku')->toArray();

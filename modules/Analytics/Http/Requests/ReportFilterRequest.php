@@ -33,8 +33,8 @@ class ReportFilterRequest extends FormRequest
             'cl2_codes.*' => ['string'],
             'brand_codes' => ['nullable', 'array'],
             'brand_codes.*' => ['string'],
-            'segment_codes' => ['nullable', 'array'],
-            'segment_codes.*' => ['string'],
+            'cl3_codes' => ['nullable', 'array'],
+            'cl3_codes.*' => ['string'],
         ];
     }
 

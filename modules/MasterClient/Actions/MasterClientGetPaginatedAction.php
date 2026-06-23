@@ -16,11 +16,10 @@ class MasterClientGetPaginatedAction
         $limit = $perPage ?? (int)config('apiconfig.pagination.per_page', 10);
         $query = MasterClientPolar::query()->with('companyRoute');
 
-        // Filtro de Búsqueda General (Código, Nombre, Razón Social)
+        // Filtro de Búsqueda General (Nombre, Razón Social)
         $query->when($filters['query'] ?? null, function ($q, $search) {
             $q->where(function ($sub) use ($search) {
-                $sub->where('cus_code', 'like', "%{$search}%")
-                    ->orWhere('cus_name', 'like', "%{$search}%")
+                $sub->where('cus_name', 'like', "%{$search}%")
                     ->orWhere('cus_business_name', 'like', "%{$search}%");
             });
         });

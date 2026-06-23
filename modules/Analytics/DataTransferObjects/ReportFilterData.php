@@ -16,7 +16,11 @@ class ReportFilterData
         public readonly ?array $cl1_codes = null,
         public readonly ?array $cl2_codes = null,
         public readonly ?array $brand_codes = null,
-        public readonly ?array $segment_codes = null,
+        public readonly ?array $cl3_codes = null,
+        public readonly ?array $fq_codes = null,
+        public readonly ?array $vendor_groups = null,
+        public readonly ?array $offices = null,
+        public readonly ?array $territories = null,
     ) {}
 
     public static function fromRequest(array $validated): self
@@ -31,7 +35,11 @@ class ReportFilterData
             cl1_codes: $validated['cl1_codes'] ?? null,
             cl2_codes: $validated['cl2_codes'] ?? null,
             brand_codes: $validated['brand_codes'] ?? null,
-            segment_codes: $validated['segment_codes'] ?? null,
+            cl3_codes: $validated['cl3_codes'] ?? null,
+            fq_codes: $validated['fq_codes'] ?? null,
+            vendor_groups: $validated['vendor_groups'] ?? null,
+            offices: $validated['offices'] ?? null,
+            territories: $validated['territories'] ?? null,
         );
     }
 }

@@ -14,7 +14,7 @@ class GetSalesByRouteAction
 
     public function execute(ReportFilterData $filters): array
     {
-        $clients = $this->tenantService->resolveClients($filters->routes, $filters->region_ids);
+        $clients = $this->tenantService->resolveClients($filters);
 
         $aggregated = [];
 

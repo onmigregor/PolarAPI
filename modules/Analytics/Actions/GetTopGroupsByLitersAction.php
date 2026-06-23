@@ -28,7 +28,7 @@ class GetTopGroupsByLitersAction
             ];
         }
 
-        $clients = $this->tenantService->resolveClients($filters->routes, $filters->region_ids);
+        $clients = $this->tenantService->resolveClients($filters);
         $aggregated = [];
 
         $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $groupNames) {

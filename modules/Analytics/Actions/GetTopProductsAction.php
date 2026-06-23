@@ -15,7 +15,7 @@ class GetTopProductsAction
 
     public function execute(ReportFilterData $filters, int $limit = 10): array
     {
-        $clients = $this->tenantService->resolveClients($filters->routes, $filters->region_ids);
+        $clients = $this->tenantService->resolveClients($filters);
 
         $aggregated = [];
 

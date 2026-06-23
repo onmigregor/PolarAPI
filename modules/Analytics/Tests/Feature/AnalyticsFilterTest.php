@@ -26,7 +26,12 @@ class AnalyticsFilterTest extends TestCase
         $client1 = CompanyRoute::create(['name' => 'C1', 'code' => 'CODE1', 'rif' => 'J-1', 'fiscal_address' => 'Address 1', 'region_id' => $region->id, 'db_name' => 'db1']);
         $client2 = CompanyRoute::create(['name' => 'C2', 'code' => 'CODE2', 'rif' => 'J-2', 'fiscal_address' => 'Address 2', 'region_id' => $region->id, 'db_name' => 'db2']);
 
-        $results = $this->tenantService->resolveClients([$client1->id], null);
+        $filters = \Modules\Analytics\DataTransferObjects\ReportFilterData::fromRequest([
+            'start_date' => '2024-01-01',
+            'end_date' => '2024-01-31',
+            'routes' => [$client1->id]
+        ]);
+        $results = $this->tenantService->resolveClients($filters);
 
         $this->assertCount(1, $results);
         $this->assertEquals($client1->id, $results->first()->id);
@@ -40,7 +45,12 @@ class AnalyticsFilterTest extends TestCase
         $client1 = CompanyRoute::create(['name' => 'C1', 'code' => 'CODE1', 'rif' => 'J-1', 'fiscal_address' => 'Address 1', 'region_id' => $region1->id, 'db_name' => 'db1']);
         $client2 = CompanyRoute::create(['name' => 'C2', 'code' => 'CODE2', 'rif' => 'J-2', 'fiscal_address' => 'Address 2', 'region_id' => $region2->id, 'db_name' => 'db2']);
 
-        $results = $this->tenantService->resolveClients(null, [$region1->id]);
+        $filters = \Modules\Analytics\DataTransferObjects\ReportFilterData::fromRequest([
+            'start_date' => '2024-01-01',
+            'end_date' => '2024-01-31',
+            'region_ids' => [$region1->id]
+        ]);
+        $results = $this->tenantService->resolveClients($filters);
 
         $this->assertCount(1, $results);
         $this->assertEquals($client1->id, $results->first()->id);
@@ -57,7 +67,13 @@ class AnalyticsFilterTest extends TestCase
 
         // Request Client 2 (Region 2) but filter by Region 1
         // Expected: Should return Client 2 because client_ids has precedence
-        $results = $this->tenantService->resolveClients([$client2->id], [$region1->id]);
+        $filters = \Modules\Analytics\DataTransferObjects\ReportFilterData::fromRequest([
+            'start_date' => '2024-01-01',
+            'end_date' => '2024-01-31',
+            'routes' => [$client2->id],
+            'region_ids' => [$region1->id]
+        ]);
+        $results = $this->tenantService->resolveClients($filters);
 
         $this->assertCount(1, $results);
         $this->assertEquals($client2->id, $results->first()->id);
