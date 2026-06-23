@@ -4,9 +4,7 @@ namespace Modules\Report\Http\Controllers;
 
 use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
-use Modules\Report\Actions\ExportSalesCsvAction;
-use Modules\Report\Actions\ExportObsequiosCsvAction;
-use Modules\Report\Actions\ExportObsequiosSapAction;
+use Modules\Report\Actions\GenerateDailySalesReportsAction;
 use Modules\Report\Actions\ExportAdcConsolidatedAction;
 use Modules\Report\Actions\ExportCustomerConsolidatedAction;
 use Modules\Report\Http\Requests\ExportSalesCsvRequest;
@@ -19,133 +17,18 @@ class ReportController extends Controller
      */
     public function exportSalesCsv(
         ExportSalesCsvRequest $request,
-        ExportSalesCsvAction $salesAction,
-        ExportObsequiosCsvAction $obsqAction,
-        ExportObsequiosSapAction $obsqSapAction
+        GenerateDailySalesReportsAction $action
     ): \Illuminate\Http\JsonResponse {
-        $filters = ExportSalesCsvFilterData::fromRequest($request->validated());
-
-        // Ejecutar acciones por separado
-        $ventasRows = $salesAction->execute($filters);
-        $obsqRows = $obsqAction->execute($filters);
-        $obsqSapRows = $obsqSapAction->execute($filters);
-
-        // Agrupar filas por fecha (formato d.m.Y)
-        $ventasByDate = [];
-        foreach ($ventasRows as $row) {
-            $ventasByDate[$row['fecha']][] = $row;
-        }
-        
-        $obsqByDate = [];
-        foreach ($obsqRows as $row) {
-            $obsqByDate[$row['fecha']][] = $row;
-        }
-        
-        $obsqSapByDate = [];
-        foreach ($obsqSapRows as $row) {
-            $fechaSap = $row[5] ?? null;
-            if ($fechaSap) {
-                $obsqSapByDate[$fechaSap][] = $row;
-            }
-        }
-
-        // Auditoría/Diagnóstico en el Log del HUB
-        \Illuminate\Support\Facades\Log::error("AUDITORIA REPORTE - Filtros: " . json_encode($filters));
-        \Illuminate\Support\Facades\Log::error(" - Ventas totales: " . count($ventasRows));
-        \Illuminate\Support\Facades\Log::error(" - Obsequios totales: " . count($obsqRows));
-        \Illuminate\Support\Facades\Log::error(" - Obsequios SAP totales: " . count($obsqSapRows));
-
-        if (isset($salesAction->errors) && count($salesAction->errors) > 0) {
-            foreach ($salesAction->errors as $error) {
-                \Illuminate\Support\Facades\Log::error(" !!! ERROR EN TENANT [{$error['client']}]: {$error['error']}");
-            }
-        }
-
-        $headers = [
-            'FQ/REDI',
-            'Fecha Creacion',
-            'Deudor',
-            'Doc FQ/REDI',
-            'material',
-            'Cantidad',
-            'UM',
-            'RIF_CI_CLTE',
-            'Cl. Doc',
-            'Motivo',
-        ];
-
-        $isLocal = config('app.env') === 'local';
-        $timeStr = now()->format('His');
-
-        $startDate = \Carbon\Carbon::parse($filters->start_date);
-        $endDate = $filters->end_date ? \Carbon\Carbon::parse($filters->end_date) : $startDate->copy();
-        
-        $generatedData = [];
-        $currentDate = $startDate->copy();
-
         try {
-            while ($currentDate->lte($endDate)) {
-                $dateFormatted = $currentDate->format('d.m.Y');
-                $dateSuffix = $currentDate->format('Ymd') . '_' . $timeStr;
-
-                $ventasForDay = $ventasByDate[$dateFormatted] ?? [];
-                $obsqForDay = $obsqByDate[$dateFormatted] ?? [];
-                $obsqSapForDay = $obsqSapByDate[$dateFormatted] ?? [];
-
-                $ventasFilename = "VENTA_{$dateSuffix}.txt";
-                $obsqFilename = "OBSEQUIO_{$dateSuffix}.txt";
-                $obsqSapFilename = "OBSEQUIO_SAP_{$dateSuffix}.csv";
-
-                $ventasCsv = $this->generateCsvContent($headers, $ventasForDay);
-                $obsqCsv = $this->generateCsvContent($headers, $obsqForDay);
-                $obsqSapCsv = $obsqSapAction->generateCsvContent($obsqSapForDay);
-
-                $ventasZipFilename = "VENTA_{$dateSuffix}.ZIP";
-                $obsqZipFilename = "OBSEQUIO_{$dateSuffix}.ZIP";
-                $obsqSapZipFilename = "OBSEQUIO_SAP_{$dateSuffix}.ZIP";
-
-                if ($isLocal) {
-                    if (!file_exists(storage_path('ftp'))) {
-                        mkdir(storage_path('ftp'), 0777, true);
-                    }
-                    file_put_contents(storage_path("ftp/{$ventasFilename}"), $ventasCsv);
-                    file_put_contents(storage_path("ftp/{$obsqFilename}"), $obsqCsv);
-                    file_put_contents(storage_path("ftp/{$obsqSapFilename}"), $obsqSapCsv);
-                } else {
-                    $ventasZipContent = $this->createZipContent($ventasFilename, $ventasCsv);
-                    $obsqZipContent = $this->createZipContent($obsqFilename, $obsqCsv);
-                    $obsqSapZipContent = $this->createZipContent($obsqSapFilename, $obsqSapCsv);
-                    
-                    \Illuminate\Support\Facades\Storage::disk('sftp_ventas')->put($ventasZipFilename, $ventasZipContent);
-                    \Illuminate\Support\Facades\Storage::disk('sftp_obsequios')->put($obsqZipFilename, $obsqZipContent);
-                    \Illuminate\Support\Facades\Storage::disk('sftp_obsequios')->put($obsqSapZipFilename, $obsqSapZipContent);
-                }
-
-                $generatedData[] = [
-                    'date' => $dateFormatted,
-                    'ventas_file' => $isLocal ? $ventasFilename : $ventasZipFilename,
-                    'ventas_count' => count($ventasForDay),
-                    'obsq_file' => $isLocal ? $obsqFilename : $obsqZipFilename,
-                    'obsq_count' => count($obsqForDay),
-                    'obsq_sap_file' => $isLocal ? $obsqSapFilename : $obsqSapZipFilename,
-                    'obsq_sap_count' => count($obsqSapForDay),
-                ];
-
-                $currentDate->addDay();
-            }
+            $filters = ExportSalesCsvFilterData::fromRequest($request->validated());
+            $result = $action->execute($filters);
 
             return response()->json([
                 'success' => true,
-                'message' => $isLocal
+                'message' => config('app.env') === 'local'
                     ? "Reportes diarios generados localmente en storage/ftp."
                     : "Reportes diarios generados y subidos al SFTP correctamente.",
-                'data' => [
-                    'files' => $generatedData,
-                    'total_ventas' => count($ventasRows),
-                    'total_obsq' => count($obsqRows),
-                    'total_obsq_sap' => count($obsqSapRows),
-                    'destination' => $isLocal ? 'Local Storage' : 'SFTP Polar (Zipped)',
-                ]
+                'data' => $result
             ]);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error("Error en reporte: " . $e->getMessage() . "\n" . $e->getTraceAsString());
@@ -382,26 +265,6 @@ class ReportController extends Controller
                 'message' => "Error al procesar reporte EP: " . $e->getMessage(),
             ], 500);
         }
-    }
-
-    private function generateCsvContent(array $headers, array $rows): string
-    {
-        $csvContent = implode(';', $headers) . "\r\n";
-        foreach ($rows as $row) {
-            $csvContent .= implode(';', [
-                $row['fq_redi'],
-                $row['fecha'],
-                $row['cep'], // Ahora el valor de CEP va en la columna Deudor
-                $row['doc_fq_redi'],
-                $row['material'],
-                $row['cantidad'],
-                $row['um'],
-                $row['rif_ci_clte'],
-                $row['cl_doc'],
-                $row['motivo'],
-            ]) . "\r\n";
-        }
-        return $csvContent;
     }
 
     /**
