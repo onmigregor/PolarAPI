@@ -376,7 +376,7 @@ class MasterClientBulkSyncAction
                         'longitud' => $item['longitude'] ?? '',
                         'PersonaContacto' => $item['contact_person'] ?? '',
                         'TelefonoContacto' => $item['phone'] ?? '',
-                        'email' => '',
+                        'email' => $item['cus_email'] ?? '',
                         'instagram' => '',
                         'DiaDespacho1' => $activeDays[0] ?? '',
                         'DiaDespacho2' => $activeDays[1] ?? '',
