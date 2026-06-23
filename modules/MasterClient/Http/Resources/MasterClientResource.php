@@ -29,6 +29,15 @@ class MasterClientResource extends JsonResource
             'registered_at_tenant' => $this->registered_at_tenant ?? null,
             'created_at' => $this->created_at ? $this->created_at->format('Y-m-d H:i:s') : null,
             'updated_at' => $this->updated_at ? $this->updated_at->format('Y-m-d H:i:s') : null,
+            'direccion' => $this->direccion ?? null,
+            'latitud' => $this->latitud ?? null,
+            'longitud' => $this->longitud ?? null,
+            'zona_venta' => $this->zona_venta ?? null,
+            'oficina' => $this->oficina ?? null,
+            'territorio' => $this->territorio ?? null,
+            'grupo_vendedor' => $this->grupo_vendedor ?? null,
+            'codigo_fq' => $this->codigo_fq ?? null,
+            'cedula_coordinador' => $this->cedula_coordinador ?? null,
         ];
     }
 }
