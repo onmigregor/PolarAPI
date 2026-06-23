@@ -277,6 +277,8 @@ class MasterClientBulkSyncAction
                         'cus_tax_id1' => $item['cus_tax_id1'] ?? $existingOfficial->cus_tax_id1,
                         'cus_phone' => $item['cus_phone'] ?? ($item['phone'] ?? $existingOfficial->cus_phone),
                         'cus_email' => $item['cus_email'] ?? $existingOfficial->cus_email,
+                        'cus_duns' => $item['cus_duns'] ?? $existingOfficial->cus_duns,
+                        'cus_comm_id' => $item['cus_comm_id'] ?? $existingOfficial->cus_comm_id,
                     ]);
                     $client = $existingOfficial;
 
@@ -297,6 +299,8 @@ class MasterClientBulkSyncAction
                         'cit_code' => $item['cit_code'] ?? $existingLocal->cit_code,
                         'cus_phone' => $item['cus_phone'] ?? ($item['phone'] ?? $existingLocal->cus_phone),
                         'cus_email' => $item['cus_email'] ?? $existingLocal->cus_email,
+                        'cus_duns' => $item['cus_duns'] ?? $existingLocal->cus_duns,
+                        'cus_comm_id' => $item['cus_comm_id'] ?? $existingLocal->cus_comm_id,
                     ]);
                     $client = $existingLocal;
                     $results['updated']++;
@@ -315,6 +319,8 @@ class MasterClientBulkSyncAction
                             'cus_tax_id1' => $item['cus_tax_id1'] ?? null,
                             'cus_phone' => $item['cus_phone'] ?? ($item['phone'] ?? null),
                             'cus_email' => $item['cus_email'] ?? null,
+                            'cus_duns' => $item['cus_duns'] ?? null,
+                            'cus_comm_id' => $item['cus_comm_id'] ?? null,
                         ]
                     );
                     if ($client->wasRecentlyCreated) {
@@ -412,6 +418,9 @@ class MasterClientBulkSyncAction
                         'promoCP' => 0,
                         'promoPCV' => 0,
                         'Descuento' => 0.00,
+                        // Campos de identificación comercial
+                        'cus_duns' => $item['cus_duns'] ?? '',
+                        'cus_comm_id' => $item['cus_comm_id'] ?? '',
                         
                         // Campos de precio, ruta y frecuencia
                         'csp_for_sale'       => $cspFlags ? $cspFlags->csp_for_sale : 0,
@@ -587,6 +596,8 @@ class MasterClientBulkSyncAction
                 'cus_street1'        => 'VARCHAR(255) DEFAULT NULL',
                 'cus_street2'        => 'VARCHAR(255) DEFAULT NULL',
                 'cus_street3'        => 'VARCHAR(255) DEFAULT NULL',
+                'cus_duns'           => 'VARCHAR(50) DEFAULT NULL',
+                'cus_comm_id'        => 'VARCHAR(50) DEFAULT NULL',
             ];
 
             foreach ($toAdd as $col => $definition) {
