@@ -16,6 +16,10 @@ class MasterClientGetPaginatedAction
         $limit = $perPage ?? (int)config('apiconfig.pagination.per_page', 10);
         $query = MasterClientPolar::query()->with('companyRoute');
 
+        // Precargar territorios y logins para cruce de FQ
+        $territories = DB::table('master_company_territories')->get()->keyBy('try_code');
+        $logins = DB::table('master_company_logins')->get()->keyBy('lgn_code');
+
         // Filtro de Búsqueda General (Código, Nombre, Razón Social)
         $query->when($filters['query'] ?? null, function ($q, $search) {
             $q->where(function ($sub) use ($search) {
@@ -42,7 +46,7 @@ class MasterClientGetPaginatedAction
                         $fields = array_column($cols, 'Field');
                         $hasBusinessName = in_array('cus_business_name', $fields);
 
-                        $selectCols = ['IdCliente', 'cep', 'Cliente', 'Ruta', 'RIF', 'tp1_code', 'TipoCliente', 'segmento', 'TelefonoContacto', 'email'];
+                        $selectCols = ['IdCliente', 'cep', 'Cliente', 'Ruta', 'RIF', 'tp1_code', 'TipoCliente', 'segmento', 'TelefonoContacto', 'email', 'Direccion', 'latitud', 'longitud'];
                         if ($hasBusinessName) {
                             $selectCols[] = 'cus_business_name';
                         }
@@ -74,6 +78,9 @@ class MasterClientGetPaginatedAction
                             $client->cit_code = $r->segmento;
                             $client->cus_phone = $r->TelefonoContacto;
                             $client->cus_email = $r->email;
+                            $client->direccion = $r->Direccion ?? null;
+                            $client->latitud = $r->latitud ?? null;
+                            $client->longitud = $r->longitud ?? null;
 
                             $unlinkedClients[] = $client;
                         }
@@ -197,6 +204,9 @@ class MasterClientGetPaginatedAction
                         $item->cit_code = $tc->segmento;
                         $item->cus_phone = $tc->TelefonoContacto;
                         $item->cus_email = $tc->email;
+                        $item->direccion = $tc->Direccion ?? null;
+                        $item->latitud = $tc->latitud ?? null;
+                        $item->longitud = $tc->longitud ?? null;
                     } else {
                         $this->setFallbackAttributes($item);
                     }
@@ -213,6 +223,20 @@ class MasterClientGetPaginatedAction
             if (!$item->companyRoute?->db_name) {
                 $this->setFallbackAttributes($item);
             }
+
+            // Mapeo de campos geográficos y de Franquicia (FQ)
+            $routeCode = strtoupper($item->companyRoute?->code ?? ($item->ruta ?? ''));
+            $tryCode = substr($routeCode, 0, 6);
+            $territory = $territories->get($tryCode) ?? null;
+            $lgnCode = $territory->lgn_code ?? null;
+            $login = $lgnCode ? ($logins->get($lgnCode) ?? null) : null;
+
+            $item->zona_venta = $tryCode;
+            $item->oficina = $login->lgn_street1 ?? '';
+            $item->territorio = $login->srg_code ?? '';
+            $item->grupo_vendedor = $login->lgn_street2 ?? '';
+            $item->codigo_fq = $lgnCode ?? '';
+            $item->cedula_coordinador = ''; // Polar no provee este campo en los maestros
         }
 
         return $paginated;
@@ -229,5 +253,8 @@ class MasterClientGetPaginatedAction
         $item->cit_code = null;
         $item->cus_phone = null;
         $item->cus_email = null;
+        $item->direccion = null;
+        $item->latitud = null;
+        $item->longitud = null;
     }
 }
