@@ -16,10 +16,6 @@ class MasterClientGetPaginatedAction
         $limit = $perPage ?? (int)config('apiconfig.pagination.per_page', 10);
         $query = MasterClientPolar::query()->with('companyRoute');
 
-        // Precargar territorios y logins para cruce de FQ
-        $territories = DB::table('master_company_territories')->get()->keyBy('try_code');
-        $logins = DB::table('master_company_logins')->get()->keyBy('lgn_code');
-
         // Filtro de Búsqueda General (Código, Nombre, Razón Social)
         $query->when($filters['query'] ?? null, function ($q, $search) {
             $q->where(function ($sub) use ($search) {
@@ -225,17 +221,11 @@ class MasterClientGetPaginatedAction
             }
 
             // Mapeo de campos geográficos y de Franquicia (FQ)
-            $routeCode = strtoupper($item->companyRoute?->code ?? ($item->ruta ?? ''));
-            $tryCode = substr($routeCode, 0, 6);
-            $territory = $territories->get($tryCode) ?? null;
-            $lgnCode = $territory->lgn_code ?? null;
-            $login = $lgnCode ? ($logins->get($lgnCode) ?? null) : null;
-
-            $item->zona_venta = $tryCode;
-            $item->oficina = $login->lgn_street1 ?? '';
-            $item->territorio = $login->srg_code ?? '';
-            $item->grupo_vendedor = $login->lgn_street2 ?? '';
-            $item->codigo_fq = $lgnCode ?? '';
+            $item->zona_venta = $item->companyRoute?->sale_zone ?? '';
+            $item->oficina = $item->companyRoute?->address_street1 ?? '';
+            $item->territorio = $item->companyRoute?->subregion_code ?? '';
+            $item->grupo_vendedor = $item->companyRoute?->address_street2 ?? '';
+            $item->codigo_fq = $item->companyRoute?->cep ? str_pad($item->companyRoute->cep, 10, '0', STR_PAD_LEFT) : '';
             $item->cedula_coordinador = ''; // Polar no provee este campo en los maestros
         }
 
