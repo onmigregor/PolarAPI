@@ -50,6 +50,19 @@ class ExportEpRequestsCsvAction
             $epData = $query->get();
             $tenantRows = [];
 
+            // Precargar datos de la tabla oficial de clientes para hacer fallback
+            $ceps = $epData->map(function ($row) {
+                return $row->codigo_cep_interno ?? ($row->cliente_id ?? null);
+            })->filter()->unique()->toArray();
+
+            $oficialClientes = [];
+            if (!empty($ceps) && \Illuminate\Support\Facades\Schema::connection('tenant')->hasTable('clientes')) {
+                $oficialClientes = DB::connection('tenant')->table('clientes')
+                    ->whereIn('cep', $ceps)
+                    ->get()
+                    ->keyBy('cep');
+            }
+
             // Buscar info de la ruta en BD central
             $tryCode = substr($routeCode, 0, 6); // Ej: V1539A
             $territory = $territories->get($tryCode) ?? null;
@@ -81,13 +94,17 @@ class ExportEpRequestsCsvAction
                     $rif = $numDocumento;
                 }
 
+                // Fallback oficial desde la base de datos sincronizada
+                $cepCode = $row->codigo_cep_interno ?? ($row->cliente_id ?? '');
+                $clienteOficial = $oficialClientes[$cepCode] ?? null;
+
                 // Generar array de 60 columnas
                 $tenantRows[] = [
                     'Feacha de creacion' => Carbon::parse($row->created_at)->format('m/d/Y'), // 1
                     'Usuario' => $row->usuario_id ?? '', // 2
                     'Nombre de la distribuidora' => $row->usuario_nombre ?? '', // 3
                     '¿Esta solicitud de creación es por un cambio de razón social?' => strtoupper($payload['cambioRazonSocial'] ?? 'NO'), // 4
-                    'Codigo cep' => $row->codigo_cep_interno ?? ($row->cliente_id ?? ''), // 5
+                    'Codigo cep' => $cepCode, // 5
                     'Coordenada (X)' => str_replace('.', ',', (string)($row->longitud ?? ($payload['coordenadaX'] ?? ''))), // 6
                     'Coordenada (Y)' => str_replace('.', ',', (string)($row->latitud ?? ($payload['coordenadaY'] ?? ''))), // 7
                     'Indique el portafolio que desea comercializar' => is_array($payload['portafolio'] ?? null) ? implode(', ', $payload['portafolio']) : ($row->portafolio_fq ?? ''), // 8
@@ -103,14 +120,14 @@ class ExportEpRequestsCsvAction
                     'Tipo de cliente' => explode('|', $payload['tipoCliente'] ?? '')[1] ?? ($row->tipo_cliente_fq ?? ''), // 18
                     'Nombre comercial' => $payload['nombreComercial'] ?? ($row->nombre_comercial_fq ?? ($row->cliente_nombre ?? '')), // 19
                     'Codigo Teléfono 1 (fijo):' => $payload['codigoTelefonoFijo'] ?? ($row->telefono_1_fq_codigo ?? ''), // 20
-                    'Teléfono 1 (fijo):' => $payload['telefonoFijo'] ?? ($row->telefono_1_fq ?? ''), // 21
+                    'Teléfono 1 (fijo):' => $payload['telefonoFijo'] ?? ($row->telefono_1_fq ?? (optional($clienteOficial)->TelefonoContacto ?? '')), // 21
                     'Codigo Teléfono 2 (celular):' => $payload['codigoTelefonoMovil'] ?? ($row->telefono_2_fq_codigo ?? ''), // 22
                     'Teléfono 2 (celular):' => $payload['telefonoMovil'] ?? ($row->telefono_2_fq ?? ''), // 23
-                    'Nombre de la persona contacto' => $payload['nombreContacto'] ?? ($row->persona_contacto_fq ?? ''), // 24
+                    'Nombre de la persona contacto' => $payload['nombreContacto'] ?? ($row->persona_contacto_fq ?? (optional($clienteOficial)->PersonaContacto ?? '')), // 24
                     'Apellido de la persona contacto' => $payload['apellidoContacto'] ?? ($row->apellido_contacto_fq ?? ''), // 25
                     'Codigo Tipo ubicación' => $payload['tipoUbicacion'] ?? ($row->tipo_ubicacion_fq ?? ''), // 26
                     'Tipo ubicación' => '', // 27
-                    'Correo electrónico' => $payload['correoPdv'] ?? ($row->correo_fq ?? ''), // 28
+                    'Correo electrónico' => $payload['correoPdv'] ?? ($row->correo_fq ?? (optional($clienteOficial)->email ?? '')), // 28
                     'Observaciones' => $payload['observacionesCliente'] ?? ($payload['cambioMotivo'] ?? ($row->motivo_cambio_estatus ?? '')), // 29
                     'RIF' => $rif, // 30
                     'Cedula' => $cedula, // 31
