@@ -459,39 +459,44 @@ class MasterClientBulkSyncAction
                 $this->ensureClientesColumnsExist('tenant');
 
                 foreach ($clients as $clientData) {
-                    $updated = false;
-                    if (!empty($clientData['RIF'])) {
-                        // Buscar si existe un cliente local con el mismo RIF y sin código CEP
-                        $existingTenantClient = \Illuminate\Support\Facades\DB::connection('tenant')
-                            ->table('clientes')
-                            ->where('RIF', $clientData['RIF'])
-                            ->where(function ($q) {
-                                $q->whereNull('cep')->orWhere('cep', '');
-                            })
-                            ->first();
+                    try {
+                        $updated = false;
+                        if (!empty($clientData['RIF'])) {
+                            // Buscar si existe un cliente local con el mismo RIF y sin código CEP
+                            $existingTenantClient = \Illuminate\Support\Facades\DB::connection('tenant')
+                                ->table('clientes')
+                                ->where('RIF', $clientData['RIF'])
+                                ->where(function ($q) {
+                                    $q->whereNull('cep')->orWhere('cep', '');
+                                })
+                                ->first();
 
-                        if ($existingTenantClient) {
+                            if ($existingTenantClient) {
+                                \Illuminate\Support\Facades\DB::connection('tenant')
+                                    ->table('clientes')
+                                    ->where('IdCliente', $existingTenantClient->IdCliente)
+                                    ->update($clientData);
+                                $updated = true;
+                            }
+                        }
+
+                        if (!$updated) {
                             \Illuminate\Support\Facades\DB::connection('tenant')
                                 ->table('clientes')
-                                ->where('IdCliente', $existingTenantClient->IdCliente)
-                                ->update($clientData);
-                            $updated = true;
+                                ->updateOrInsert(
+                                    ['cep' => $clientData['cep']],
+                                    $clientData
+                                );
                         }
-                    }
+                        $results['pushed_to_tenants']++;
 
-                    if (!$updated) {
-                        \Illuminate\Support\Facades\DB::connection('tenant')
-                            ->table('clientes')
-                            ->updateOrInsert(
-                                ['cep' => $clientData['cep']],
-                                $clientData
-                            );
+                        // Marcar como registrado en tenant en la tabla maestra
+                        MasterClientPolar::where('cus_code', $clientData['cep'])
+                            ->update(['registered_at_tenant' => now()]);
+                    } catch (\Exception $e) {
+                        Log::error("Error pushing client {$clientData['cep']} to tenant {$dbName}: " . $e->getMessage());
+                        $results['errors'][] = "Client {$clientData['cep']} in Tenant {$dbName}: " . $e->getMessage();
                     }
-                    $results['pushed_to_tenants']++;
-
-                    // Marcar como registrado en tenant en la tabla maestra
-                    MasterClientPolar::where('cus_code', $clientData['cep'])
-                        ->update(['registered_at_tenant' => now()]);
                 }
 
                 // C. Sincronizar Pools en el Tenant
