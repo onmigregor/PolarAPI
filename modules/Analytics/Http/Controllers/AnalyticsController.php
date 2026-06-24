@@ -199,4 +199,14 @@ class AnalyticsController extends Controller
             'data' => $result['data'],
         ]);
     }
+
+    public function portfolioVariation(\Modules\Analytics\Actions\GetPortfolioVariationAction $action): JsonResponse
+    {
+        $result = $action->execute();
+
+        return response()->json([
+            'success' => true,
+            'data' => $result['data'],
+        ]);
+    }
 }
