@@ -133,6 +133,14 @@ return [
             'level' => 'info',
         ],
 
+        'jobs_errors' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/jobs_errors.log'),
+            'level' => 'debug',
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
+
     ],
 
 ];
