@@ -162,13 +162,30 @@ class ExportSalesCsvAction
 
             $salesData = $queryBase->get();
 
+            $processedNoSales = [];
+
             foreach ($salesData as $row) {
+                $motivo = $row->reaCode ?? '';
+                if (empty($motivo) && (float)$row->cantidad == 0 && in_array((string)$row->IdCliente, $pmiCustomers)) {
+                    $motivo = 'PJ';
+                }
+
+                $hasNoSale = !empty($motivo);
+
+                if ($hasNoSale) {
+                    $noSaleKey = !empty($row->IdVenta) ? 'doc_' . $row->IdVenta : 'cli_' . $row->IdCliente . '_' . $row->Fecha;
+                    if (isset($processedNoSales[$noSaleKey])) {
+                        continue;
+                    }
+                    $processedNoSales[$noSaleKey] = true;
+                }
+
                 // UM: Buscar untcode correspondiente al SKU del material en el maestro. Si no existe, fallback a PZA.
                 $sku = $row->codigoSKU ?? '';
-                $um = $materialsMap[$sku] ?? 'PZA';
+                $um = $hasNoSale ? '' : ($materialsMap[$sku] ?? 'PZA');
 
                 // Cl. Doc: Siempre FVTA para este reporte (los obsequios van por separado)
-                $clDoc = 'FVTA';
+                $clDoc = $hasNoSale ? '' : 'FVTA';
 
                 $clientCep = !empty($row->client_cep) ? $row->client_cep : $cepOcasional;
                 if (!empty($clientCep)) {
@@ -177,19 +194,14 @@ class ExportSalesCsvAction
                     $clientCep = '';
                 }
 
-                $motivo = $row->reaCode ?? '';
-                if (empty($motivo) && (float)$row->cantidad == 0 && in_array((string)$row->IdCliente, $pmiCustomers)) {
-                    $motivo = 'PJ';
-                }
-
                 $tenantRows[] = [
                     'fq_redi'       => $cep, // El CEP del Tenant va ahora en FQ/REDI
                     'cep'           => $clientCep,
                     'fecha'         => Carbon::parse($row->Fecha)->format('d.m.Y'), // Fecha con formato .
                     'deudor'        => $row->IdCliente,
-                    'doc_fq_redi'   => $row->IdVenta,
-                    'material'      => $row->codigoSKU,
-                    'cantidad'      => $row->cantidad,
+                    'doc_fq_redi'   => $hasNoSale ? '' : $row->IdVenta,
+                    'material'      => $hasNoSale ? '' : $row->codigoSKU,
+                    'cantidad'      => $hasNoSale ? 0 : $row->cantidad,
                     'um'            => $um,
                     'rif_ci_clte'   => $row->RIF ?? '',
                     'cl_doc'        => $clDoc,
