@@ -35,6 +35,7 @@ class ReportFilterRequest extends FormRequest
             'brand_codes.*' => ['string'],
             'cl3_codes' => ['nullable', 'array'],
             'cl3_codes.*' => ['string'],
+            'source' => ['nullable', 'string', 'in:sales,orders'],
         ];
     }
 

@@ -80,8 +80,9 @@ class AnalyticsController extends Controller
     ): JsonResponse {
         $filters = ReportFilterData::fromRequest($request->validated());
         $limit = $request->input('limit', 10);
-        $result = $action->execute($filters, $limit);
-
+        $source = $request->input('source', 'sales');
+        $result = $action->execute($filters, $limit, $source);
+ 
         return response()->json([
             'success' => true,
             'data' => $result['data'],

@@ -13,15 +13,19 @@ class GetTopProductsAction
         private TenantConnectionService $tenantService
     ) {}
 
-    public function execute(ReportFilterData $filters, int $limit = 10): array
+    public function execute(ReportFilterData $filters, int $limit = 10, string $source = 'sales'): array
     {
         $clients = $this->tenantService->resolveClients($filters);
 
+        $tableDetail = $source === 'orders' ? 'pedidos_detalle' : 'ventas_detalle';
+        $tableHeader = $source === 'orders' ? 'pedidos' : 'ventaspxc';
+        $foreignKey = $source === 'orders' ? 'IdPedido' : 'IdVenta';
+
         $aggregated = [];
 
-        $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters) {
+        $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $tableDetail, $tableHeader, $foreignKey) {
             $query = DB::connection('tenant')
-                ->table('ventas_detalle as vd')
+                ->table("{$tableDetail} as vd")
                 ->select(
                     'vd.idproducto',
                     'vd.producto',
@@ -55,9 +59,9 @@ class GetTopProductsAction
                 }
             }
 
-            // Filter by actual clients if provided (JOIN with ventaspxc since ventas_detalle has no client column)
+            // Filter by actual clients if provided
             if (!empty($filters->client_ids)) {
-                $query->join('ventaspxc as v', 'v.IdVenta', '=', 'vd.IdVenta')
+                $query->join("{$tableHeader} as v", "v.{$foreignKey}", '=', "vd.{$foreignKey}")
                       ->whereIn('v.IdCliente', $filters->client_ids);
             }
 
