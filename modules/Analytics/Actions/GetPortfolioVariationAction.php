@@ -21,7 +21,7 @@ class GetPortfolioVariationAction
                 DB::raw("COUNT(CASE WHEN master_client_polar.cus_code IS NULL OR master_client_polar.cus_code = '' THEN 1 END) as smart_fq_count")
             )
             ->whereNotNull('company_routes.db_name')
-            ->groupBy('company_routes.id')
+            ->groupBy('company_routes.id', 'company_routes.route_name', 'company_routes.name', 'company_routes.db_name')
             ->get();
 
         $data = [];
