@@ -55,12 +55,14 @@ jobs:
             docker exec -u root -t apimet php artisan migrate --force
 
             echo "Limpiando caches de Laravel..."
-            docker exec -u root -t apimet php artisan config:clear
-            docker exec -u root -t apimet php artisan cache:clear
-            docker exec -u root -t apimet php artisan route:clear
+            docker exec -t apimet php artisan config:clear
+            docker exec -t apimet php artisan cache:clear
+            docker exec -t apimet php artisan route:clear
+
+            echo "Reiniciando colas en apimet..."
+            docker exec -t apimet php artisan queue:restart
 
             echo "Reiniciando contenedor apimet para limpiar OPcache..."
             docker restart apimet
 
             echo "Despliegue de API completado con éxito."
-
