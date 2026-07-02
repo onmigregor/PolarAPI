@@ -1048,13 +1048,12 @@ class MaterialesMasterSeeder extends Seeder
             ['se_comercializa' => 'E', 'nombre' => 'PEPSI 1.25 RET                                                                                                                                                                 PEPSI RET 1,25LX6U', 'md' => '', 'material' => '1016411', 'ce' => 'A056', 'untcode' => 'CAJ'],
             ['se_comercializa' => 'E', 'nombre' => 'RET 350 - PEPSI COLA                                                                                                                                                                 PEPSI RET 350MLX24U', 'md' => '', 'material' => '1014109', 'ce' => 'A056', 'untcode' => 'CAJ'],
             ['se_comercializa' => 'E', 'nombre' => 'AGUA MINALBA 600ML                                                                                                                                                                 MINALBA PET 600LX24U', 'md' => '', 'material' => '1017754', 'ce' => 'A056', 'untcode' => 'C24'],
-            ['se_comercializa' => 'E', 'nombre' => 'LIPTON DURAZNO PET 500MLx12UN                                                                                                                                                                 LIPTON DZNO 500X12U', 'md' => '', 'material' => '1016711', 'ce' => 'A056', 'untcode' => 'CAJ'],
+            ['se_comercializa' => 'E', 'nombre' => 'LIPTON DURAZNO PET 500MLx12UN', 'md' => '', 'material' => '1016711', 'ce' => 'A056', 'untcode' => 'CAJ'],
         ];
-
-        DB::connection('tenant')->table('materiales_master')->truncate();
+        DB::table('master_materiales')->truncate();
         
         foreach (array_chunk($data, 100) as $chunk) {
-            DB::connection('tenant')->table('materiales_master')->insert($chunk);
+            DB::table('master_materiales')->insert($chunk);
         }
     }
 }
