@@ -12,15 +12,17 @@ class GetSalesByRouteAction
         private TenantConnectionService $tenantService
     ) {}
 
-    public function execute(ReportFilterData $filters): array
+    public function execute(ReportFilterData $filters, string $source = 'sales'): array
     {
         $clients = $this->tenantService->resolveClients($filters);
 
+        $table = $source === 'orders' ? 'pedidos' : 'ventaspxc';
+
         $aggregated = [];
 
-        $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters) {
+        $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $table) {
             $query = DB::connection('tenant')
-                ->table('ventaspxc')
+                ->table($table)
                 ->select(
                     'Ruta as route',
                     DB::raw('COUNT(*) as total_transactions'),

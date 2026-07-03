@@ -115,7 +115,8 @@ class AnalyticsController extends Controller
         GetSalesByRouteAction $action
     ): JsonResponse {
         $filters = ReportFilterData::fromRequest($request->validated());
-        $result = $action->execute($filters);
+        $source = $request->input('source', 'sales');
+        $result = $action->execute($filters, $source);
 
         return response()->json([
             'success' => true,
