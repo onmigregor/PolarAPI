@@ -20,17 +20,20 @@ class GetTopProductsAction
         $tableDetail = $source === 'orders' ? 'pedidos_detalle' : 'ventas_detalle';
         $tableHeader = $source === 'orders' ? 'pedidos' : 'ventaspxc';
         $foreignKey = $source === 'orders' ? 'IdPedido' : 'IdVenta';
+        // In pedidos_detalle, montodivisas is always 0; precioventa is already in USD.
+        // In ventas_detalle, montodivisas holds the calculated USD value.
+        $usdExpr = $source === 'orders' ? 'SUM(vd.cantidad * vd.precioventa)' : 'SUM(vd.montodivisas)';
 
         $aggregated = [];
 
-        $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $tableDetail, $tableHeader, $foreignKey) {
+        $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $tableDetail, $tableHeader, $foreignKey, $usdExpr) {
             $query = DB::connection('tenant')
                 ->table("{$tableDetail} as vd")
                 ->select(
                     'vd.idproducto',
                     'vd.producto',
                     DB::raw('SUM(vd.cantidad) as total_quantity'),
-                    DB::raw('SUM(vd.montodivisas) as total_amount_usd'),
+                    DB::raw("{$usdExpr} as total_amount_usd"),
                     DB::raw('SUM(vd.cantidad * vd.precioventa) as total_amount_bs')
                 )
                 ->where('vd.eliminado', 0)

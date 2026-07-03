@@ -17,17 +17,20 @@ class GetSalesByRouteAction
         $clients = $this->tenantService->resolveClients($filters);
 
         $table = $source === 'orders' ? 'pedidos' : 'ventaspxc';
+        // In pedidos, MontoFactura is already in USD and montodivisas is always 0.
+        // In ventaspxc, montodivisas holds the calculated USD equivalent.
+        $usdField = $source === 'orders' ? 'MontoFactura' : 'montodivisas';
 
         $aggregated = [];
 
-        $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $table) {
+        $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $table, $usdField) {
             $query = DB::connection('tenant')
                 ->table($table)
                 ->select(
                     'Ruta as route',
                     DB::raw('COUNT(*) as total_transactions'),
                     DB::raw('SUM(MontoFactura) as total_billed_bs'),
-                    DB::raw('SUM(montodivisas) as total_billed_usd')
+                    DB::raw("SUM({$usdField}) as total_billed_usd")
                 )
                 ->where('eliminado', 0)
                 ->whereBetween('Fecha', [$filters->start_date, $filters->end_date]);
@@ -39,7 +42,7 @@ class GetSalesByRouteAction
 
             return $query
                 ->groupBy('Ruta')
-                ->orderByDesc(DB::raw('SUM(montodivisas)'))
+                ->orderByDesc(DB::raw("SUM({$usdField})"))
                 ->get()
                 ->toArray();
         });
