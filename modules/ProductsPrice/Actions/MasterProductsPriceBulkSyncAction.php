@@ -49,12 +49,12 @@ class MasterProductsPriceBulkSyncAction
             if (is_string($iva)) {
                 $iva = trim(str_replace(['%', ','], ['', '.'], $iva));
             }
-            $ivaFloat = ($iva !== null && $iva !== '') ? (float)$iva : 0;
+            $ivaFloat = ($iva !== null && $iva !== '') ? (float)$iva : null;
 
             $compraConIva = $item['precio_compra_caja_con_iva'] ?? null;
             $ventaConIva  = $item['precio_venta_caja_con_iva'] ?? null;
 
-            if ($ivaFloat > 0) {
+            if ($ivaFloat !== null && $ivaFloat > 0) {
                 if (empty($compraConIva) && isset($item['precio_compra_caja_sin_iva'])) {
                     $compraSinIva = (float)$item['precio_compra_caja_sin_iva'];
                     $compraConIva = round($compraSinIva * (1 + ($ivaFloat / 100)), 2);
@@ -73,9 +73,9 @@ class MasterProductsPriceBulkSyncAction
                 'lgnstreet1'                 => isset($item['lgnstreet1']) ? trim($item['lgnstreet1']) : null,
                 'material'                   => $material,
                 'descripcion'                => $item['descripcion'] ?? null,
-                'precio_compra_caja_con_iva' => $compraConIva,
-                'precio_venta_caja_con_iva'  => $ventaConIva,
-                'iva'                        => $ivaFloat > 0 ? $ivaFloat : null,
+                'precio_compra_caja_con_iva' => $compraConIva !== null ? (float)$compraConIva : null,
+                'precio_venta_caja_con_iva'  => $ventaConIva !== null ? (float)$ventaConIva : null,
+                'iva'                        => $ivaFloat,
                 'categoria'                  => $categoriaMaster,
                 'categoria_cl3'              => $categoriaCl3Master,
                 'ud_por_cj'                  => $item['ud_por_cj'] ?? null,
@@ -206,13 +206,31 @@ class MasterProductsPriceBulkSyncAction
                 // Preparar los campos a actualizar basado en el Diccionario (Mapper)
                 $updateData = [];
                 foreach ($this->fieldMapper as $masterField => $tenantField) {
-                    if (array_key_exists($masterField, $record) && $record[$masterField] !== null) {
-                        $updateData[$tenantField] = $record[$masterField];
+                    if (array_key_exists($masterField, $record)) {
+                        $val = $record[$masterField];
+
+                        // Si es un precio y su valor es cero, vacío, null o menor, no lo actualizamos
+                        if (in_array($tenantField, ['preciocompra', 'precioventa'])) {
+                            if ($val === null || trim($val) === '' || (float)$val <= 0) {
+                                continue;
+                            }
+                        }
+
+                        // Para el IVA, si es vacío, null o cero/menor, forzar 0 y excento_iva = 1
+                        if ($tenantField === 'iva') {
+                            if ($val === null || trim($val) === '' || (float)$val <= 0) {
+                                $updateData['iva'] = 0;
+                                $updateData['excento_iva'] = 1;
+                                continue;
+                            }
+                        }
+
+                        $updateData[$tenantField] = $val;
                     }
                 }
 
-                // Inyectar excento_iva basado en el valor de IVA
-                if (isset($updateData['iva'])) {
+                // Inyectar excento_iva basado en el valor de IVA si no fue inyectado arriba
+                if (isset($updateData['iva']) && !isset($updateData['excento_iva'])) {
                     $updateData['excento_iva'] = ((float)$updateData['iva'] > 0) ? 0 : 1;
                 }
 
