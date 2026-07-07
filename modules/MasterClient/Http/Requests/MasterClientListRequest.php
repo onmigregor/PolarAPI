@@ -20,6 +20,10 @@ class MasterClientListRequest extends FormRequest
             'tp2_code' => 'nullable|string|max:50',
             'cit_code' => 'nullable|string|max:50',
             'has_cep'  => 'nullable|string|in:true,false,1,0',
+            'codigo_fq'      => 'nullable|string|max:50',
+            'grupo_vendedor' => 'nullable|string|max:50',
+            'oficina'        => 'nullable|string|max:100',
+            'territorio'     => 'nullable|string|max:50',
             'per_page' => 'nullable|integer|min:1|max:100',
             'page'     => 'nullable|integer|min:1',
         ];

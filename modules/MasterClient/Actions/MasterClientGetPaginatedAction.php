@@ -24,8 +24,47 @@ class MasterClientGetPaginatedAction
             });
         });
 
-        // Obtener Tenants Activos para filtros dependientes de BD
-        $activeTenants = CompanyRoute::where('is_active', true)->whereNotNull('db_name')->get();
+        // Aplicar 4 filtros adicionales sobre la ruta (company_routes) en la consulta principal
+        if (!empty($filters['codigo_fq'])) {
+            $rawCep = ltrim($filters['codigo_fq'], '0');
+            $query->whereHas('companyRoute', function ($q) use ($rawCep) {
+                $q->where('cep', $rawCep);
+            });
+        }
+        if (!empty($filters['grupo_vendedor'])) {
+            $query->whereHas('companyRoute', function ($q) use ($filters) {
+                $q->where('address_street2', $filters['grupo_vendedor']);
+            });
+        }
+        if (!empty($filters['oficina'])) {
+            $query->whereHas('companyRoute', function ($q) use ($filters) {
+                $q->where('address_street1', $filters['oficina']);
+            });
+        }
+        if (!empty($filters['territorio'])) {
+            $query->whereHas('companyRoute', function ($q) use ($filters) {
+                $q->where('subregion_code', $filters['territorio']);
+            });
+        }
+
+        // Obtener Tenants Activos filtrados para filtros dependientes de BD
+        $activeTenantsQuery = CompanyRoute::where('is_active', true)->whereNotNull('db_name');
+
+        if (!empty($filters['codigo_fq'])) {
+            $rawCep = ltrim($filters['codigo_fq'], '0');
+            $activeTenantsQuery->where('cep', $rawCep);
+        }
+        if (!empty($filters['grupo_vendedor'])) {
+            $activeTenantsQuery->where('address_street2', $filters['grupo_vendedor']);
+        }
+        if (!empty($filters['oficina'])) {
+            $activeTenantsQuery->where('address_street1', $filters['oficina']);
+        }
+        if (!empty($filters['territorio'])) {
+            $activeTenantsQuery->where('subregion_code', $filters['territorio']);
+        }
+
+        $activeTenants = $activeTenantsQuery->get();
 
         // Filtro Sin Código CEP
         if (isset($filters['has_cep'])) {

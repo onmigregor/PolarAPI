@@ -76,10 +76,62 @@ class MasterClientGetFiltersAction
             'name' => $val
         ], $citOptions);
 
+        // 4 nuevos filtros adicionales (desde la tabla central de company_routes)
+        $fqOptions = CompanyRoute::whereNotNull('cep')
+            ->where('cep', '!=', '')
+            ->distinct()
+            ->pluck('cep')
+            ->toArray();
+        $fqResults = array_map(function($val) {
+            $padded = str_pad((string)$val, 10, '0', STR_PAD_LEFT);
+            return [
+                'code' => $padded,
+                'name' => $padded
+            ];
+        }, array_unique($fqOptions));
+        usort($fqResults, fn($a, $b) => strcmp($a['code'], $b['code']));
+
+        $vgOptions = CompanyRoute::whereNotNull('address_street2')
+            ->where('address_street2', '!=', '')
+            ->distinct()
+            ->pluck('address_street2')
+            ->toArray();
+        $vgResults = array_map(fn($val) => [
+            'code' => $val,
+            'name' => $val
+        ], array_unique($vgOptions));
+        usort($vgResults, fn($a, $b) => strcmp($a['code'], $b['code']));
+
+        $officeOptions = CompanyRoute::whereNotNull('address_street1')
+            ->where('address_street1', '!=', '')
+            ->distinct()
+            ->pluck('address_street1')
+            ->toArray();
+        $officeResults = array_map(fn($val) => [
+            'code' => $val,
+            'name' => $val
+        ], array_unique($officeOptions));
+        usort($officeResults, fn($a, $b) => strcmp($a['code'], $b['code']));
+
+        $territoryOptions = CompanyRoute::whereNotNull('subregion_code')
+            ->where('subregion_code', '!=', '')
+            ->distinct()
+            ->pluck('subregion_code')
+            ->toArray();
+        $territoryResults = array_map(fn($val) => [
+            'code' => $val,
+            'name' => $val
+        ], array_unique($territoryOptions));
+        usort($territoryResults, fn($a, $b) => strcmp($a['code'], $b['code']));
+
         return [
             'tp1_codes' => $tp1Results,
             'tp2_codes' => $tp2Results,
             'cit_codes' => $citResults,
+            'fq_codes' => $fqResults,
+            'vendor_groups' => $vgResults,
+            'offices' => $officeResults,
+            'territories' => $territoryResults,
         ];
     }
 }
