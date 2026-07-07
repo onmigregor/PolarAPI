@@ -13,3 +13,6 @@ Schedule::command('report:generate-daily-sales')->dailyAt('09:00')->days([1, 2, 
 
 // Sincronizar clientes de distribuidoras a la tabla maestra a las 09:00 AM, de lunes (1) a sábado (6)
 Schedule::command('master-client:sync')->dailyAt('09:00')->days([1, 2, 3, 4, 5, 6]);
+
+// Generar reporte consolidado de clientes sin CEP a las 09:05 AM, de lunes (1) a sábado (6)
+Schedule::command('report:generate-customer-consolidated')->dailyAt('09:05')->days([1, 2, 3, 4, 5, 6]);

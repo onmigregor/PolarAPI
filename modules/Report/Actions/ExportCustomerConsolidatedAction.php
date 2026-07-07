@@ -4,6 +4,7 @@ namespace Modules\Report\Actions;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Modules\CompanyRoute\Models\CompanyRoute;
 
 class ExportCustomerConsolidatedAction
@@ -88,5 +89,100 @@ class ExportCustomerConsolidatedAction
 
         Log::info("Consolidación de clientes finalizada. Total registros: " . count($allData));
         return $allData;
+    }
+
+    /**
+     * Consolidates customers, formats as CSV, zips it, and uploads to SFTP or saves locally.
+     */
+    public function executeAndUpload(): array
+    {
+        $rows = $this->execute();
+        
+        $headers = [
+            'FQ/REDI',
+            'Codigo Cliente',
+            'Nombre',
+            'RIF',
+            'Tipo Cliente',
+            'Direccion',
+            'Ruta',
+            'Telefono',
+            'Email',
+            'Contacto',
+            'Latitud',
+            'Longitud',
+            'Condicion Pago',
+            'Lista Precios',
+            'Sucursal',
+            'Estado',
+            'Motivo no CEP'
+        ];
+
+        $filename = "CLIENTES_CONSOLIDADO_" . now()->format('Ymd_His') . ".txt";
+        
+        $csvContent = implode(';', $headers) . "\r\n";
+        foreach ($rows as $row) {
+            $csvContent .= implode(';', [
+                $row['fq_redi'] ?? '',
+                $row['codigo_cliente'] ?? '',
+                $row['nombre'] ?? '',
+                $row['rif'] ?? '',
+                $row['tipo_cliente'] ?? '',
+                $row['direccion'] ?? '',
+                $row['ruta'] ?? '',
+                $row['telefono'] ?? '',
+                $row['email'] ?? '',
+                $row['contacto'] ?? '',
+                $row['latitud'] ?? '',
+                $row['longitud'] ?? '',
+                $row['condicion_pago'] ?? '',
+                $row['lista_precios'] ?? '',
+                $row['sucursal'] ?? '',
+                $row['estado'] ?? '',
+                $row['motivo_no_cep'] ?? '',
+            ]) . "\r\n";
+        }
+
+        $isLocal = config('app.env') === 'local';
+        $destination = $isLocal ? 'Local Storage' : 'SFTP';
+
+        if ($isLocal) {
+            if (!file_exists(storage_path('ftp'))) {
+                mkdir(storage_path('ftp'), 0777, true);
+            }
+            file_put_contents(storage_path("ftp/{$filename}"), $csvContent);
+            $finalFilename = $filename;
+        } else {
+            $zipFilename = str_replace('.txt', '.zip', $filename);
+            $zipContent = $this->createZipContent($filename, $csvContent);
+            Storage::disk('sftp_obsequios')->put($zipFilename, $zipContent);
+            $finalFilename = $zipFilename;
+        }
+
+        return [
+            'filename' => $finalFilename,
+            'count' => count($rows),
+            'destination' => $destination
+        ];
+    }
+
+    /**
+     * Creates a ZIP file in memory.
+     */
+    private function createZipContent(string $filenameInZip, string $content): string
+    {
+        $tempFile = tempnam(sys_get_temp_dir(), 'zip');
+        $zip = new \ZipArchive();
+        
+        if ($zip->open($tempFile, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) === true) {
+            $zip->addFromString($filenameInZip, $content);
+            $zip->close();
+            
+            $zipContent = file_get_contents($tempFile);
+            unlink($tempFile);
+            return $zipContent;
+        }
+
+        throw new \Exception("No se pudo crear el archivo ZIP temporal.");
     }
 }
