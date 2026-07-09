@@ -249,6 +249,9 @@ class MasterProductsPriceBulkSyncAction
                 }
 
                 if (!empty($updateData)) {
+                    // Actualizar el campo fechaprecio con la fecha de la sincronización en formato Y-m-d (ej: 2026-07-09)
+                    $updateData['fechaprecio'] = now()->format('Y-m-d');
+
                     // Actualizamos la tabla productos del tenant usando el codigoSKU (material)
                     $tenantConnection->table('productos')
                         ->where('codigoSKU', $material)
