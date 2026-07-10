@@ -151,54 +151,16 @@ class ReportController extends Controller
                 'end_date' => 'required|date|after_or_equal:start_date',
             ]);
 
-            $startDate = \Carbon\Carbon::parse($validated['start_date']);
-            $endDate = \Carbon\Carbon::parse($validated['end_date']);
-
-            $tables = [
-                'clientes_nuevos_ep',
-                'clientes_actualizacion_ep',
-                'clientes_cambio_estatus_ep'
-            ];
-
-            $isLocal = config('app.env') === 'local';
-            $timeStr = now()->format('His');
-            $generatedData = [];
-
-            foreach ($tables as $table) {
-                // Obtener todos los datos del rango
-                $allRows = $action->execute($table, $startDate->format('Y-m-d'), $endDate->format('Y-m-d'));
-                
-                $csvContent = $action->generateCsvContent($allRows);
-
-                $filename = strtoupper($table) . "_{$timeStr}.csv";
-                $zipFilename = strtoupper($table) . "_{$timeStr}.zip";
-
-                if ($isLocal) {
-                    if (!file_exists(storage_path('ftp'))) {
-                        mkdir(storage_path('ftp'), 0777, true);
-                    }
-                    file_put_contents(storage_path("ftp/{$filename}"), $csvContent);
-                } else {
-                    $zipContent = $this->createZipContent($filename, $csvContent);
-                    // Usar el disco de solicitudes (por defecto hereda la ruta de obsequios)
-                    \Illuminate\Support\Facades\Storage::disk('sftp_solicitudes')->put($zipFilename, $zipContent);
-                }
-
-                $generatedData[] = [
-                    'table' => $table,
-                    'file' => $isLocal ? $filename : $zipFilename,
-                    'count' => count($allRows),
-                ];
-            }
+            $result = $action->executeAndUpload($validated['start_date'], $validated['end_date']);
 
             return response()->json([
                 'success' => true,
-                'message' => $isLocal
+                'message' => config('app.env') === 'local'
                     ? "Reportes EP generados localmente en storage/ftp."
                     : "Reportes EP generados y subidos al SFTP correctamente.",
                 'data' => [
-                    'files' => $generatedData,
-                    'destination' => $isLocal ? 'Local Storage' : 'SFTP Polar (/out/manual)',
+                    'files' => $result['files'],
+                    'destination' => $result['destination'],
                 ]
             ]);
 

@@ -5,6 +5,7 @@ namespace Modules\Report\Providers;
 use Illuminate\Support\ServiceProvider;
 use Modules\Report\Console\GenerateDailySalesReportsCommand;
 use Modules\Report\Console\ExportCustomerConsolidatedCommand;
+use Modules\Report\Console\ExportEpRequestsCommand;
 
 class ReportServiceProvider extends ServiceProvider
 {
@@ -19,6 +20,7 @@ class ReportServiceProvider extends ServiceProvider
             $this->commands([
                 GenerateDailySalesReportsCommand::class,
                 ExportCustomerConsolidatedCommand::class,
+                ExportEpRequestsCommand::class,
             ]);
         }
     }

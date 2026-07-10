@@ -16,3 +16,6 @@ Schedule::command('master-client:sync')->dailyAt('09:00')->days([1, 2, 3, 4, 5, 
 
 // Generar reporte consolidado de clientes sin CEP a las 09:05 AM, de lunes (1) a sábado (6)
 Schedule::command('report:generate-customer-consolidated')->dailyAt('09:05')->days([1, 2, 3, 4, 5, 6]);
+
+// Generar reportes de solicitudes EP (Nuevos, Actualización, Cambio Estatus) a las 09:10 AM, de lunes (1) a sábado (6)
+Schedule::command('report:generate-ep-requests')->dailyAt('09:10')->days([1, 2, 3, 4, 5, 6]);
