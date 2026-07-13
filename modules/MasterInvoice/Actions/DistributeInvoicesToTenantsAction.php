@@ -241,11 +241,22 @@ class DistributeInvoicesToTenantsAction
     {
         if (empty($dateStr)) return now()->format('Y-m-d');
         
-        // Manejar formato 17.04.2026
-        if (str_contains($dateStr, '.')) {
-            $parts = explode('.', $dateStr);
+        $dateStr = trim($dateStr);
+        
+        // Normalizar todos los separadores (puntos y barras) a guiones
+        $normalized = str_replace(['.', '/'], '-', $dateStr);
+        
+        if (str_contains($normalized, '-')) {
+            $parts = explode('-', $normalized);
             if (count($parts) === 3) {
-                return "{$parts[2]}-{$parts[1]}-{$parts[0]}";
+                // Si el año de 4 dígitos está al final (ej: DD-MM-YYYY)
+                if (strlen($parts[2]) === 4) {
+                    return "{$parts[2]}-{$parts[1]}-{$parts[0]}";
+                }
+                // Si el año de 4 dígitos ya está al inicio (ej: YYYY-MM-DD)
+                if (strlen($parts[0]) === 4) {
+                    return $normalized;
+                }
             }
         }
         
