@@ -25,20 +25,36 @@ class DistributeInvoicesToTenantsAction
                 continue;
             }
 
+            $prefix = config('tenants.prefix', 'www_');
+            $suffix = config('tenants.suffix', 'p');
+
             $cleanZone = ltrim(strtolower(trim($zone)), 'v');
+            
+            // Si el código de zona termina en el sufijo "p" (ej: "0568ap" termina en "ap" que es "a" + "p"), obtenemos la versión sin "p"
+            $cleanZoneWithoutP = str_ends_with($cleanZone, $suffix) ? substr($cleanZone, 0, -strlen($suffix)) : $cleanZone;
+
+            // Reconstruir nombres de base de datos variantes según config
+            $dbNameVariant1 = $prefix . 'v' . $cleanZone; // ej: www_v0568ap (si zone ya venía con P)
+            $dbNameVariant2 = $prefix . 'v' . $cleanZoneWithoutP . $suffix; // ej: www_v0568ap
 
             // Buscar la ruta/tenant que corresponda a este código
             $company = DB::table('company_routes')
                 ->where('is_active', true)
-                ->where(function($query) use ($cleanZone) {
+                ->where(function($query) use ($cleanZone, $cleanZoneWithoutP, $dbNameVariant1, $dbNameVariant2) {
                     $query->where('route_name', $cleanZone)
+                          ->orWhere('route_name', $cleanZoneWithoutP)
+                          ->orWhere('route_name', 'v' . $cleanZoneWithoutP)
                           ->orWhere('zone', $cleanZone)
+                          ->orWhere('zone', $cleanZoneWithoutP)
+                          ->orWhere('db_name', $dbNameVariant1)
+                          ->orWhere('db_name', $dbNameVariant2)
+                          ->orWhere('code', 'LIKE', "%_{$cleanZoneWithoutP}")
                           ->orWhere('code', 'LIKE', "%_{$cleanZone}");
                 })
                 ->first();
 
             if (!$company) {
-                Log::warning("DistributeInvoicesToTenantsAction: No se encontró tenant para la ruta '$zone' (limpio: '$cleanZone'). Saltando grupo.");
+                Log::warning("DistributeInvoicesToTenantsAction: No se encontró tenant para la ruta '$zone' (limpio: '$cleanZone', sin P: '$cleanZoneWithoutP'). Saltando grupo.");
                 continue;
             }
 
