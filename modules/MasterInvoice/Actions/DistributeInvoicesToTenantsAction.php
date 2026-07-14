@@ -191,6 +191,7 @@ class DistributeInvoicesToTenantsAction
                             [
                                 'fecha' => $fecha,
                                 'producto' => $product->producto,
+                                'codigoSKU' => $product->codigoSKU ?? trim($line['material'] ?? ''),
                                 'cantidad' => $cantidad,
                                 'preciocompra' => $precioCompra,
                                 'precioventa' => $precioCompra,
