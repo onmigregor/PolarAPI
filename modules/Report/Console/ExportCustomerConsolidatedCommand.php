@@ -7,17 +7,24 @@ use Illuminate\Console\Command;
 use Modules\Report\Actions\ExportCustomerConsolidatedAction;
 use Illuminate\Support\Facades\Log;
 
-class ExportCustomerConsolidatedCommand extends Command
+class ExportCustomerConsolidatedCommand extends \App\Console\Commands\BaseReportCommand
 {
     protected $signature = 'report:generate-customer-consolidated';
     protected $description = 'Consolidates all unlinked clients from active tenants, formats as CSV/ZIP, and uploads to SFTP or local storage';
+
+    protected function getProcessName(): string
+    {
+        return 'customer_consolidated';
+    }
 
     public function handle(ExportCustomerConsolidatedAction $action): int
     {
         $this->info("Starting customer consolidated report generation...");
 
         try {
-            $result = $action->executeAndUpload();
+            $table = $this->getRoutesTable();
+            $disk = $this->getSftpDisk('sftp_obsequios');
+            $result = $action->executeAndUpload($table, $disk);
 
             $this->info("Successfully generated customer consolidated report!");
             $this->info("Destination: {$result['destination']}");

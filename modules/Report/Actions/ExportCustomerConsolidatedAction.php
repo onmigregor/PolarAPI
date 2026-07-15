@@ -12,9 +12,9 @@ class ExportCustomerConsolidatedAction
     /**
      * Ejecuta la consolidación de clientes de todos los tenants activos.
      */
-    public function execute(): array
+    public function execute(string $table = 'company_routes'): array
     {
-        $tenants = CompanyRoute::where('is_active', 1)->get();
+        $tenants = CompanyRoute::from($table)->where('is_active', 1)->get();
         $allData = [];
 
         Log::info("Iniciando consolidación de CLIENTES desde " . $tenants->count() . " tenants.");
@@ -94,9 +94,9 @@ class ExportCustomerConsolidatedAction
     /**
      * Consolidates customers, formats as CSV, zips it, and uploads to SFTP or saves locally.
      */
-    public function executeAndUpload(): array
+    public function executeAndUpload(string $table = 'company_routes', string $disk = 'sftp_obsequios'): array
     {
-        $rows = $this->execute();
+        $rows = $this->execute($table);
         
         $headers = [
             'FQ/REDI',
@@ -155,7 +155,7 @@ class ExportCustomerConsolidatedAction
         } else {
             $zipFilename = str_replace('.txt', '.zip', $filename);
             $zipContent = $this->createZipContent($filename, $csvContent);
-            Storage::disk('sftp_obsequios')->put($zipFilename, $zipContent);
+            Storage::disk($disk)->put($zipFilename, $zipContent);
             $finalFilename = $zipFilename;
         }
 

@@ -42,7 +42,7 @@ class ExportSalesCsvAction
         private TenantConnectionService $tenantService
     ) {}
 
-    public function execute(ExportSalesCsvFilterData $filters): array
+    public function execute(ExportSalesCsvFilterData $filters, string $table = 'company_routes'): array
     {
         $this->errors = [];
         
@@ -50,11 +50,11 @@ class ExportSalesCsvAction
         $materialsMap = DB::table('master_materiales')->pluck('untcode', 'material')->toArray();
         // 1. Resolver rutas: por code específico o todas las activas
         if ($filters->route_code) {
-            $clients = CompanyRoute::where('is_active', true)
+            $clients = CompanyRoute::from($table)->where('is_active', true)
                 ->where('code', $filters->route_code)
                 ->get();
         } else {
-            $clients = $this->tenantService->resolveClients();
+            $clients = $this->tenantService->resolveClients(null, $table);
         }
 
         $rows = [];

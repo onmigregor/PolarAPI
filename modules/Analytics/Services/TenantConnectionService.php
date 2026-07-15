@@ -16,13 +16,13 @@ class TenantConnectionService
      * Get the list of clients to query based on filter criteria.
      * If no client_ids provided, returns all active clients.
      */
-    public function resolveClients(?ReportFilterData $filters = null): Collection
+    public function resolveClients(?ReportFilterData $filters = null, string $routesTable = 'company_routes'): Collection
     {
         if (!$filters) {
-            return CompanyRoute::where('is_active', true)->get();
+            return CompanyRoute::from($routesTable)->where('is_active', true)->get();
         }
 
-        return CompanyRoute::where('is_active', true)
+        return CompanyRoute::from($routesTable)->where('is_active', true)
             ->when(!empty($filters->routes), function ($query) use ($filters) {
                 return $query->whereIn('id', $filters->routes);
             })

@@ -7,10 +7,15 @@ use Illuminate\Console\Command;
 use Modules\Report\Actions\ExportEpRequestsCsvAction;
 use Illuminate\Support\Facades\Log;
 
-class ExportEpRequestsCommand extends Command
+class ExportEpRequestsCommand extends \App\Console\Commands\BaseReportCommand
 {
     protected $signature = 'report:generate-ep-requests {--start_date= : Start date of the range (YYYY-MM-DD)} {--end_date= : End date of the range (YYYY-MM-DD)}';
     protected $description = 'Consolidates EP requests (Creacion, Cambio Estatus, Data Maestra) from active tenants, formats as CSV, and uploads to SFTP or local storage';
+
+    protected function getProcessName(): string
+    {
+        return 'clientes';
+    }
 
     public function handle(ExportEpRequestsCsvAction $action): int
     {
@@ -23,7 +28,9 @@ class ExportEpRequestsCommand extends Command
         $this->info("Date range: " . ($startDate ?? 'Yesterday') . " to " . ($endDate ?? 'Yesterday'));
 
         try {
-            $result = $action->executeAndUpload($startDate, $endDate);
+            $table = $this->getRoutesTable();
+            $disk = $this->getSftpDisk('sftp_solicitudes');
+            $result = $action->executeAndUpload($startDate, $endDate, $table, $disk);
 
             $this->info("Successfully generated EP requests reports!");
             $this->info("Destination: {$result['destination']}");

@@ -33,9 +33,9 @@ class ExportObsequiosSapAction
     /**
      * Genera las filas del CSV en formato SAP SmartFq (29 columnas).
      */
-    public function execute(ExportSalesCsvFilterData $filters): array
+    public function execute(ExportSalesCsvFilterData $filters, string $table = 'company_routes'): array
     {
-        $clients = $this->tenantService->resolveClients();
+        $clients = $this->tenantService->resolveClients(null, $table);
         $isRange = !empty($filters->start_date) && !empty($filters->end_date);
 
         $allRows = [];

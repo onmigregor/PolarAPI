@@ -16,10 +16,10 @@ class ExportEpRequestsCsvAction
         private TenantConnectionService $tenantService
     ) {}
 
-    public function execute(string $tableName, ?string $startDate = null, ?string $endDate = null): array
+    public function execute(string $tableName, ?string $startDate = null, ?string $endDate = null, string $routesTable = 'company_routes'): array
     {
         $this->errors = [];
-        $clients = $this->tenantService->resolveClients();
+        $clients = $this->tenantService->resolveClients(null, $routesTable);
 
         // 1. Obtener datos de la BD central (logins, territorios y catálogos de clientes)
         $territories = DB::table('master_company_territories')->get()->keyBy('try_code');
@@ -559,7 +559,7 @@ class ExportEpRequestsCsvAction
         return ['code' => '', 'name' => $value];
     }
 
-    public function executeAndUpload(?string $startDate = null, ?string $endDate = null): array
+    public function executeAndUpload(?string $startDate = null, ?string $endDate = null, string $routesTable = 'company_routes', string $disk = 'sftp_solicitudes'): array
     {
         // Si no se especifican fechas, usar ayer (yesterday) por defecto
         if (empty($startDate)) {
@@ -583,7 +583,7 @@ class ExportEpRequestsCsvAction
         $generatedData = [];
 
         foreach ($tables as $table) {
-            $allRows = $this->execute($table, $startDateParsed->format('Y-m-d'), $endDateParsed->format('Y-m-d'));
+            $allRows = $this->execute($table, $startDateParsed->format('Y-m-d'), $endDateParsed->format('Y-m-d'), $routesTable);
             $csvContent = $this->generateCsvContent($allRows, $table);
 
             if ($table === 'clientes_nuevos_ep') {
@@ -602,11 +602,11 @@ class ExportEpRequestsCsvAction
             if ($isLocal) {
                 $localFullPath = storage_path("ftp/{$subfolder}");
                 if (!file_exists($localFullPath)) {
-                    mkdir($localFullPath, 0777, true);
+                     mkdir($localFullPath, 0777, true);
                 }
                 file_put_contents($localFullPath . $filename, $csvContent);
             } else {
-                \Illuminate\Support\Facades\Storage::disk('sftp_solicitudes')->put($filePath, $csvContent);
+                \Illuminate\Support\Facades\Storage::disk($disk)->put($filePath, $csvContent);
             }
 
             $generatedData[] = [
