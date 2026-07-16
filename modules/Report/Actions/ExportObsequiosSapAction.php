@@ -19,7 +19,7 @@ class ExportObsequiosSapAction
     private const SECTOR = 'C1';
     private const MOTIVO = 'PB2';
     private const CONDICION_PAGO = 'ZB05';
-    private const CENTRO = 'A024';
+    private const CENTRO = 'A012';
     private const INDICADOR_UTILIZACION = '01';
     private const NUMERO_MATERIAL_CLIENTE = 'MATERIAL-CLTE';
     private const ELEMENTO_PEP = 'PM-26-OC-CVE-P005-P01-01';
@@ -87,7 +87,8 @@ class ExportObsequiosSapAction
                 'p.codigoSKU',
                 'p.unidadesporcaja',
                 'c.cep as client_cep',
-                'v.IdCliente'
+                'v.IdCliente',
+                'v.IdVenta'
             )->get();
 
             Log::info("ExportObsequiosSap: Tenant {$routeCode} - {$results->count()} obsequios encontrados.");
@@ -124,7 +125,7 @@ class ExportObsequiosSapAction
                     $fechaSap,                     // 7.  Fecha de Precio (AMARILLO)
                     $fechaSap,                     // 8.  Fe.prestac.servicios (AMARILLO)
                     self::MOTIVO,                  // 9.  Motivo (ROJO)
-                    '',                            // 10. Num Pedido del cliente (VACÍO)
+                    $row->IdVenta,                 // 10. Num Pedido del cliente (IdVenta)
                     '',                            // 11. Contabilidad-Referencia (VACÍO)
                     $material,                     // 12. Material (AMARILLO)
                     $cantidad,                     // 13. Cantidad (AMARILLO)
