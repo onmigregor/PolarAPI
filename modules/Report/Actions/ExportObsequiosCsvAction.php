@@ -98,7 +98,7 @@ class ExportObsequiosCsvAction
                 $tenantRows[] = [
                     'fq_redi'       => $cep,
                     'cep'           => $clientCep,
-                    'fecha'         => Carbon::parse($row->rpt_fecha)->format('d-m-Y'),
+                    'fecha'         => Carbon::parse($row->rpt_fecha)->format('d.m.Y'),
                     'deudor'        => $row->IdCliente,
                     'doc_fq_redi'   => $row->IdVenta,
                     'material'      => $row->codigoSKU,
@@ -107,6 +107,7 @@ class ExportObsequiosCsvAction
                     'rif_ci_clte'   => $row->RIF ?? '',
                     'cl_doc'        => 'OBSQ',
                     'motivo'        => '',
+                    'centro'        => 'A012',
                 ];
             }
 

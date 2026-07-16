@@ -74,6 +74,8 @@ class GenerateDailySalesReportsAction
             'Motivo',
         ];
 
+        $obsqHeaders = array_merge($headers, ['Centro']);
+
         $isLocal = config('app.env') === 'local';
         $timeStr = now()->format('His');
 
@@ -96,7 +98,7 @@ class GenerateDailySalesReportsAction
             $obsqSapFilename = "OBSEQUIO_SAP_{$dateSuffix}.csv";
 
             $ventasCsv = $this->generateCsvContent($headers, $ventasForDay);
-            $obsqCsv = $this->generateCsvContent($headers, $obsqForDay);
+            $obsqCsv = $this->generateCsvContent($obsqHeaders, $obsqForDay);
             $obsqSapCsv = $this->obsqSapAction->generateCsvContent($obsqSapForDay);
 
             $ventasZipFilename = "VENTA_{$dateSuffix}.ZIP";
@@ -147,7 +149,7 @@ class GenerateDailySalesReportsAction
     {
         $csvContent = implode(';', $headers) . "\r\n";
         foreach ($rows as $row) {
-            $csvContent .= implode(';', [
+            $fields = [
                 $row['fq_redi'],
                 $row['fecha'],
                 $row['cep'],
@@ -158,7 +160,11 @@ class GenerateDailySalesReportsAction
                 $row['rif_ci_clte'],
                 $row['cl_doc'],
                 $row['motivo'],
-            ]) . "\r\n";
+            ];
+            if (isset($row['centro'])) {
+                $fields[] = $row['centro'];
+            }
+            $csvContent .= implode(';', $fields) . "\r\n";
         }
         return $csvContent;
     }
