@@ -15,12 +15,20 @@ class GenerateDailySalesReportsAction
         private ExportObsequiosSapAction $obsqSapAction
     ) {}
 
-    public function execute(ExportSalesCsvFilterData $filters): array
+    public function execute(
+        ExportSalesCsvFilterData $filters,
+        string $ventasDisk = 'sftp_ventas',
+        string $obsqDisk = 'sftp_obsequios',
+        string $obsqSapDisk = 'sftp_obsequios',
+        string $ventasTable = 'company_routes',
+        string $obsqTable = 'company_routes',
+        string $obsqSapTable = 'company_routes'
+    ): array
     {
         // 1. Ejecutar acciones por separado
-        $ventasRows = $this->salesAction->execute($filters);
-        $obsqRows = $this->obsqAction->execute($filters);
-        $obsqSapRows = $this->obsqSapAction->execute($filters);
+        $ventasRows = $this->salesAction->execute($filters, $ventasTable);
+        $obsqRows = $this->obsqAction->execute($filters, $obsqTable);
+        $obsqSapRows = $this->obsqSapAction->execute($filters, $obsqSapTable);
 
         // 2. Agrupar filas por fecha (formato d.m.Y)
         $ventasByDate = [];
@@ -107,9 +115,9 @@ class GenerateDailySalesReportsAction
                 $obsqZipContent = $this->createZipContent($obsqFilename, $obsqCsv);
                 $obsqSapZipContent = $this->createZipContent($obsqSapFilename, $obsqSapCsv);
                 
-                Storage::disk('sftp_ventas')->put($ventasZipFilename, $ventasZipContent);
-                Storage::disk('sftp_obsequios')->put($obsqZipFilename, $obsqZipContent);
-                Storage::disk('sftp_obsequios')->put($obsqSapZipFilename, $obsqSapZipContent);
+                Storage::disk($ventasDisk)->put($ventasZipFilename, $ventasZipContent);
+                Storage::disk($obsqDisk)->put($obsqZipFilename, $obsqZipContent);
+                Storage::disk($obsqSapDisk)->put($obsqSapZipFilename, $obsqSapZipContent);
             }
 
             $generatedData[] = [

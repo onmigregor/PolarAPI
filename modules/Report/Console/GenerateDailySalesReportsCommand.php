@@ -9,10 +9,15 @@ use Modules\Report\DataTransferObjects\ExportSalesCsvFilterData;
 
 use Illuminate\Support\Facades\Log;
 
-class GenerateDailySalesReportsCommand extends Command
+class GenerateDailySalesReportsCommand extends \App\Console\Commands\BaseReportCommand
 {
     protected $signature = 'report:generate-daily-sales {--date= : The date for which to generate the report (YYYY-MM-DD), defaults to yesterday}';
     protected $description = 'Generate daily sales and obsequios reports for the specified date (defaults to yesterday) and upload to SFTP';
+
+    protected function getProcessName(): string
+    {
+        return 'sales';
+    }
 
     public function handle(GenerateDailySalesReportsAction $action): int
     {
@@ -30,8 +35,24 @@ class GenerateDailySalesReportsCommand extends Command
             route_code: null
         );
 
+        $ventasDisk = $this->getSftpDisk('sftp_ventas');
+        $obsqDisk = \App\Helpers\ReportRoutesSelector::getSftpDiskForProcess('obsequios', 'sftp_obsequios');
+        $obsqSapDisk = \App\Helpers\ReportRoutesSelector::getSftpDiskForProcess('obsequios_sap', 'sftp_obsequios');
+
+        $ventasTable = $this->getRoutesTable();
+        $obsqTable = \App\Helpers\ReportRoutesSelector::getTableForProcess('obsequios');
+        $obsqSapTable = \App\Helpers\ReportRoutesSelector::getTableForProcess('obsequios_sap');
+
         try {
-            $result = $action->execute($filters);
+            $result = $action->execute(
+                $filters,
+                $ventasDisk,
+                $obsqDisk,
+                $obsqSapDisk,
+                $ventasTable,
+                $obsqTable,
+                $obsqSapTable
+            );
 
             $this->info("Successfully generated daily reports!");
             $this->info("Destination: {$result['destination']}");
