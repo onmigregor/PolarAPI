@@ -224,8 +224,11 @@ class DistributeInvoicesToTenantsAction
     {
         $mapping = [
             'CYM' => ['name' => 'CERVECERIA POLAR C.A.', 'id' => 11],
+            'C001' => ['name' => 'CERVECERIA POLAR C.A.', 'id' => 11],
             'PCV' => ['name' => 'PEPSI-COLA VENEZUELA, C.A.', 'id' => 12],
+            'R200' => ['name' => 'PEPSI-COLA VENEZUELA, C.A.', 'id' => 12],
             'APC' => ['name' => 'ALIMENTOS POLAR COMERCIAL, C.A.', 'id' => 13],
+            '0702' => ['name' => 'ALIMENTOS POLAR COMERCIAL, C.A.', 'id' => 13],
         ];
 
         return $mapping[strtoupper($code)] ?? ['name' => 'POLAR', 'id' => 0];
