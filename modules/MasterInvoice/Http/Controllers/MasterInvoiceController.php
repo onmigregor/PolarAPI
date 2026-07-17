@@ -39,7 +39,7 @@ class MasterInvoiceController extends Controller
                     'fq_redi' => isset($item['fq_redi']) ? trim($item['fq_redi']) : null,
                     'fecha_creacion' => isset($item['fecha_creacion']) ? trim($item['fecha_creacion']) : null,
                     'fecha_vencimiento' => isset($item['fecha_vencimiento']) ? trim($item['fecha_vencimiento']) : null,
-                    'codigo_polar_negocio' => isset($item['codigo_polar_negocio']) ? trim($item['codigo_polar_negocio']) : null,
+                    'codigo_polar_negocio' => isset($item['codigo_polar_negocio']) ? (trim($item['codigo_polar_negocio']) === '702' ? '0702' : trim($item['codigo_polar_negocio'])) : null,
                     'no_factura' => isset($item['no_factura']) ? trim($item['no_factura']) : null,
                     'no_control' => isset($item['no_control']) ? trim($item['no_control']) : null,
                     'zona_venta' => isset($item['zona_venta']) ? trim($item['zona_venta']) : null,
