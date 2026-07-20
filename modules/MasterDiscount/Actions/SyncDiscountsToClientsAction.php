@@ -142,10 +142,10 @@ class SyncDiscountsToClientsAction
         }
 
         // 2. Cargar datos maestros en memoria
-        $masterDiscounts = DB::table('master_discounts')->get()->keyBy('dis_code');
-        $masterDetails = DB::table('master_discount_details')->get();
-        $masterProducts = DB::table('master_discount_detail_products')->get();
-        $masterRoutes = DB::table('master_discount_detail_routes')->get();
+        $masterDiscounts = DB::table('discounts')->get()->keyBy('dis_code');
+        $masterDetails = DB::table('discount_details')->get();
+        $masterProducts = DB::table('discount_detail_products')->get();
+        $masterRoutes = DB::table('discount_detail_routes')->get();
 
         Log::info("SyncDiscountsToClients: HUB tiene {$masterDiscounts->count()} descuentos, {$masterDetails->count()} detalles, {$masterProducts->count()} productos");
 

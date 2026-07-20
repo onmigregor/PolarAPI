@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class MasterDiscountDetailProduct extends Model
 {
-    protected $table = 'master_discount_detail_products';
+    protected $table = 'discount_detail_products';
     protected $primaryKey = 'dlp_code';
     public $incrementing = false;
     protected $keyType = 'string';
@@ -50,5 +50,7 @@ class MasterDiscountDetailProduct extends Model
         'dlp_max_discount5',
         'dlp_max_discount6',
         'dlp_global_discount_amount',
+        'source_file',
+        'saved_at',
     ];
 }
