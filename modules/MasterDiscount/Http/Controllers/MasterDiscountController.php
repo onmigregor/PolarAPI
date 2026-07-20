@@ -28,9 +28,10 @@ class MasterDiscountController extends Controller
         $syncResult = $syncAction->execute($payload);
 
         if (!empty($syncResult['errors'])) {
+            $errDetail = is_array($syncResult['errors']) ? implode('; ', $syncResult['errors']) : (string)$syncResult['errors'];
             return response()->json([
                 'success' => false,
-                'message' => 'Error during HUB synchronization',
+                'message' => 'Error durante la sincronización HUB: ' . $errDetail,
                 'errors' => $syncResult['errors'],
             ], 500);
         }

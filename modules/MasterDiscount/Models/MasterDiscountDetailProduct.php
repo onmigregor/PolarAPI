@@ -50,5 +50,7 @@ class MasterDiscountDetailProduct extends Model
         'dlp_max_discount5',
         'dlp_max_discount6',
         'dlp_global_discount_amount',
+        'source_file',
+        'saved_at',
     ];
 }

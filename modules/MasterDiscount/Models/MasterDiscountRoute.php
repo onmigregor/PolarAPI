@@ -11,5 +11,7 @@ class MasterDiscountRoute extends Model
     protected $fillable = [
         'rot_code',
         'dis_code',
+        'source_file',
+        'saved_at',
     ];
 }

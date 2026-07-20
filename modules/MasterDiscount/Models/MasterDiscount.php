@@ -2,10 +2,7 @@
 
 namespace Modules\MasterDiscount\Models;
 
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 class MasterDiscount extends Model
 {
@@ -17,5 +14,10 @@ class MasterDiscount extends Model
     protected $fillable = [
         'dis_code',
         'dis_name',
+        'dis_can_be_disabled',
+        'dis_enabled_value_on',
+        'dis_disable_for_detail',
+        'source_file',
+        'saved_at',
     ];
 }
