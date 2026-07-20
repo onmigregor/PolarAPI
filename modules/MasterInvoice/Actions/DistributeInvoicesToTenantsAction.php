@@ -18,11 +18,13 @@ class DistributeInvoicesToTenantsAction
                 'success' => true,
                 'tenants_processed' => 0,
                 'errors' => [],
+                'procedures' => [],
             ];
         }
 
         $errors = [];
         $successCount = 0;
+        $tenantProcedureDetails = [];
 
         // 1. Agrupar facturas por la columna 'zona_venta' (que contiene el código de la ruta, ej: V1262A)
         $groupedByZone = collect($data)->groupBy('zona_venta');
@@ -220,6 +222,67 @@ class DistributeInvoicesToTenantsAction
                     }
                 }
 
+                // 5. Ejecución Automática de Stored Procedures (Optimizada y Aislada)
+                $procLogs = [];
+                $procSuccess = true;
+
+                // Agrupar facturas por código de ruta y fecha mínima
+                $routesSummary = [];
+                foreach ($groupedByInvoice as $nroFactura => $lines) {
+                    $firstLine = $lines->first();
+                    $rotCode = strtoupper(trim($firstLine['zona_venta'] ?? ''));
+                    $invoiceDate = $this->formatDate($firstLine['fecha_creacion']);
+
+                    if (!empty($rotCode)) {
+                        if (!isset($routesSummary[$rotCode]) || $invoiceDate < $routesSummary[$rotCode]) {
+                            $routesSummary[$rotCode] = $invoiceDate;
+                        }
+                    }
+                }
+
+                foreach ($routesSummary as $rotCode => $minDate) {
+                    try {
+                        // 5a. validar_mov_entrada_inv
+                        $proc1Exists = DB::connection('tenant')->select(
+                            "SELECT ROUTINE_NAME FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA = ? AND ROUTINE_NAME = 'validar_mov_entrada_inv'",
+                            [$dbName]
+                        );
+
+                        if (!empty($proc1Exists)) {
+                            DB::connection('tenant')->statement("CALL validar_mov_entrada_inv(?, ?)", [$rotCode, $minDate]);
+                            $procLogs[] = "Ruta {$rotCode} (Fecha min {$minDate}): validar_mov_entrada_inv OK.";
+                            Log::info("DistributeInvoicesToTenantsAction: Executed validar_mov_entrada_inv('$rotCode', '$minDate') on $dbName.");
+                        } else {
+                            $procLogs[] = "Ruta {$rotCode}: validar_mov_entrada_inv no existe en $dbName.";
+                        }
+
+                        // 5b. corregir_kardex_stock_ruta
+                        $proc2Exists = DB::connection('tenant')->select(
+                            "SELECT ROUTINE_NAME FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA = ? AND ROUTINE_NAME = 'corregir_kardex_stock_ruta'",
+                            [$dbName]
+                        );
+
+                        if (!empty($proc2Exists)) {
+                            DB::connection('tenant')->statement("CALL corregir_kardex_stock_ruta(?)", [$rotCode]);
+                            $procLogs[] = "Ruta {$rotCode}: corregir_kardex_stock_ruta OK.";
+                            Log::info("DistributeInvoicesToTenantsAction: Executed corregir_kardex_stock_ruta('$rotCode') on $dbName.");
+                        } else {
+                            $procLogs[] = "Ruta {$rotCode}: corregir_kardex_stock_ruta no existe en $dbName.";
+                        }
+
+                    } catch (\Exception $procEx) {
+                        $procSuccess = false;
+                        $errStr = $procEx->getMessage();
+                        Log::error("DistributeInvoicesToTenantsAction Procedure Error tenant $dbName, ruta $rotCode: " . $errStr);
+                        $procLogs[] = "Ruta {$rotCode} Error Procedure: " . $errStr;
+                    }
+                }
+
+                $tenantProcedureDetails[$dbName] = [
+                    'success' => $procSuccess,
+                    'logs' => $procLogs,
+                ];
+
                 $successCount++;
                 Log::info("DistributeInvoicesToTenantsAction: Procesado tenant $dbName con " . count($items) . " registros de facturas.");
 
@@ -233,6 +296,7 @@ class DistributeInvoicesToTenantsAction
             'success' => empty($errors),
             'tenants_processed' => $successCount + count($errors),
             'errors' => $errors,
+            'procedures' => $tenantProcedureDetails,
         ];
     }
 
