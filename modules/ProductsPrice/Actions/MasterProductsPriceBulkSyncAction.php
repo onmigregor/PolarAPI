@@ -145,8 +145,16 @@ class MasterProductsPriceBulkSyncAction
             }
         }
 
+        $hasErrors = false;
+        foreach ($results as $dbName => $status) {
+            if (str_starts_with($status, 'Error:')) {
+                $hasErrors = true;
+                break;
+            }
+        }
+
         return [
-            'success' => true,
+            'success' => !$hasErrors,
             'tenants_processed' => count($results),
             'details' => $results
         ];

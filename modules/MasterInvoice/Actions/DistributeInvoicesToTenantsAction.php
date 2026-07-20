@@ -13,7 +13,16 @@ class DistributeInvoicesToTenantsAction
      */
     public function execute(array $data)
     {
-        if (empty($data)) return;
+        if (empty($data)) {
+            return [
+                'success' => true,
+                'tenants_processed' => 0,
+                'errors' => [],
+            ];
+        }
+
+        $errors = [];
+        $successCount = 0;
 
         // 1. Agrupar facturas por la columna 'zona_venta' (que contiene el código de la ruta, ej: V1262A)
         $groupedByZone = collect($data)->groupBy('zona_venta');
@@ -35,7 +44,7 @@ class DistributeInvoicesToTenantsAction
 
             // Reconstruir nombres de base de datos variantes según config
             $dbNameVariant1 = $prefix . 'v' . $cleanZone; // ej: www_v0568ap (si zone ya venía con P)
-            $dbNameVariant2 = $prefix . 'v' . $cleanZoneWithoutP . $suffix; // ej: www_v0568ap
+            $dbNameVariant2 = $prefix . 'v' . $cleanZoneWithoutP . $suffix; // ej: www_v0568ap (si zone venía sin P)
 
             // Buscar la ruta/tenant que corresponda a este código
             $company = DB::table('company_routes')
@@ -211,13 +220,20 @@ class DistributeInvoicesToTenantsAction
                     }
                 }
 
+                $successCount++;
                 Log::info("DistributeInvoicesToTenantsAction: Procesado tenant $dbName con " . count($items) . " registros de facturas.");
 
             } catch (\Exception $e) {
                 Log::error("DistributeInvoicesToTenantsAction Error en tenant $dbName: " . $e->getMessage());
-                // Continuamos con el siguiente tenant
+                $errors[$dbName] = $e->getMessage();
             }
         }
+
+        return [
+            'success' => empty($errors),
+            'tenants_processed' => $successCount + count($errors),
+            'errors' => $errors,
+        ];
     }
 
     private function getProviderInfo($code)
