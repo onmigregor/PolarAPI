@@ -8,9 +8,9 @@ use Modules\CompanyRoute\Models\CompanyRoute;
 
 class ExportAdcConsolidatedAction
 {
-    public function execute(): array
+    public function execute(string $table = 'company_routes'): array
     {
-        $tenants = CompanyRoute::where('is_active', 1)->get();
+        $tenants = CompanyRoute::from($table)->where('is_active', 1)->get();
         $allData = [];
 
         Log::info("Iniciando consolidación de ADC desde " . $tenants->count() . " tenants.");

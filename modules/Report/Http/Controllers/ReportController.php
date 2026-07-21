@@ -21,7 +21,16 @@ class ReportController extends Controller
     ): \Illuminate\Http\JsonResponse {
         try {
             $filters = ExportSalesCsvFilterData::fromRequest($request->validated());
-            $result = $action->execute($filters);
+
+            $ventasDisk = \App\Helpers\ReportRoutesSelector::getSftpDiskForProcess('sales', 'sftp_ventas');
+            $obsqDisk = \App\Helpers\ReportRoutesSelector::getSftpDiskForProcess('obsequios', 'sftp_obsequios');
+            $obsqSapDisk = \App\Helpers\ReportRoutesSelector::getSftpDiskForProcess('obsequios_sap', 'sftp_obsequios');
+
+            $ventasTable = \App\Helpers\ReportRoutesSelector::getTableForProcess('sales');
+            $obsqTable = \App\Helpers\ReportRoutesSelector::getTableForProcess('obsequios');
+            $obsqSapTable = \App\Helpers\ReportRoutesSelector::getTableForProcess('obsequios_sap');
+
+            $result = $action->execute($filters, $ventasDisk, $obsqDisk, $obsqSapDisk, $ventasTable, $obsqTable, $obsqSapTable);
 
             return response()->json([
                 'success' => true,
@@ -45,7 +54,10 @@ class ReportController extends Controller
     public function exportAdcConsolidated(ExportAdcConsolidatedAction $action): \Illuminate\Http\JsonResponse
     {
         try {
-            $rows = $action->execute();
+            $routesTable = \App\Helpers\ReportRoutesSelector::getTableForProcess('adc');
+            $sftpDisk = \App\Helpers\ReportRoutesSelector::getSftpDiskForProcess('adc', 'sftp_obsequios');
+
+            $rows = $action->execute($routesTable);
             
             $headers = [
                 'FQ/REDI',
@@ -86,8 +98,8 @@ class ReportController extends Controller
             } else {
                 $zipFilename = str_replace('.txt', '.zip', $filename);
                 $zipContent = $this->createZipContent($filename, $csvContent);
-                // Usar el disco de obsequios (que apunta a la carpeta /Manual)
-                \Illuminate\Support\Facades\Storage::disk('sftp_obsequios')->put($zipFilename, $zipContent);
+                // Usar el disco SFTP resuelto dinámicamente según .env
+                \Illuminate\Support\Facades\Storage::disk($sftpDisk)->put($zipFilename, $zipContent);
             }
 
             return response()->json([
@@ -117,7 +129,9 @@ class ReportController extends Controller
     public function exportCustomerConsolidated(ExportCustomerConsolidatedAction $action): \Illuminate\Http\JsonResponse
     {
         try {
-            $result = $action->executeAndUpload();
+            $table = \App\Helpers\ReportRoutesSelector::getTableForProcess('customer_consolidated');
+            $disk = \App\Helpers\ReportRoutesSelector::getSftpDiskForProcess('customer_consolidated', 'sftp_obsequios');
+            $result = $action->executeAndUpload($table, $disk);
 
             return response()->json([
                 'success' => true,
@@ -151,7 +165,10 @@ class ReportController extends Controller
                 'end_date' => 'required|date|after_or_equal:start_date',
             ]);
 
-            $result = $action->executeAndUpload($validated['start_date'], $validated['end_date']);
+            $routesTable = \App\Helpers\ReportRoutesSelector::getTableForProcess('clientes');
+            $sftpDisk = \App\Helpers\ReportRoutesSelector::getSftpDiskForProcess('clientes', 'sftp_solicitudes');
+
+            $result = $action->executeAndUpload($validated['start_date'], $validated['end_date'], $routesTable, $sftpDisk);
 
             return response()->json([
                 'success' => true,

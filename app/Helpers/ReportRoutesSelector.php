@@ -18,6 +18,7 @@ class ReportRoutesSelector
             'obsequios_sap' => 'OBSEQUIOS_SAP_REPORT',
             'clientes' => 'CLIENTES_REPORT',
             'customer_consolidated' => 'CUSTOMER_CONSOLIDATED_REPORT',
+            'adc' => 'ADC_REPORT',
         ];
 
         $envKey = $envKeys[$processName] ?? null;
