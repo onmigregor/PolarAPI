@@ -110,21 +110,8 @@ class ExportSalesCsvAction
             $queryBase->where('vd.eliminado', 0)
                 ->where('v.eliminado', 0);
 
-            // EXCLUIR OBSEQUIOS: Si el IdVenta está en la tabla de seguimiento_cajas_promocion, no es una venta normal
-            if (Schema::connection('tenant')->hasTable('seguimiento_cajas_promocion')) {
-                $obsequioIds = DB::connection('tenant')
-                    ->table('seguimiento_cajas_promocion')
-                    ->where('status', 'entregado')
-                    ->pluck('id_venta')
-                    ->filter()
-                    ->toArray();
-                if (!empty($obsequioIds)) {
-                    $queryBase->whereNotIn('v.IdVenta', $obsequioIds);
-                }
-            }
-            
-            $countFiltros = (clone $queryBase)->count();
-            Log::error("      [DETECTIVE] Cliente $routeCode - Tras Filtros Eliminado/Excluir Obsequios: $countFiltros registros.");
+            // NOTA: Se removió la exclusión de IdVenta en seguimiento_cajas_promocion 
+            // para garantizar que la venta original sea reportada en el archivo de ventas y coincida con el obsequio en SAV/SAP.
 
             // PASO 3: Filtro de Fecha
             if ($isRange) {
