@@ -22,11 +22,13 @@ class MasterGeneralController extends Controller
         }
 
         $result = $action->execute($data);
+        $hasErrors = !empty($result['errors']);
+        $isSuccess = !$hasErrors;
 
         return response()->json([
-            'success' => true,
-            'message' => 'Motives synchronization completed',
+            'success' => $isSuccess,
+            'message' => $isSuccess ? 'Sincronización de motivos completada correctamente.' : 'La sincronización de motivos finalizó con errores en uno o varios tenants.',
             'data' => $result,
-        ]);
+        ], $isSuccess ? 200 : 207);
     }
 }

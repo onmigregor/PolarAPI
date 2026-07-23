@@ -21,11 +21,12 @@ class ProductsPriceController extends Controller
         }
 
         $result = $action->execute($data);
+        $isSuccess = $result['success'] ?? false;
 
         return response()->json([
-            'success' => true,
-            'message' => 'Products Price synchronization completed',
+            'success' => $isSuccess,
+            'message' => $isSuccess ? 'Sincronización de precios completada correctamente.' : 'La sincronización de precios finalizó con errores en uno o varios tenants.',
             'data' => $result,
-        ]);
+        ], $isSuccess ? 200 : 207);
     }
 }

@@ -92,11 +92,14 @@ class MasterClientController extends Controller
                 $types1
             );
 
+            $hasErrors = !empty($result['errors']);
+            $isSuccess = !$hasErrors;
+
             return response()->json([
-                'success' => true,
-                'message' => 'Polar Client synchronization completed',
+                'success' => $isSuccess,
+                'message' => $isSuccess ? 'Sincronización de clientes completada correctamente.' : 'La sincronización de clientes finalizó con errores en uno o varios tenants.',
                 'data' => $result,
-            ]);
+            ], $isSuccess ? 200 : 207);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error("Error in syncPolar: " . $e->getMessage() . "\n" . $e->getTraceAsString());
             return response()->json([

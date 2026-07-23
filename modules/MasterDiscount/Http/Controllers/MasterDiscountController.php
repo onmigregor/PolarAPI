@@ -38,14 +38,18 @@ class MasterDiscountController extends Controller
 
         // 2. Distribución: HUB → Tenants
         $pushResult = $pushAction->execute();
+        $hasPushErrors = !empty($pushResult['errors']);
+        $isSuccess = !$hasPushErrors;
 
         return response()->json([
-            'success' => true,
-            'message' => 'Sincronización completa: HUB actualizado y descuentos distribuidos a Tenants.',
+            'success' => $isSuccess,
+            'message' => $isSuccess 
+                ? 'Sincronización completa: HUB actualizado y descuentos distribuidos a Tenants.' 
+                : 'Sincronización con advertencias: HUB actualizado pero ocurrieron errores al distribuir descuentos a algunos Tenants.',
             'data' => [
                 'hub_sync'    => $syncResult,
                 'tenant_push' => $pushResult,
             ],
-        ]);
+        ], $isSuccess ? 200 : 207);
     }
 }

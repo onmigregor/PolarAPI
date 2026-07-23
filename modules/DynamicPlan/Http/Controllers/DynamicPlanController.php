@@ -21,11 +21,13 @@ class DynamicPlanController extends Controller
         }
 
         $result = $action->execute($data);
+        $hasErrors = !empty($result['errors']);
+        $isSuccess = !$hasErrors;
 
         return response()->json([
-            'success' => true,
-            'message' => 'Dynamic plans synchronization completed',
+            'success' => $isSuccess,
+            'message' => $isSuccess ? 'Sincronización de planes dinámicos completada correctamente.' : 'La sincronización de planes dinámicos finalizó con errores en uno o varios tenants.',
             'data' => $result,
-        ]);
+        ], $isSuccess ? 200 : 207);
     }
 }

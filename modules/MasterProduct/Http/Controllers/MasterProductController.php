@@ -21,15 +21,19 @@ class MasterProductController extends Controller
 
             // 2. Empujar los datos enriquecidos (clases, unidades) a todos los Tenants
             $pushResults = $pushAction->execute();
+            $hasErrors = !empty($pushResults['errors']) || !empty($syncResults['errors']);
+            $isSuccess = !$hasErrors;
 
             return response()->json([
-                'success' => true,
-                'message' => 'Sincronización completa: Maestro actualizado y datos distribuidos a Tenants.',
+                'success' => $isSuccess,
+                'message' => $isSuccess 
+                    ? 'Sincronización completa: Maestro actualizado y datos distribuidos a Tenants.' 
+                    : 'Sincronización finalizada con advertencias en algunos tenants.',
                 'results' => [
                     'hub_sync' => $syncResults,
                     'tenant_push' => $pushResults
                 ]
-            ]);
+            ], $isSuccess ? 200 : 207);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
