@@ -21,11 +21,12 @@ class CustomerAdcController extends Controller
         }
 
         $result = $action->execute($data);
+        $isSuccess = $result['success'] ?? false;
 
         return response()->json([
-            'success' => true,
-            'message' => 'Customer ADC synchronization completed',
+            'success' => $isSuccess,
+            'message' => $result['message'] ?? ($isSuccess ? 'Customer ADC synchronization completed' : 'Synchronization completed with errors'),
             'data' => $result,
-        ]);
+        ], $isSuccess ? 200 : 207);
     }
 }

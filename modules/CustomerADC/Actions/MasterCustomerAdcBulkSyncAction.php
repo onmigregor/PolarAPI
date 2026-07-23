@@ -128,7 +128,7 @@ class MasterCustomerAdcBulkSyncAction
 
         Log::info("Equipos ADC agrupados por tenant: " . count($recordsWithTenants) . " tenants encontrados.");
 
-        $results = [];
+        $hasErrors = false;
 
         // 4. Distribuir a cada tenant
         foreach ($recordsWithTenants as $dbName => $records) {
@@ -138,13 +138,15 @@ class MasterCustomerAdcBulkSyncAction
             } catch (\Exception $e) {
                 Log::error("Error sincronizando ADC al tenant {$dbName}: " . $e->getMessage());
                 $results[$dbName] = 'Error: ' . $e->getMessage();
+                $hasErrors = true;
             }
         }
 
         return [
-            'success' => true,
+            'success' => !$hasErrors,
             'tenants_processed' => count($results),
-            'details' => $results
+            'details' => $results,
+            'message' => $hasErrors ? 'La sincronización finalizó con errores en uno o varios tenants.' : 'Sincronización completada correctamente.'
         ];
     }
 
@@ -177,6 +179,22 @@ class MasterCustomerAdcBulkSyncAction
             $columns = array_map(function($col) {
                 return strtolower($col->Field);
             }, $tenantConnection->select("SHOW COLUMNS FROM `adc_polar`"));
+
+            // Si la tabla contiene la columna 'id' (antigua) o 'id_adc' y carece de AUTO_INCREMENT, parcharla
+            if (in_array('id', $columns)) {
+                try {
+                    $tenantConnection->statement("ALTER TABLE `adc_polar` MODIFY COLUMN `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT");
+                } catch (\Throwable $exId) {
+                    Log::warning("Tenant {$dbName}: No se pudo modificar AUTO_INCREMENT en id: " . $exId->getMessage());
+                }
+            }
+            if (in_array('id_adc', $columns)) {
+                try {
+                    $tenantConnection->statement("ALTER TABLE `adc_polar` MODIFY COLUMN `id_adc` int(11) NOT NULL AUTO_INCREMENT");
+                } catch (\Throwable $exIdAdc) {
+                    Log::warning("Tenant {$dbName}: No se pudo modificar AUTO_INCREMENT en id_adc: " . $exIdAdc->getMessage());
+                }
+            }
 
             // Si existe la columna 'serial' (antigua), renombrarla a 'no_serie'
             if (in_array('serial', $columns) && !in_array('no_serie', $columns)) {
