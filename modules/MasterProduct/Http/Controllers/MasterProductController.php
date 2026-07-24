@@ -13,24 +13,30 @@ class MasterProductController extends Controller
 
     public function syncFromAdmin(
         \Modules\MasterProduct\Actions\SyncMasterProductsAction $syncAction,
+        \Modules\MasterProduct\Actions\SyncClientProductsAction $syncClientsAction,
         \Modules\MasterProduct\Actions\SyncMasterToClientsAction $pushAction
     ) {
         try {
-            // 1. Sincronizar desde la BD Maestra al catálogo del Hub
+            // 1. Sincronizar desde la BD Maestra (Admin) al catálogo del Hub
             $syncResults = $syncAction->execute();
 
-            // 2. Empujar los datos enriquecidos (clases, unidades) a todos los Tenants
+            // 2. Traer productos/SKUs activos desde las BDs de los Tenants al Hub
+            $clientResults = $syncClientsAction->execute();
+
+            // 3. Empujar los datos enriquecidos (marcas, clases, unidades) a todos los Tenants
             $pushResults = $pushAction->execute();
-            $hasErrors = !empty($pushResults['errors']) || !empty($syncResults['errors']);
+
+            $hasErrors = !empty($pushResults['errors']) || !empty($syncResults['errors']) || !empty($clientResults['errors']);
             $isSuccess = !$hasErrors;
 
             return response()->json([
                 'success' => $isSuccess,
                 'message' => $isSuccess 
-                    ? 'Sincronización completa: Maestro actualizado y datos distribuidos a Tenants.' 
+                    ? 'Sincronización bidireccional completa: Maestro actualizado, productos de tenants capturados y datos distribuidos.' 
                     : 'Sincronización finalizada con advertencias en algunos tenants.',
                 'results' => [
                     'hub_sync' => $syncResults,
+                    'tenant_pull' => $clientResults,
                     'tenant_push' => $pushResults
                 ]
             ], $isSuccess ? 200 : 207);

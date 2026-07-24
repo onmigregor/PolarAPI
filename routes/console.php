@@ -9,6 +9,34 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 /**
+ * 0a. SANEAMIENTO NOCTURNO DE TABLAS MAESTRAS DEL HUB (03:00 AM)
+ * Escanea master_products, master_product_units y master_products_price_polar para unificar registros
+ * duplicados generados por espacios extras o diferencias de formato, conservando el registro más reciente.
+ * Genera un informe detallado de auditoría en storage/logs/master_fix_duplicates_YYYY-MM-DD.log.
+ */
+Schedule::command('master:fix-duplicates')
+    ->dailyAt('03:00')
+    ->days([1, 2, 3, 4, 5, 6]);
+
+/**
+ * 0b. CONSOLIDACIÓN NOCTURNA DE GRUPOS PARA ANALÍTICA (03:15 AM)
+ * Proceso interno del motor de analítica. Escanea la tabla 'grupos' de los tenants para actualizar 'master_groups'
+ * clasificando el tipo de unidad (Litros vs Kilos). Alimenta las consultas de volumen del Dashboard.
+ */
+Schedule::command('analytics:sync-groups')
+    ->dailyAt('03:15')
+    ->days([1, 2, 3, 4, 5, 6]);
+
+/**
+ * 0c. AUDITORÍA NOCTURNA DE PRODUCTOS SIN GRUPO (03:30 AM)
+ * Proceso de auditoría interna de analítica. Detecta productos activos en los tenants que carecen de grupo asignado
+ * y genera un informe en storage/logs/productos-sin-grupo-YYYY-MM-DD.log para el equipo de calidad.
+ */
+Schedule::command('analytics:audit-groups')
+    ->dailyAt('03:30')
+    ->days([1, 2, 3, 4, 5, 6]);
+
+/**
  * 1. SINCRONIZACIÓN DE CLIENTES OFICIALES POLAR (08:30 AM)
  * Sincroniza la data maestra de clientes proveniente del origen (productosPolarApi) hacia el HUB
  * y asegura la infraestructura de tablas/columnas en las BDs de los tenants (homologación por cep/IdCliente).
