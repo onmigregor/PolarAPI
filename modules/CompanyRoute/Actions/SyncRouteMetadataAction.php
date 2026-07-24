@@ -58,16 +58,36 @@ class SyncRouteMetadataAction
                     if ($metadata) {
                         // Separar Zona de Venta de Dirección 1 (ej: "N016 Ocumare del Tuy")
                         $street1Parts = explode(' ', $metadata->lgn_street1, 2);
-                        $saleZone = $street1Parts[0] ?? '';
-                        $cleanStreet1 = $street1Parts[1] ?? $metadata->lgn_street1;
+                        $saleZone = trim($street1Parts[0] ?? '');
+                        $cleanStreet1 = trim($street1Parts[1] ?? $metadata->lgn_street1);
+                        $subregionCode = trim($metadata->srg_code ?? '');
+
+                        // Garantizar registros en las tablas maestras (master_territories y master_sale_zones)
+                        if (!empty($subregionCode)) {
+                            \Modules\CompanyRoute\Models\MasterTerritory::updateOrCreate(
+                                ['code' => $subregionCode],
+                                ['name' => $subregionCode, 'is_active' => true]
+                            );
+                        }
+
+                        if (!empty($saleZone)) {
+                            \Modules\CompanyRoute\Models\MasterSaleZone::updateOrCreate(
+                                ['code' => $saleZone],
+                                [
+                                    'name' => $saleZone,
+                                    'territory_code' => !empty($subregionCode) ? $subregionCode : null,
+                                    'is_active' => true
+                                ]
+                            );
+                        }
 
                         // Actualizar HUB
                         $route->update([
                             'address_street1' => $cleanStreet1,
                             'address_street2' => $metadata->lgn_street2,
                             'address_street3' => $metadata->lgn_street3,
-                            'subregion_code'  => $metadata->srg_code,
-                            'sale_zone'       => $saleZone,
+                            'subregion_code'  => !empty($subregionCode) ? $subregionCode : null,
+                            'sale_zone'       => !empty($saleZone) ? $saleZone : null,
                         ]);
                         $results['hub_updated']++;
 

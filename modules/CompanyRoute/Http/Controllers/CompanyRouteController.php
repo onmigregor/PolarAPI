@@ -105,4 +105,20 @@ class CompanyRouteController extends Controller
 
         return $this->success($results, 'Synchronization completed successfully');
     }
+
+    public function territories(): JsonResponse
+    {
+        $territories = \Modules\CompanyRoute\Models\MasterTerritory::where('is_active', true)->get();
+        return $this->success($territories, 'Master territories retrieved successfully');
+    }
+
+    public function saleZones(Request $request): JsonResponse
+    {
+        $query = \Modules\CompanyRoute\Models\MasterSaleZone::where('is_active', true);
+        if ($request->has('territory_code')) {
+            $query->where('territory_code', $request->input('territory_code'));
+        }
+        $zones = $query->get();
+        return $this->success($zones, 'Master sale zones retrieved successfully');
+    }
 }
