@@ -87,7 +87,13 @@ class ExportSalesCsvAction
 
             // Buscar clientes planificados PMI para el día correspondiente en el Hub
             $dayColumn = self::DAY_COLUMN_MAP[$startDate->dayOfWeek];
-            $routePrefix = strtoupper($client->route_name ?? '') . '-%';
+            $rawRoute = $client->route_name ?? $client->code ?? '';
+            if (preg_match('/(v\d+a?)/i', $rawRoute, $matches)) {
+                $shortRoute = strtoupper($matches[1]);
+            } else {
+                $shortRoute = strtoupper($rawRoute);
+            }
+            $routePrefix = $shortRoute . '-%';
             $pmiCustomers = DB::table('master_customer_routes')
                 ->where('ctr_contact_person', 'like', $routePrefix)
                 ->where($dayColumn, '1')
@@ -95,6 +101,9 @@ class ExportSalesCsvAction
                 ->pluck('cus_code')
                 ->map(fn($code) => ltrim((string)$code, '0'))
                 ->toArray();
+
+            // Asegurar que exista la columna fecha_envio_sftp en la BD del tenant
+            \App\Helpers\EnsureSftpTrackingColumnsHelper::ensureColumnsForCurrentTenantConnection();
 
             // PASO 1: Join Base (Venta + Detalle + Producto)
             $queryBase = DB::connection('tenant')

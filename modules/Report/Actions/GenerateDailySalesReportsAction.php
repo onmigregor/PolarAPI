@@ -135,6 +135,9 @@ class GenerateDailySalesReportsAction
             $currentDate->addDay();
         }
 
+        // Estampar fecha_envio_sftp en ventaspxc y seguimiento_cajas_promocion
+        $this->stampSftpTransmissionTimestamp($ventasRows, $obsqRows, $ventasTable);
+
         return [
             'files' => $generatedData,
             'total_ventas' => count($ventasRows),
@@ -143,6 +146,61 @@ class GenerateDailySalesReportsAction
             'destination' => $isLocal ? 'Local Storage' : 'SFTP Polar (Zipped)',
             'errors' => $this->salesAction->errors ?? [],
         ];
+    }
+
+    /**
+     * Estampa fecha_envio_sftp = NOW() en ventaspxc y seguimiento_cajas_promocion para todos los registros procesados.
+     */
+    private function stampSftpTransmissionTimestamp(array $ventasRows, array $obsqRows, string $table): void
+    {
+        $now = now();
+
+        $ventasByCep = [];
+        foreach ($ventasRows as $row) {
+            $cep = ltrim((string)($row['fq_redi'] ?? ''), '0');
+            $idVenta = $row['doc_fq_redi'] ?? null;
+            if ($cep && $idVenta) {
+                $ventasByCep[$cep][] = $idVenta;
+            }
+        }
+
+        $obsqByCep = [];
+        foreach ($obsqRows as $row) {
+            $cep = ltrim((string)($row['fq_redi'] ?? ''), '0');
+            $obsqId = $row['obsq_id'] ?? null;
+            if ($cep && $obsqId) {
+                $obsqByCep[$cep][] = $obsqId;
+            }
+        }
+
+        try {
+            $tenantService = app(\Modules\Analytics\Services\TenantConnectionService::class);
+            $clients = $tenantService->resolveClients(null, $table);
+
+            $tenantService->forEachTenant($clients, function ($client) use ($ventasByCep, $obsqByCep, $now) {
+                $cep = ltrim((string)($client->cep ?? ''), '0');
+
+                \App\Helpers\EnsureSftpTrackingColumnsHelper::ensureColumnsForCurrentTenantConnection();
+
+                if (!empty($ventasByCep[$cep])) {
+                    $uniqueSaleIds = array_unique($ventasByCep[$cep]);
+                    DB::connection('tenant')
+                        ->table('ventaspxc')
+                        ->whereIn('IdVenta', $uniqueSaleIds)
+                        ->update(['fecha_envio_sftp' => $now]);
+                }
+
+                if (!empty($obsqByCep[$cep])) {
+                    $uniqueObsqIds = array_unique($obsqByCep[$cep]);
+                    DB::connection('tenant')
+                        ->table('seguimiento_cajas_promocion')
+                        ->whereIn('id', $uniqueObsqIds)
+                        ->update(['fecha_envio_sftp' => $now]);
+                }
+            });
+        } catch (\Throwable $e) {
+            Log::error("Error al estampar fecha_envio_sftp: " . $e->getMessage());
+        }
     }
 
     private function generateCsvContent(array $headers, array $rows): string
