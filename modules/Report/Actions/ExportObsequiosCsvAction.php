@@ -50,6 +50,9 @@ class ExportObsequiosCsvAction
                 return [];
             }
 
+            // Asegurar que exista la columna fecha_envio_sftp en la BD del tenant
+            \App\Helpers\EnsureSftpTrackingColumnsHelper::ensureColumnsForCurrentTenantConnection();
+
             // PASO 1: Join Base (Gifts + Sales + Products)
             $queryBase = DB::connection('tenant')
                 ->table('seguimiento_cajas_promocion as scp')
@@ -73,6 +76,7 @@ class ExportObsequiosCsvAction
 
             $results = $queryBase->leftJoin('clientes as c', 'scp.id_cliente', '=', 'c.IdCliente')
             ->select(
+                'scp.id as obsq_id',
                 'v.IdVenta',
                 'scp.fecha_entrega_cliente as rpt_fecha',
                 'scp.cajas_entregadas as rpt_cantidad',
@@ -96,6 +100,7 @@ class ExportObsequiosCsvAction
                 }
 
                 $tenantRows[] = [
+                    'obsq_id'       => $row->obsq_id,
                     'fq_redi'       => $cep,
                     'cep'           => $clientCep,
                     'fecha'         => Carbon::parse($row->rpt_fecha)->format('d.m.Y'),
