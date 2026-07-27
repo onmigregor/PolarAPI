@@ -10,7 +10,7 @@ class ExportAdcConsolidatedAction
 {
     public function execute(string $table = 'company_routes'): array
     {
-        $tenants = CompanyRoute::from($table)->where('is_active', 1)->get();
+        $tenants = (new CompanyRoute())->setTable($table)->where('is_active', 1)->get();
         $allData = [];
 
         Log::info("Iniciando consolidación de ADC desde " . $tenants->count() . " tenants.");

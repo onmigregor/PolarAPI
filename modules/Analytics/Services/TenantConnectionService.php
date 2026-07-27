@@ -19,10 +19,10 @@ class TenantConnectionService
     public function resolveClients(?ReportFilterData $filters = null, string $routesTable = 'company_routes'): Collection
     {
         if (!$filters) {
-            return CompanyRoute::from($routesTable)->where('is_active', true)->get();
+            return (new CompanyRoute())->setTable($routesTable)->where('is_active', true)->get();
         }
 
-        return CompanyRoute::from($routesTable)->where('is_active', true)
+        return (new CompanyRoute())->setTable($routesTable)->where('is_active', true)
             ->when(!empty($filters->routes), function ($query) use ($filters) {
                 return $query->whereIn('id', $filters->routes);
             })
