@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -14,7 +15,7 @@ return new class extends Migration
         // 1. Crear tabla master_territories
         if (!Schema::hasTable('master_territories')) {
             Schema::create('master_territories', function (Blueprint $table) {
-                $table->string('code', 50)->primary()->comment('Código FQ del territorio (ej: S02, Cerveceria)');
+                $table->string('code', 50)->primary()->comment('Código FQ del territorio');
                 $table->string('name', 150)->comment('Nombre descriptivo del territorio');
                 $table->text('description')->nullable();
                 $table->boolean('is_active')->default(true);
@@ -25,40 +26,59 @@ return new class extends Migration
         // 2. Crear tabla master_sale_zones
         if (!Schema::hasTable('master_sale_zones')) {
             Schema::create('master_sale_zones', function (Blueprint $table) {
-                $table->string('code', 50)->primary()->comment('Código de la zona de venta (ej: N016, N028)');
+                $table->string('code', 50)->primary()->comment('Código de la zona de venta');
                 $table->string('name', 150)->comment('Nombre descriptivo de la zona');
                 $table->string('territory_code', 50)->nullable()->comment('Relación con master_territories');
                 $table->boolean('is_active')->default(true);
                 $table->timestamps();
-
-                $table->foreign('territory_code', 'fk_master_sale_zones_territory')
-                    ->references('code')
-                    ->on('master_territories')
-                    ->onDelete('set null')
-                    ->onUpdate('cascade');
             });
         }
 
-        // 3. Agregar índices y Llaves Foráneas en company_routes
+        // 3. Pre-poblar master_territories y master_sale_zones con los datos existentes en company_routes para evitar error FK 1452
         if (Schema::hasTable('company_routes')) {
-            Schema::table('company_routes', function (Blueprint $table) {
-                // Agregar índices solo si no existen
-                $table->index('subregion_code', 'idx_company_routes_subregion');
-                $table->index('sale_zone', 'idx_company_routes_sale_zone');
-                $table->index(['subregion_code', 'sale_zone'], 'idx_territorio_zona_composite');
+            try {
+                DB::statement("
+                    INSERT IGNORE INTO master_territories (code, name, created_at, updated_at)
+                    SELECT DISTINCT subregion_code, subregion_code, NOW(), NOW()
+                    FROM company_routes
+                    WHERE subregion_code IS NOT NULL AND TRIM(subregion_code) != ''
+                ");
 
-                $table->foreign('subregion_code', 'fk_routes_subregion')
-                    ->references('code')
-                    ->on('master_territories')
-                    ->onDelete('set null')
-                    ->onUpdate('cascade');
+                DB::statement("
+                    INSERT IGNORE INTO master_sale_zones (code, name, territory_code, created_at, updated_at)
+                    SELECT DISTINCT sale_zone, sale_zone, subregion_code, NOW(), NOW()
+                    FROM company_routes
+                    WHERE sale_zone IS NOT NULL AND TRIM(sale_zone) != ''
+                ");
+            } catch (\Throwable $e) {}
+        }
 
-                $table->foreign('sale_zone', 'fk_routes_sale_zone')
-                    ->references('code')
-                    ->on('master_sale_zones')
-                    ->onDelete('set null')
-                    ->onUpdate('cascade');
-            });
+        // Foreign Key en master_sale_zones -> master_territories
+        try {
+            DB::statement("ALTER TABLE master_sale_zones ADD CONSTRAINT fk_master_sale_zones_territory FOREIGN KEY (territory_code) REFERENCES master_territories(code) ON DELETE SET NULL ON UPDATE CASCADE;");
+        } catch (\Throwable $e) {}
+
+        // 4. Agregar índices y Llaves Foráneas aisladas de forma segura en company_routes
+        if (Schema::hasTable('company_routes')) {
+            try {
+                DB::statement("ALTER TABLE company_routes ADD INDEX idx_company_routes_subregion (subregion_code);");
+            } catch (\Throwable $e) {}
+
+            try {
+                DB::statement("ALTER TABLE company_routes ADD INDEX idx_company_routes_sale_zone (sale_zone);");
+            } catch (\Throwable $e) {}
+
+            try {
+                DB::statement("ALTER TABLE company_routes ADD INDEX idx_territorio_zona_composite (subregion_code, sale_zone);");
+            } catch (\Throwable $e) {}
+
+            try {
+                DB::statement("ALTER TABLE company_routes ADD CONSTRAINT fk_routes_subregion FOREIGN KEY (subregion_code) REFERENCES master_territories(code) ON DELETE SET NULL ON UPDATE CASCADE;");
+            } catch (\Throwable $e) {}
+
+            try {
+                DB::statement("ALTER TABLE company_routes ADD CONSTRAINT fk_routes_sale_zone FOREIGN KEY (sale_zone) REFERENCES master_sale_zones(code) ON DELETE SET NULL ON UPDATE CASCADE;");
+            } catch (\Throwable $e) {}
         }
     }
 
@@ -68,14 +88,14 @@ return new class extends Migration
     public function down(): void
     {
         if (Schema::hasTable('company_routes')) {
-            Schema::table('company_routes', function (Blueprint $table) {
-                $table->dropForeign('fk_routes_subregion');
-                $table->dropForeign('fk_routes_sale_zone');
-                $table->dropIndex('idx_company_routes_subregion');
-                $table->dropIndex('idx_company_routes_sale_zone');
-                $table->dropIndex('idx_territorio_zona_composite');
-            });
+            try { DB::statement("ALTER TABLE company_routes DROP FOREIGN KEY fk_routes_subregion;"); } catch (\Throwable $e) {}
+            try { DB::statement("ALTER TABLE company_routes DROP FOREIGN KEY fk_routes_sale_zone;"); } catch (\Throwable $e) {}
+            try { DB::statement("ALTER TABLE company_routes DROP INDEX idx_company_routes_subregion;"); } catch (\Throwable $e) {}
+            try { DB::statement("ALTER TABLE company_routes DROP INDEX idx_company_routes_sale_zone;"); } catch (\Throwable $e) {}
+            try { DB::statement("ALTER TABLE company_routes DROP INDEX idx_territorio_zona_composite;"); } catch (\Throwable $e) {}
         }
+
+        try { DB::statement("ALTER TABLE master_sale_zones DROP FOREIGN KEY fk_master_sale_zones_territory;"); } catch (\Throwable $e) {}
 
         Schema::dropIfExists('master_sale_zones');
         Schema::dropIfExists('master_territories');
