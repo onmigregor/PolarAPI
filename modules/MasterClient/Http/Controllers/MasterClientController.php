@@ -105,4 +105,20 @@ class MasterClientController extends Controller
             ], 500);
         }
     }
+
+    public function export(MasterClientListRequest $request, \Modules\MasterClient\Actions\ExportMasterClientsAction $action): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $format = $request->input('format', 'csv');
+        [$filename, $content, $contentType] = $action->execute($request->validated(), (string)$format);
+
+        return response()->streamDownload(
+            fn () => print($content),
+            $filename,
+            [
+                'Content-Type' => $contentType,
+                'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            ]
+        );
+    }
 }
+

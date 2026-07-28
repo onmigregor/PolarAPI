@@ -9,6 +9,7 @@ use Modules\MasterClient\Http\Controllers\MasterClientController;
 Route::middleware(['internal_key'])->group(function () {
     Route::get('/', [MasterClientController::class, 'index']);
     Route::get('/filters', [MasterClientController::class, 'getFilters']);
+    Route::get('/export', [MasterClientController::class, 'export']);
     Route::post('/sync', [MasterClientController::class, 'sync']);
     Route::post('/sync-polar', [MasterClientController::class, 'syncPolar']);
 });
