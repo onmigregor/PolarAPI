@@ -173,7 +173,7 @@ class GetSalesObsequiosReportAction
             'v.IdCliente',
             'c.Cliente as nombre_cliente',
             'c.RIF',
-            'v.TotalVenta',
+            'v.MontoFactura',
         ];
 
         if ($hasSftpColumn) {
@@ -196,7 +196,7 @@ class GetSalesObsequiosReportAction
                 'id_cliente'        => $row->IdCliente,
                 'nombre_cliente'    => $row->nombre_cliente,
                 'rif'               => $row->RIF,
-                'total_venta'       => $row->TotalVenta,
+                'total_venta'       => $row->MontoFactura,
                 'fecha_envio_sftp'  => $row->fecha_envio_sftp,
             ];
         })->toArray();
