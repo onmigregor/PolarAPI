@@ -189,9 +189,10 @@ class GenerateDailySalesReportsAction
                     if (!empty($ventasByCep[$cep])) {
                         \App\Helpers\EnsureSftpTrackingColumnsHelper::ensureColumnsForCurrentTenantConnection();
                         $uniqueSaleIds = array_unique($ventasByCep[$cep]);
+                        $placeholders = implode(',', array_fill(0, count($uniqueSaleIds), '?'));
                         \Illuminate\Support\Facades\DB::connection('tenant')
                             ->table('ventaspxc')
-                            ->whereIn(\Illuminate\Support\Facades\DB::raw('CAST(IdVenta AS UNSIGNED)'), $uniqueSaleIds)
+                            ->whereRaw("CAST(IdVenta AS UNSIGNED) IN ({$placeholders})", $uniqueSaleIds)
                             ->update(['fecha_envio_sftp' => $now]);
                     }
                 });
