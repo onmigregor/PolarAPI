@@ -206,6 +206,8 @@ class ReportController extends Controller
                 'sftp_start_date',
                 'sftp_end_date',
                 'only_pending',
+                'id_venta',
+                'cliente',
                 'page',
                 'per_page',
             ]);
