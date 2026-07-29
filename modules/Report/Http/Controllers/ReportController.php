@@ -191,6 +191,42 @@ class ReportController extends Controller
     }
 
     /**
+     * Obtener reporte de ventas y obsequios con estado de envío SFTP.
+     * Endpoint de consulta/validación (solo lectura).
+     */
+    public function getSalesObsequiosReport(
+        \Illuminate\Http\Request $request,
+        \Modules\Report\Actions\GetSalesObsequiosReportAction $action
+    ): \Illuminate\Http\JsonResponse {
+        try {
+            $filters = $request->only([
+                'tenant_id',
+                'start_date',
+                'end_date',
+                'sftp_start_date',
+                'sftp_end_date',
+                'only_pending',
+                'page',
+                'per_page',
+            ]);
+
+            $result = $action->execute($filters);
+
+            return response()->json([
+                'success' => true,
+                'data'    => $result,
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Error en reporte ventas/obsequios: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+
+            return response()->json([
+                'success' => false,
+                'message' => "Error al obtener reporte de ventas/obsequios: " . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Crea un archivo ZIP en memoria y retorna su contenido binario.
      */
     private function createZipContent(string $filenameInZip, string $content): string
