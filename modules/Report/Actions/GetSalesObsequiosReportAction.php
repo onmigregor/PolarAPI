@@ -253,7 +253,7 @@ class GetSalesObsequiosReportAction
             'scp.fecha_entrega_cliente as fecha_entrega',
             'scp.cajas_entregadas as cantidad',
             'scp.codigoSKU',
-            'p.descripcion as nombre_producto',
+            DB::raw('COALESCE(p.producto, scp.nombre_producto_obsequio) as nombre_producto'),
             'scp.id_cliente',
             'c.Cliente as nombre_cliente',
             'c.RIF',
