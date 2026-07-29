@@ -95,8 +95,6 @@ class GetSalesObsequiosReportAction
         // Paginación manual sobre los resultados consolidados
         $totalVentas = count($allVentas);
         $totalObsequios = count($allObsequios);
-        $ventasPaginated = array_slice($allVentas, ($page - 1) * $perPage, $perPage);
-        $obsequiosPaginated = array_slice($allObsequios, ($page - 1) * $perPage, $perPage);
 
         return [
             'summary' => [
@@ -106,11 +104,11 @@ class GetSalesObsequiosReportAction
                 'obsequios_pendientes'  => $summaryObsequiosPendientes,
             ],
             'ventas' => [
-                'data'  => $ventasPaginated,
+                'data'  => $allVentas,
                 'total' => $totalVentas,
             ],
             'obsequios' => [
-                'data'  => $obsequiosPaginated,
+                'data'  => $allObsequios,
                 'total' => $totalObsequios,
             ],
             'meta' => [
