@@ -45,11 +45,12 @@ class GetSalesObsequiosReportAction
         $summaryVentasPendientes = 0;
         $summaryObsequiosEnviados = 0;
         $summaryObsequiosPendientes = 0;
+        $summaryObsequiosExcluidos = 0;
 
         $tenantResult = $this->tenantService->forEachTenant($clients, function ($client) use (
             $startDate, $endDate, $sftpStartDate, $sftpEndDate, $onlyPending,
             &$summaryVentasEnviadas, &$summaryVentasPendientes,
-            &$summaryObsequiosEnviados, &$summaryObsequiosPendientes
+            &$summaryObsequiosEnviados, &$summaryObsequiosPendientes, &$summaryObsequiosExcluidos
         ) {
             EnsureSftpTrackingColumnsHelper::ensureColumnsForCurrentTenantConnection();
 
@@ -65,10 +66,12 @@ class GetSalesObsequiosReportAction
                 }
             }
             foreach ($obsequios as $o) {
-                if (!empty($o['fecha_envio_sftp'])) {
+                if ($o['status_envio'] === 'enviado') {
                     $summaryObsequiosEnviados++;
-                } else {
+                } elseif ($o['status_envio'] === 'pendiente') {
                     $summaryObsequiosPendientes++;
+                } else {
+                    $summaryObsequiosExcluidos++;
                 }
             }
 
@@ -102,6 +105,7 @@ class GetSalesObsequiosReportAction
                 'ventas_pendientes'     => $summaryVentasPendientes,
                 'obsequios_enviados'    => $summaryObsequiosEnviados,
                 'obsequios_pendientes'  => $summaryObsequiosPendientes,
+                'obsequios_excluidos'   => $summaryObsequiosExcluidos,
             ],
             'ventas' => [
                 'data'  => $allVentas,
@@ -255,6 +259,9 @@ class GetSalesObsequiosReportAction
             'scp.id_cliente',
             'c.Cliente as nombre_cliente',
             'c.RIF',
+            'v.eliminado as venta_eliminada',
+            'v.IdVenta as venta_id_real',
+            'p.codigoSKU as producto_sku_real',
         ];
 
         if ($hasSftpColumn) {
@@ -269,6 +276,19 @@ class GetSalesObsequiosReportAction
         $tenantId = $client->id;
 
         return $results->map(function ($row) use ($tenantName, $tenantId) {
+            $statusEnvio = 'pendiente';
+            if ($row->fecha_envio_sftp) {
+                $statusEnvio = 'enviado';
+            } else {
+                if (is_null($row->venta_id_real)) {
+                    $statusEnvio = 'venta_inexistente';
+                } elseif ($row->venta_eliminada == 1) {
+                    $statusEnvio = 'venta_eliminada';
+                } elseif (is_null($row->producto_sku_real)) {
+                    $statusEnvio = 'sku_inexistente';
+                }
+            }
+
             return [
                 'tenant_id'         => $tenantId,
                 'tenant_name'       => $tenantName,
@@ -282,6 +302,7 @@ class GetSalesObsequiosReportAction
                 'nombre_cliente'    => $row->nombre_cliente,
                 'rif'               => $row->RIF,
                 'fecha_envio_sftp'  => $row->fecha_envio_sftp,
+                'status_envio'      => $statusEnvio,
             ];
         })->toArray();
     }
