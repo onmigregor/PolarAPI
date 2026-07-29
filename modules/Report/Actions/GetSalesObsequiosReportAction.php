@@ -29,6 +29,8 @@ class GetSalesObsequiosReportAction
         $sftpStartDate  = $filters['sftp_start_date'] ?? null;
         $sftpEndDate    = $filters['sftp_end_date'] ?? null;
         $onlyPending    = filter_var($filters['only_pending'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $idVenta        = $filters['id_venta'] ?? null;
+        $cliente        = $filters['cliente'] ?? null;
         $page           = (int) ($filters['page'] ?? 1);
         $perPage        = min((int) ($filters['per_page'] ?? 50), 200);
 
@@ -48,14 +50,14 @@ class GetSalesObsequiosReportAction
         $summaryObsequiosExcluidos = 0;
 
         $tenantResult = $this->tenantService->forEachTenant($clients, function ($client) use (
-            $startDate, $endDate, $sftpStartDate, $sftpEndDate, $onlyPending,
+            $startDate, $endDate, $sftpStartDate, $sftpEndDate, $onlyPending, $idVenta, $cliente,
             &$summaryVentasEnviadas, &$summaryVentasPendientes,
             &$summaryObsequiosEnviados, &$summaryObsequiosPendientes, &$summaryObsequiosExcluidos
         ) {
             EnsureSftpTrackingColumnsHelper::ensureColumnsForCurrentTenantConnection();
 
-            $ventas = $this->queryVentas($client, $startDate, $endDate, $sftpStartDate, $sftpEndDate, $onlyPending);
-            $obsequios = $this->queryObsequios($client, $startDate, $endDate, $sftpStartDate, $sftpEndDate, $onlyPending);
+            $ventas = $this->queryVentas($client, $startDate, $endDate, $sftpStartDate, $sftpEndDate, $onlyPending, $idVenta, $cliente);
+            $obsequios = $this->queryObsequios($client, $startDate, $endDate, $sftpStartDate, $sftpEndDate, $onlyPending, $idVenta, $cliente);
 
             // Acumular contadores de summary
             foreach ($ventas as $v) {
@@ -128,7 +130,8 @@ class GetSalesObsequiosReportAction
      */
     private function queryVentas(
         $client, ?string $startDate, ?string $endDate,
-        ?string $sftpStartDate, ?string $sftpEndDate, bool $onlyPending
+        ?string $sftpStartDate, ?string $sftpEndDate, bool $onlyPending,
+        ?string $idVenta = null, ?string $cliente = null
     ): array {
         if (!Schema::connection('tenant')->hasTable('ventaspxc')) {
             return [];
@@ -140,6 +143,18 @@ class GetSalesObsequiosReportAction
             ->table('ventaspxc as v')
             ->leftJoin('clientes as c', 'v.IdCliente', '=', 'c.IdCliente')
             ->where('v.eliminado', 0);
+
+        if ($idVenta) {
+            $query->where('v.IdVenta', 'like', "%{$idVenta}%");
+        }
+
+        if ($cliente) {
+            $query->where(function ($q) use ($cliente) {
+                $q->where('c.Cliente', 'like', "%{$cliente}%")
+                  ->orWhere('v.IdCliente', 'like', "%{$cliente}%")
+                  ->orWhere('c.RIF', 'like', "%{$cliente}%");
+            });
+        }
 
         // Filtro de fecha de operación
         if ($startDate && $endDate) {
@@ -209,7 +224,8 @@ class GetSalesObsequiosReportAction
      */
     private function queryObsequios(
         $client, ?string $startDate, ?string $endDate,
-        ?string $sftpStartDate, ?string $sftpEndDate, bool $onlyPending
+        ?string $sftpStartDate, ?string $sftpEndDate, bool $onlyPending,
+        ?string $idVenta = null, ?string $cliente = null
     ): array {
         if (!Schema::connection('tenant')->hasTable('seguimiento_cajas_promocion')) {
             return [];
@@ -223,6 +239,18 @@ class GetSalesObsequiosReportAction
             ->leftJoin('productos as p', 'scp.codigoSKU', '=', 'p.codigoSKU')
             ->leftJoin('clientes as c', 'scp.id_cliente', '=', 'c.IdCliente')
             ->where('scp.status', 'entregado');
+
+        if ($idVenta) {
+            $query->where('scp.id_venta', 'like', "%{$idVenta}%");
+        }
+
+        if ($cliente) {
+            $query->where(function ($q) use ($cliente) {
+                $q->where('c.Cliente', 'like', "%{$cliente}%")
+                  ->orWhere('scp.id_cliente', 'like', "%{$cliente}%")
+                  ->orWhere('c.RIF', 'like', "%{$cliente}%");
+            });
+        }
 
         // Filtro de fecha de operación (fecha de entrega del obsequio)
         if ($startDate && $endDate) {
