@@ -11,6 +11,7 @@ Route::middleware(['internal_key'])->prefix('reports')->group(function () {
     Route::post('/export-ep-requests-csv', [ReportController::class, 'exportEpRequestsCsv']);
 
     Route::get('/sales-obsequios', [ReportController::class, 'getSalesObsequiosReport']);
+    Route::get('/sales-obsequios/export', [ReportController::class, 'exportSalesObsequiosZip']);
 
     Route::get('/bulk-import-logs', [BulkImportLogApiController::class, 'index']);
     Route::post('/bulk-import-logs/{id}/retry-procedures', [BulkImportLogApiController::class, 'retryProcedures']);

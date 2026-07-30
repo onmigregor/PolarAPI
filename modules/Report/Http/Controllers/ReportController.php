@@ -218,6 +218,33 @@ class ReportController extends Controller
     }
 
     /**
+     * Exportar reporte filtrado de ventas y obsequios comprimido en un archivo ZIP.
+     */
+    public function exportSalesObsequiosZip(
+        \Modules\Report\Http\Requests\SalesObsequiosReportRequest $request,
+        \Modules\Report\Actions\ExportFilteredReportAction $action
+    ) {
+        try {
+            $filters = $request->validated();
+            $format = $request->input('format', 'csv');
+
+            $zipPath = $action->execute($filters, $format);
+
+            $filename = "reporte_ventas_obsequios_" . now()->format('Ymd_His') . ".zip";
+
+            return response()->download($zipPath, $filename)->deleteFileAfterSend(true);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Error al exportar reporte ZIP ventas/obsequios: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+
+            return response()->json([
+                'success' => false,
+                'message' => "Error al exportar reporte ZIP: " . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Crea un archivo ZIP en memoria y retorna su contenido binario.
      */
     private function createZipContent(string $filenameInZip, string $content): string
