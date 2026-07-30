@@ -48,49 +48,51 @@ class SyncMasterProductsToTenantsAction
             $toInsert = [];
             $now = date('Y-m-d');
 
+            $legacyDefaults = [
+                'ruta' => $routeName,
+                'descripcion1' => '',
+                'descripcion2' => '',
+                'imagen' => 'no-image.png',
+                'grupo' => 6,
+                'er' => 0,
+                'categoria' => 'POMAR',
+                'tipo' => 'PRODUCTO',
+                'unidadesporcaja' => 1,
+                'stock' => 0,
+                'stock_min' => 0,
+                'presentacion' => '',
+                'litros' => '',
+                'gl' => '',
+                'tKGML' => 0,
+                'KGML' => 0,
+                'precioventa' => 0,
+                'precioventabs' => 0,
+                'porcentajesugerido' => 0,
+                'sugeridoventa' => 0,
+                'preciocompra' => 0,
+                'montoganancia' => 0,
+                'porcentajeganancia' => 0,
+                'fechaprecio' => $now,
+                'baseimponible' => 0,
+                'iva' => 0,
+                'excento_iva' => 0,
+                'grupo_precio' => 'GENERAL',
+                'producto_destacado' => 0,
+                'producto_destacado2' => 0,
+                'producto_en_promocion' => 0,
+                'producto_activo' => 1,
+                'textvoice' => '',
+                'graficar' => 0,
+            ];
+
             foreach ($masterProducts as $product) {
                 $sku = $product->sku;
 
-                $fullData = [
-                    'codigoSKU' => $sku,
+                // Solo los campos dinámicos provenientes del catálogo maestro que deben actualizarse
+                $syncData = [
                     'producto' => $product->name,
-                    'ruta' => $routeName,
-                    'descripcion1' => '',
-                    'descripcion2' => '',
-                    'imagen' => 'no-image.png',
-                    'grupo' => 6,
-                    'er' => 0,
-                    'categoria' => 'POMAR',
-                    'tipo' => 'PRODUCTO',
-                    'unidadesporcaja' => 1,
-                    'stock' => 0,
-                    'stock_min' => 0,
-                    'presentacion' => '',
-                    'litros' => '',
-                    'gl' => '',
-                    'tKGML' => 0,
-                    'KGML' => 0,
-                    'precioventa' => 0,
-                    'precioventabs' => 0,
-                    'porcentajesugerido' => 0,
-                    'sugeridoventa' => 0,
-                    'preciocompra' => 0,
-                    'montoganancia' => 0,
-                    'porcentajeganancia' => 0,
-                    'fechaprecio' => $now,
-                    'baseimponible' => 0,
-                    'iva' => 0,
-                    'excento_iva' => 0,
-                    'grupo_precio' => 'GENERAL',
-                    'producto_destacado' => 0,
-                    'producto_destacado2' => 0,
-                    'producto_en_promocion' => 0,
-                    'producto_activo' => 1,
                     'marca' => $product->brand ?? 'POMAR',
                     'codigobarras' => $product->barcode ?? '',
-                    'textvoice' => '',
-                    'graficar' => 0,
-                    // Campos adicionales de los módulos nuevos (si existen en la tabla)
                     'familia' => $product->cl1_code ?? '',
                     'segmento' => $product->cl4_code ?? '',
                     'unt_code' => $product->unt_code ?? '',
@@ -107,18 +109,20 @@ class SyncMasterProductsToTenantsAction
                     'procustomerinventoryallowed' => $product->pro_customer_inventory_allowed ? 1 : 0,
                 ];
 
-                // Filtrar solo las columnas que realmente existen en el Tenant
-                $data = array_intersect_key($fullData, array_flip($tableColumns));
-
                 if ($existingProducts->has($sku)) {
-                    // Si ya existe, actualizamos sus metadatos y clases
+                    // UPDATE: Filtrar solo las columnas reales existentes y que están en syncData
+                    $updateData = array_intersect_key($syncData, array_flip($tableColumns));
+
                     DB::connection('tenant')->table('productos')
                         ->where('codigoSKU', $sku)
-                        ->update($data);
+                        ->update($updateData);
                     $summary['updated']++;
                 } else {
-                    // Si no existe, lo preparamos para inserción masiva
-                    $toInsert[] = $data;
+                    // INSERT: Combinar legacy defaults, datos maestros y el código SKU
+                    $insertData = array_merge($legacyDefaults, $syncData, ['codigoSKU' => $sku]);
+                    $filteredInsertData = array_intersect_key($insertData, array_flip($tableColumns));
+
+                    $toInsert[] = $filteredInsertData;
                 }
             }
 
