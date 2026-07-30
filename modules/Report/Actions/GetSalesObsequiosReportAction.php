@@ -156,13 +156,17 @@ class GetSalesObsequiosReportAction
             });
         }
 
-        // Filtro de fecha de operación
+        // Filtro de fecha de operación (con corte a las 08:00 p.m.)
         if ($startDate && $endDate) {
-            $query->whereBetween('v.Fecha', [$startDate . ' 00:00:00', $endDate . ' 23:59:59']);
+            $realStart = \Carbon\Carbon::parse($startDate)->subDay()->format('Y-m-d') . ' 20:00:00';
+            $realEnd = $endDate . ' 19:59:59';
+            $query->whereBetween('v.Fecha', [$realStart, $realEnd]);
         } elseif ($startDate) {
-            $query->whereDate('v.Fecha', '>=', $startDate);
+            $realStart = \Carbon\Carbon::parse($startDate)->subDay()->format('Y-m-d') . ' 20:00:00';
+            $query->where('v.Fecha', '>=', $realStart);
         } elseif ($endDate) {
-            $query->whereDate('v.Fecha', '<=', $endDate);
+            $realEnd = $endDate . ' 19:59:59';
+            $query->where('v.Fecha', '<=', $realEnd);
         }
 
         if ($hasSftpColumn) {
@@ -209,7 +213,7 @@ class GetSalesObsequiosReportAction
                 'tenant_id'         => $tenantId,
                 'tenant_name'       => $tenantName,
                 'id_venta'          => $row->IdVenta,
-                'fecha_venta'       => $row->fecha_venta,
+                'fecha_venta'       => $row->fecha_venta ? \Carbon\Carbon::parse($row->fecha_venta)->addHours(4)->toDateTimeString() : null,
                 'id_cliente'        => $row->IdCliente,
                 'nombre_cliente'    => $row->nombre_cliente,
                 'rif'               => $row->RIF,
@@ -252,13 +256,17 @@ class GetSalesObsequiosReportAction
             });
         }
 
-        // Filtro de fecha de operación (fecha de entrega del obsequio)
+        // Filtro de fecha de operación con corte a las 08:00 p.m.
         if ($startDate && $endDate) {
-            $query->whereBetween('scp.fecha_entrega_cliente', [$startDate . ' 00:00:00', $endDate . ' 23:59:59']);
+            $realStart = \Carbon\Carbon::parse($startDate)->subDay()->format('Y-m-d') . ' 20:00:00';
+            $realEnd = $endDate . ' 19:59:59';
+            $query->whereBetween('scp.fecha_entrega_cliente', [$realStart, $realEnd]);
         } elseif ($startDate) {
-            $query->whereDate('scp.fecha_entrega_cliente', '>=', $startDate);
+            $realStart = \Carbon\Carbon::parse($startDate)->subDay()->format('Y-m-d') . ' 20:00:00';
+            $query->where('scp.fecha_entrega_cliente', '>=', $realStart);
         } elseif ($endDate) {
-            $query->whereDate('scp.fecha_entrega_cliente', '<=', $endDate);
+            $realEnd = $endDate . ' 19:59:59';
+            $query->where('scp.fecha_entrega_cliente', '<=', $realEnd);
         }
 
         if ($hasSftpColumn) {
@@ -322,7 +330,7 @@ class GetSalesObsequiosReportAction
                 'tenant_name'       => $tenantName,
                 'obsq_id'           => $row->obsq_id,
                 'id_venta'          => $row->id_venta,
-                'fecha_entrega'     => $row->fecha_entrega,
+                'fecha_entrega'     => $row->fecha_entrega ? \Carbon\Carbon::parse($row->fecha_entrega)->addHours(4)->toDateTimeString() : null,
                 'cantidad'          => $row->cantidad,
                 'codigo_sku'        => $row->codigoSKU,
                 'nombre_producto'   => $row->nombre_producto,
