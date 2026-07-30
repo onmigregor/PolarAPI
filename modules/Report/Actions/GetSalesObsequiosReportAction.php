@@ -11,6 +11,8 @@ use App\Helpers\EnsureSftpTrackingColumnsHelper;
 
 class GetSalesObsequiosReportAction
 {
+    public const DOCUMENT_TYPE_RETENCION = 'RETENCION';
+
     public function __construct(
         private TenantConnectionService $tenantService
     ) {}
@@ -142,7 +144,11 @@ class GetSalesObsequiosReportAction
         $query = DB::connection('tenant')
             ->table('ventaspxc as v')
             ->leftJoin('clientes as c', 'v.IdCliente', '=', 'c.IdCliente')
-            ->where('v.eliminado', 0);
+            ->where('v.eliminado', 0)
+            ->whereNot(function ($q) {
+                $q->where('v.tipodocumento', self::DOCUMENT_TYPE_RETENCION)
+                  ->where('v.retencion', 1);
+            });
 
         if ($idVenta) {
             $query->where('v.IdVenta', 'like', "%{$idVenta}%");

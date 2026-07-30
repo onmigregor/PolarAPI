@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Schema;
 
 class ExportSalesCsvAction
 {
+    public const DOCUMENT_TYPE_RETENCION = 'RETENCION';
+
     /**
      * Mapa de días de la semana en español (Carbon: 0=Sunday ... 6=Saturday).
      */
@@ -117,7 +119,11 @@ class ExportSalesCsvAction
 
             // PASO 2: Filtros de Eliminado y Texto (Eliminados filtros de texto OBS por solicitud)
             $queryBase->where('vd.eliminado', 0)
-                ->where('v.eliminado', 0);
+                ->where('v.eliminado', 0)
+                ->whereNot(function ($q) {
+                    $q->where('v.tipodocumento', self::DOCUMENT_TYPE_RETENCION)
+                      ->where('v.retencion', 1);
+                });
 
             // NOTA: Se removió la exclusión de IdVenta en seguimiento_cajas_promocion 
             // para garantizar que la venta original sea reportada en el archivo de ventas y coincida con el obsequio en SAV/SAP.
