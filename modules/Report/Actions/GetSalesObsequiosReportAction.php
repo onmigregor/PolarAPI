@@ -195,6 +195,7 @@ class GetSalesObsequiosReportAction
             'c.Cliente as nombre_cliente',
             'c.RIF',
             'v.MontoFactura',
+            DB::raw('(SELECT COUNT(*) FROM ventas_detalle WHERE IdVenta = v.IdVenta AND eliminado = 0) as total_detalles')
         ];
 
         if ($hasSftpColumn) {
@@ -209,6 +210,8 @@ class GetSalesObsequiosReportAction
         $tenantId = $client->id;
 
         return $results->map(function ($row) use ($tenantName, $tenantId) {
+            $statusEnvio = \Modules\Report\Helpers\SaleIntegrityHelper::determineStatus($row);
+
             return [
                 'tenant_id'         => $tenantId,
                 'tenant_name'       => $tenantName,
@@ -219,6 +222,7 @@ class GetSalesObsequiosReportAction
                 'rif'               => $row->RIF,
                 'total_venta'       => $row->MontoFactura,
                 'fecha_envio_sftp'  => $row->fecha_envio_sftp,
+                'status_envio'      => $statusEnvio,
             ];
         })->toArray();
     }

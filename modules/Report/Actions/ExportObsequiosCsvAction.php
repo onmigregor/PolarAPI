@@ -64,12 +64,19 @@ class ExportObsequiosCsvAction
             $countBase = (clone $queryBase)->count();
             Log::error("      [DETECTIVE-OBS] Cliente $routeCode - Join Base: $countBase registros.");
 
-            // PASO 3: Filtro de Fecha
-            if ($isRange) {
-                $queryBase->whereBetween('scp.fecha_entrega_cliente', [$filters->start_date . ' 00:00:00', $filters->end_date . ' 23:59:59']);
-            } else {
-                $queryBase->whereDate('scp.fecha_entrega_cliente', $filters->start_date);
-            }
+            // PASO 3: Filtro de Fecha + Obsequios Rezagados/Pendientes (Desde el 20-07-2026)
+            $queryBase->where(function ($q) use ($filters, $isRange) {
+                if ($isRange) {
+                    $q->whereBetween('scp.fecha_entrega_cliente', [$filters->start_date . ' 00:00:00', $filters->end_date . ' 23:59:59']);
+                } else {
+                    $q->whereDate('scp.fecha_entrega_cliente', $filters->start_date);
+                }
+
+                $q->orWhere(function ($sub) {
+                    $sub->whereNull('scp.fecha_envio_sftp')
+                        ->where('scp.fecha_entrega_cliente', '>=', '2026-07-20 00:00:00');
+                });
+            });
 
             $countFinal = (clone $queryBase)->count();
             Log::error("      [DETECTIVE-OBS] Cliente $routeCode - TRAS FILTRO FECHA: $countFinal registros.");

@@ -122,12 +122,19 @@ class ExportSalesCsvAction
             // NOTA: Se removió la exclusión de IdVenta en seguimiento_cajas_promocion 
             // para garantizar que la venta original sea reportada en el archivo de ventas y coincida con el obsequio en SAV/SAP.
 
-            // PASO 3: Filtro de Fecha
-            if ($isRange) {
-                $queryBase->whereBetween('v.Fecha', [$filters->start_date . ' 00:00:00', $filters->end_date . ' 23:59:59']);
-            } else {
-                $queryBase->whereDate('v.Fecha', $filters->start_date);
-            }
+            // PASO 3: Filtro de Fecha + Ventas Rezagadas/Pendientes (Desde el 20-07-2026)
+            $queryBase->where(function ($q) use ($filters, $isRange) {
+                if ($isRange) {
+                    $q->whereBetween('v.Fecha', [$filters->start_date . ' 00:00:00', $filters->end_date . ' 23:59:59']);
+                } else {
+                    $q->whereDate('v.Fecha', $filters->start_date);
+                }
+
+                $q->orWhere(function ($sub) {
+                    $sub->whereNull('v.fecha_envio_sftp')
+                        ->where('v.Fecha', '>=', '2026-07-20');
+                });
+            });
 
             $countFinal = (clone $queryBase)->count();
             Log::error("      [DETECTIVE] Cliente $routeCode - TRAS FILTRO FECHA: $countFinal registros.");

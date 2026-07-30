@@ -74,12 +74,19 @@ class ExportObsequiosSapAction
                 ->where('v.eliminado', 0)
                 ->where('scp.status', 'entregado');
 
-            // Filtro de fecha
-            if ($isRange) {
-                $queryBase->whereBetween('scp.fecha_entrega_cliente', [$filters->start_date . ' 00:00:00', $filters->end_date . ' 23:59:59']);
-            } else {
-                $queryBase->whereDate('scp.fecha_entrega_cliente', $filters->start_date);
-            }
+            // Filtro de fecha + Obsequios Rezagados/Pendientes (Desde el 20-07-2026)
+            $queryBase->where(function ($q) use ($filters, $isRange) {
+                if ($isRange) {
+                    $q->whereBetween('scp.fecha_entrega_cliente', [$filters->start_date . ' 00:00:00', $filters->end_date . ' 23:59:59']);
+                } else {
+                    $q->whereDate('scp.fecha_entrega_cliente', $filters->start_date);
+                }
+
+                $q->orWhere(function ($sub) {
+                    $sub->whereNull('scp.fecha_envio_sftp')
+                        ->where('scp.fecha_entrega_cliente', '>=', '2026-07-20 00:00:00');
+                });
+            });
 
             $results = $queryBase->select(
                 'scp.fecha_entrega_cliente as rpt_fecha',
