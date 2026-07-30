@@ -195,22 +195,11 @@ class ReportController extends Controller
      * Endpoint de consulta/validación (solo lectura).
      */
     public function getSalesObsequiosReport(
-        \Illuminate\Http\Request $request,
+        \Modules\Report\Http\Requests\SalesObsequiosReportRequest $request,
         \Modules\Report\Actions\GetSalesObsequiosReportAction $action
     ): \Illuminate\Http\JsonResponse {
         try {
-            $filters = $request->only([
-                'tenant_id',
-                'start_date',
-                'end_date',
-                'sftp_start_date',
-                'sftp_end_date',
-                'only_pending',
-                'id_venta',
-                'cliente',
-                'page',
-                'per_page',
-            ]);
+            $filters = $request->validated();
 
             $result = $action->execute($filters);
 
