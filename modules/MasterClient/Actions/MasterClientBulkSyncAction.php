@@ -534,7 +534,7 @@ class MasterClientBulkSyncAction
                                         ->update([
                                             'Activo' => 0,
                                             'status' => 'Inactivo',
-                                            'Ruta' => $oldClient->Ruta . '-INACTIVO'
+                                            'Ruta' => 'ELIMINADO'
                                         ]);
                                     Log::info("MasterClientBulkSyncAction: Deactivated customer {$clientData['cep']} in old tenant database {$otherRoute->db_name} because they migrated to {$dbName}");
                                 }
