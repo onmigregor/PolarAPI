@@ -460,6 +460,22 @@ class MasterClientBulkSyncAction
 
                 foreach ($clients as $clientData) {
                     try {
+                        // A. Preservar estado de desactivación local para evitar reactivaciones forzadas
+                        $existingLocalClient = \Illuminate\Support\Facades\DB::connection('tenant')
+                            ->table('clientes')
+                            ->where('cep', $clientData['cep'])
+                            ->orWhere(function ($q) use ($clientData) {
+                                if (!empty($clientData['RIF'])) {
+                                    $q->where('RIF', $clientData['RIF']);
+                                }
+                            })
+                            ->first();
+
+                        if ($existingLocalClient && isset($existingLocalClient->Activo) && (int)$existingLocalClient->Activo === 0) {
+                            $clientData['Activo'] = 0;
+                            $clientData['status'] = $existingLocalClient->status ?? 'Inactivo';
+                        }
+
                         $updated = false;
                         if (!empty($clientData['RIF'])) {
                             // Buscar si existe un cliente local con el mismo RIF y sin código CEP
@@ -493,6 +509,42 @@ class MasterClientBulkSyncAction
                         // Marcar como registrado en tenant en la tabla maestra
                         MasterClientPolar::where('cus_code', $clientData['cep'])
                             ->update(['registered_at_tenant' => now()]);
+
+                        // B. Desactivar cliente en el tenant viejo tras cambio de ruta exitoso
+                        $otherRoutes = CompanyRoute::where('is_active', true)
+                            ->where('db_name', '!=', $dbName)
+                            ->get();
+
+                        foreach ($otherRoutes as $otherRoute) {
+                            if (empty($otherRoute->db_name)) continue;
+                            try {
+                                \Illuminate\Support\Facades\Config::set('database.connections.tenant_old', \Illuminate\Support\Facades\Config::get('database.connections.tenant'));
+                                \Illuminate\Support\Facades\Config::set('database.connections.tenant_old.database', $otherRoute->db_name);
+                                \Illuminate\Support\Facades\DB::purge('tenant_old');
+
+                                $oldClient = \Illuminate\Support\Facades\DB::connection('tenant_old')
+                                    ->table('clientes')
+                                    ->where('cep', $clientData['cep'])
+                                    ->first();
+
+                                if ($oldClient && isset($oldClient->Activo) && (int)$oldClient->Activo !== 0) {
+                                    \Illuminate\Support\Facades\DB::connection('tenant_old')
+                                        ->table('clientes')
+                                        ->where('cep', $clientData['cep'])
+                                        ->update([
+                                            'Activo' => 0,
+                                            'status' => 'Inactivo',
+                                            'Ruta' => $oldClient->Ruta . '-INACTIVO'
+                                        ]);
+                                    Log::info("MasterClientBulkSyncAction: Deactivated customer {$clientData['cep']} in old tenant database {$otherRoute->db_name} because they migrated to {$dbName}");
+                                }
+                            } catch (\Exception $eOld) {
+                                Log::warning("MasterClientBulkSyncAction: Error checking/deactivating client {$clientData['cep']} in old tenant {$otherRoute->db_name}: " . $eOld->getMessage());
+                            } finally {
+                                \Illuminate\Support\Facades\DB::disconnect('tenant_old');
+                            }
+                        }
+
                     } catch (\Exception $e) {
                         Log::error("Error pushing client {$clientData['cep']} to tenant {$dbName}: " . $e->getMessage());
                         $results['errors'][] = "Client {$clientData['cep']} in Tenant {$dbName}: " . $e->getMessage();
