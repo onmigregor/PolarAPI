@@ -242,6 +242,16 @@ class MasterCustomerAdcBulkSyncAction
             // Asegurar que imagen y ubicacion_imagen tengan default ''
             $tenantConnection->statement("ALTER TABLE `adc_polar` MODIFY COLUMN `imagen` varchar(100) NOT NULL DEFAULT ''");
             $tenantConnection->statement("ALTER TABLE `adc_polar` MODIFY COLUMN `ubicacion_imagen` varchar(255) NOT NULL DEFAULT ''");
+
+            // Asegurar índice UNIQUE en no_serie si no existe
+            $indexes = array_map(function($idx) {
+                return strtolower($idx->Key_name);
+            }, $tenantConnection->select("SHOW INDEX FROM `adc_polar`"));
+
+            if (!in_array('idx_no_serie', $indexes) && !in_array('adc_polar_no_serie_unique', $indexes)) {
+                Log::info("MasterCustomerAdcBulkSyncAction: Adding missing UNIQUE KEY idx_no_serie to table adc_polar in tenant {$dbName}");
+                $tenantConnection->statement("ALTER TABLE `adc_polar` ADD UNIQUE KEY `idx_no_serie` (`no_serie`)");
+            }
         } catch (\Exception $e) {
             Log::warning("Tenant {$dbName}: Error al migrar/verificar tabla adc_polar: " . $e->getMessage());
         }
