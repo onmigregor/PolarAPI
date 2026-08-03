@@ -3,10 +3,15 @@
 # Exit on error
 set -e
 
-# Copy .env-main to .env if .env doesn't exist
-if [ ! -f ".env" ] && [ -f ".env-main" ]; then
-    echo "Creating .env from .env-main..."
-    cp .env-main .env
+# Copy .env-qa or .env-main to .env if .env doesn't exist
+if [ ! -f ".env" ]; then
+    if [ -f ".env-qa" ]; then
+        echo "Creating .env from .env-qa..."
+        cp .env-qa .env
+    elif [ -f ".env-main" ]; then
+        echo "Creating .env from .env-main..."
+        cp .env-main .env
+    fi
 fi
 
 # Run composer install if the vendor directory doesn't exist

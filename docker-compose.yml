@@ -3,14 +3,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: polar-api
-    container_name: polar_api
+    image: qa-polar-api
+    container_name: qa-polar_api
     restart: unless-stopped
     tty: true
     environment:
       SERVICE_NAME: app
       APP_SERVICE: app
-      DB_HOST: mysql-8.0
+      DB_HOST: qa-mysql-8.0
       DB_DATABASE: polar_api
       DB_USERNAME: netred_docker
       DB_PASSWORD: netred_docker
@@ -21,7 +21,7 @@ services:
       - "8092:80"
     extra_hosts:
       - "host.docker.internal:host-gateway"
-      - "api.polar.localhost:host-gateway"
+      - "api-qa.polar.localhost:host-gateway"
     networks:
       - polar_network
       - appnet

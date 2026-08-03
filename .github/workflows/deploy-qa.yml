@@ -1,0 +1,72 @@
+name: Deploy PolarAPI to QA Server
+
+on:
+  push:
+    branches:
+      - qa  # Se activará cuando subas cambios a la rama qa
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ejecutar comandos de despliegue en el VPS de QA via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.QA_SSH_HOST }}
+          username: ${{ secrets.QA_SSH_USER }}
+          password: ${{ secrets.QA_SSH_PASSWORD }}
+          port: ${{ secrets.QA_SSH_PORT || 22 }}
+          script: |
+            set -e # Salir inmediatamente si algún comando devuelve un código de error
+
+            # 1. Crear carpeta de código de QA en el servidor
+            mkdir -p /home/apimet_source-qa
+            cd /home/apimet_source-qa
+
+            # 2. Clonar o actualizar el repositorio de la API
+            if [ ! -d ".git" ]; then
+              git clone https://github.com/onmigregor/PolarAPI.git .
+              git checkout qa
+            else
+              git fetch origin qa
+              git checkout qa
+              git pull origin qa
+            fi
+
+            # 3. Copiar .env-qa a .env
+            if [ -f ".env-qa" ]; then
+              cp .env-qa .env
+            fi
+
+            # 4. Levantar / reconstruir el contenedor Docker de QA
+            echo "Levantando contenedor qa-polar_api..."
+            docker compose up -d --build app
+
+            # Corregir permisos de almacenamiento y caché para el servidor web (www-data)
+            echo "Corrigiendo permisos de storage y bootstrap/cache..."
+            docker exec -u root -t qa-polar_api chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+            docker exec -u root -t qa-polar_api chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+
+            # Borrar archivos de caché de bootstrap obsoletos
+            echo "Eliminando caché de bootstrap obsoleta..."
+            docker exec -u root -t qa-polar_api rm -f /var/www/html/bootstrap/cache/packages.php /var/www/html/bootstrap/cache/services.php /var/www/html/bootstrap/cache/config.php
+
+            # 5. Ejecutar optimizaciones y comandos de Laravel dentro de Docker
+            echo "Instalando dependencias de Composer..."
+            docker exec -u root -t qa-polar_api composer install --no-dev --optimize-autoloader --no-interaction
+
+            echo "Ejecutando migraciones..."
+            docker exec -u root -t qa-polar_api php artisan migrate --force
+
+            echo "Limpiando caches de Laravel..."
+            docker exec -t qa-polar_api php artisan config:clear
+            docker exec -t qa-polar_api php artisan cache:clear
+            docker exec -t qa-polar_api php artisan route:clear
+
+            echo "Reiniciando colas..."
+            docker exec -t qa-polar_api php artisan queue:restart
+
+            echo "Reiniciando contenedor para limpiar OPcache..."
+            docker restart qa-polar_api
+
+            echo "Despliegue de PolarAPI (QA) completado con éxito."
