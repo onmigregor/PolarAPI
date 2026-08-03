@@ -40,7 +40,7 @@ jobs:
 
             # 4. Levantar / reconstruir el contenedor Docker de QA
             echo "Levantando contenedor qa-polar_api..."
-            docker compose up -d --build app
+            docker compose -f docker-compose.qa.yml up -d --build app
 
             # Corregir permisos de almacenamiento y caché para el servidor web (www-data)
             echo "Corrigiendo permisos de storage y bootstrap/cache..."
