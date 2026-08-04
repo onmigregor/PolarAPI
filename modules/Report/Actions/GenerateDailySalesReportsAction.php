@@ -27,7 +27,7 @@ class GenerateDailySalesReportsAction
     ): array
     {
         // 1. Ejecutar acciones por separado
-        $ventasRows = $this->salesAction->execute($filters, $ventasTable);
+        $ventasRows = $this->salesAction->execute($filters, $ventasTable, $onlyPending);
         $obsqRows = $this->obsqAction->execute($filters, $obsqTable, $onlyPending);
         $obsqSapRows = $this->obsqSapAction->execute($filters, $obsqSapTable, $onlyPending);
 
