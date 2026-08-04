@@ -265,18 +265,15 @@ class GetSalesObsequiosReportAction
                   ->orWhere('c.RIF', 'like', "%{$cliente}%");
             });
         }
+        // Filtro de fecha sobre la venta (v.Fecha), excluyendo ventas anteriores al 20-07-2026
+        $query->where('v.Fecha', '>=', '2026-07-20');
 
-        // Filtro de fecha de operación con corte a las 08:00 p.m.
         if ($startDate && $endDate) {
-            $realStart = \Carbon\Carbon::parse($startDate)->subDay()->format('Y-m-d') . ' 20:00:00';
-            $realEnd = $endDate . ' 19:59:59';
-            $query->whereBetween('scp.fecha_entrega_cliente', [$realStart, $realEnd]);
+            $query->whereBetween('v.Fecha', [$startDate, $endDate]);
         } elseif ($startDate) {
-            $realStart = \Carbon\Carbon::parse($startDate)->subDay()->format('Y-m-d') . ' 20:00:00';
-            $query->where('scp.fecha_entrega_cliente', '>=', $realStart);
+            $query->where('v.Fecha', '>=', $startDate);
         } elseif ($endDate) {
-            $realEnd = $endDate . ' 19:59:59';
-            $query->where('scp.fecha_entrega_cliente', '<=', $realEnd);
+            $query->where('v.Fecha', '<=', $endDate);
         }
 
         if ($hasSftpColumn) {

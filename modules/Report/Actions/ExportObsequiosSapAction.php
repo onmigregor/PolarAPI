@@ -33,14 +33,14 @@ class ExportObsequiosSapAction
     /**
      * Genera las filas del CSV en formato SAP SmartFq (29 columnas).
      */
-    public function execute(ExportSalesCsvFilterData $filters, string $table = 'company_routes'): array
+    public function execute(ExportSalesCsvFilterData $filters, string $table = 'company_routes', bool $onlyPending = true): array
     {
         $clients = $this->tenantService->resolveClients(null, $table);
         $isRange = !empty($filters->start_date) && !empty($filters->end_date);
 
         $allRows = [];
 
-        $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $isRange) {
+        $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $isRange, $onlyPending) {
             $cep = $client->cep ?? '';
             $routeCode = $client->codigo ?? 'N/A';
             $tenantRows = [];
@@ -74,22 +74,15 @@ class ExportObsequiosSapAction
                 ->where('v.eliminado', 0)
                 ->where('scp.status', 'entregado');
 
-            // Filtro de fecha + Obsequios Rezagados/Pendientes (Desde el 20-07-2026)
-            $queryBase->where(function ($q) use ($filters, $isRange) {
-                if ($isRange) {
-                    $q->whereBetween('scp.fecha_entrega_cliente', [$filters->start_date . ' 00:00:00', $filters->end_date . ' 23:59:59']);
-                } else {
-                    $q->whereDate('scp.fecha_entrega_cliente', $filters->start_date);
-                }
-
-                $q->orWhere(function ($sub) {
-                    $sub->whereNull('scp.fecha_envio_sftp')
-                        ->where('scp.fecha_entrega_cliente', '>=', '2026-07-20 00:00:00');
-                });
-            });
+            // Obsequios pendientes de envio (excluyendo ventas anteriores al 20-07-2026)
+            if ($onlyPending) {
+                $queryBase->whereNull('scp.fecha_envio_sftp');
+            }
+            $queryBase->where('v.Fecha', '>=', '2026-07-20');
 
             $results = $queryBase->select(
                 'scp.fecha_entrega_cliente as rpt_fecha',
+                'v.Fecha as fecha_venta',
                 'scp.cajas_entregadas as rpt_cantidad',
                 'p.codigoSKU',
                 'p.unidadesporcaja',
@@ -110,7 +103,7 @@ class ExportObsequiosSapAction
                 }
 
                 // Fecha en formato SAP (dd.mm.yyyy)
-                $fechaSap = Carbon::parse($row->rpt_fecha)->format('d.m.Y');
+                $fechaSap = Carbon::parse($row->rpt_fecha ?? $row->fecha_venta)->format('d.m.Y');
 
                 // Material (SKU) - si no tiene SKU, saltar este registro
                 $material = $row->codigoSKU;

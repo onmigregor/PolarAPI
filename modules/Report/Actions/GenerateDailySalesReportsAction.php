@@ -22,13 +22,14 @@ class GenerateDailySalesReportsAction
         string $obsqSapDisk = 'sftp_obsequios',
         string $ventasTable = 'company_routes',
         string $obsqTable = 'company_routes',
-        string $obsqSapTable = 'company_routes'
+        string $obsqSapTable = 'company_routes',
+        bool $onlyPending = true
     ): array
     {
         // 1. Ejecutar acciones por separado
-        $ventasRows = $this->salesAction->execute($filters, $ventasTable);
-        $obsqRows = $this->obsqAction->execute($filters, $obsqTable);
-        $obsqSapRows = $this->obsqSapAction->execute($filters, $obsqSapTable);
+        $ventasRows = $this->salesAction->execute($filters, $ventasTable, $onlyPending);
+        $obsqRows = $this->obsqAction->execute($filters, $obsqTable, $onlyPending);
+        $obsqSapRows = $this->obsqSapAction->execute($filters, $obsqSapTable, $onlyPending);
 
         // 2. Agrupar filas por fecha (formato d.m.Y)
         $ventasByDate = [];

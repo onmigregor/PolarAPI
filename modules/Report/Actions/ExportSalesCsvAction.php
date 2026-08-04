@@ -44,7 +44,7 @@ class ExportSalesCsvAction
         private TenantConnectionService $tenantService
     ) {}
 
-    public function execute(ExportSalesCsvFilterData $filters, string $table = 'company_routes'): array
+    public function execute(ExportSalesCsvFilterData $filters, string $table = 'company_routes', bool $onlyPending = true): array
     {
         $this->errors = [];
         
@@ -67,7 +67,7 @@ class ExportSalesCsvAction
         $dayOfWeek = self::DAY_MAP[$startDate->dayOfWeek];
 
         // 2. Por cada tenant, obtener ventas + detalles + RJ/PJ
-        $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $startDate, $endDate, $isRange, $dayOfWeek, $materialsMap) {
+        $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $startDate, $endDate, $isRange, $dayOfWeek, $materialsMap, $onlyPending) {
             $routeCode = $client->code;
             $cep = $client->cep ?? '';
             $tenantRows = [];
@@ -129,17 +129,19 @@ class ExportSalesCsvAction
             // para garantizar que la venta original sea reportada en el archivo de ventas y coincida con el obsequio en SAV/SAP.
 
             // PASO 3: Filtro de Fecha + Ventas Rezagadas/Pendientes (Desde el 20-07-2026)
-            $queryBase->where(function ($q) use ($filters, $isRange) {
+            $queryBase->where(function ($q) use ($filters, $isRange, $onlyPending) {
                 if ($isRange) {
                     $q->whereBetween('v.Fecha', [$filters->start_date . ' 00:00:00', $filters->end_date . ' 23:59:59']);
                 } else {
                     $q->whereDate('v.Fecha', $filters->start_date);
                 }
 
-                $q->orWhere(function ($sub) {
-                    $sub->whereNull('v.fecha_envio_sftp')
-                        ->where('v.Fecha', '>=', '2026-07-20');
-                });
+                if ($onlyPending) {
+                    $q->orWhere(function ($sub) {
+                        $sub->whereNull('v.fecha_envio_sftp')
+                            ->where('v.Fecha', '>=', '2026-07-20');
+                    });
+                }
             });
 
             $countFinal = (clone $queryBase)->count();

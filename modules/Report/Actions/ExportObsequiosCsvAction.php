@@ -18,14 +18,14 @@ class ExportObsequiosCsvAction
         private TenantConnectionService $tenantService
     ) {}
 
-    public function execute(ExportSalesCsvFilterData $filters, string $table = 'company_routes'): array
+    public function execute(ExportSalesCsvFilterData $filters, string $table = 'company_routes', bool $onlyPending = true): array
     {
         $clients = $this->tenantService->resolveClients(null, $table);
         $isRange = !empty($filters->start_date) && !empty($filters->end_date);
         
         $allRows = [];
 
-        $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $isRange) {
+        $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $isRange, $onlyPending) {
             $cep = $client->cep ?? '';
             $routeCode = $client->codigo ?? 'N/A';
             $tenantRows = [];
@@ -64,19 +64,11 @@ class ExportObsequiosCsvAction
             $countBase = (clone $queryBase)->count();
             Log::error("      [DETECTIVE-OBS] Cliente $routeCode - Join Base: $countBase registros.");
 
-            // PASO 3: Filtro de Fecha + Obsequios Rezagados/Pendientes (Desde el 20-07-2026)
-            $queryBase->where(function ($q) use ($filters, $isRange) {
-                if ($isRange) {
-                    $q->whereBetween('scp.fecha_entrega_cliente', [$filters->start_date . ' 00:00:00', $filters->end_date . ' 23:59:59']);
-                } else {
-                    $q->whereDate('scp.fecha_entrega_cliente', $filters->start_date);
-                }
-
-                $q->orWhere(function ($sub) {
-                    $sub->whereNull('scp.fecha_envio_sftp')
-                        ->where('scp.fecha_entrega_cliente', '>=', '2026-07-20 00:00:00');
-                });
-            });
+            // Filtrar pendientes solo si $onlyPending es true
+            if ($onlyPending) {
+                $queryBase->whereNull('scp.fecha_envio_sftp');
+            }
+            $queryBase->where('v.Fecha', '>=', '2026-07-20');
 
             $countFinal = (clone $queryBase)->count();
             Log::error("      [DETECTIVE-OBS] Cliente $routeCode - TRAS FILTRO FECHA: $countFinal registros.");
@@ -85,6 +77,7 @@ class ExportObsequiosCsvAction
             ->select(
                 'scp.id as obsq_id',
                 'v.IdVenta',
+                'v.Fecha as fecha_venta',
                 'scp.fecha_entrega_cliente as rpt_fecha',
                 'scp.cajas_entregadas as rpt_cantidad',
                 'p.codigoSKU',
@@ -110,7 +103,7 @@ class ExportObsequiosCsvAction
                     'obsq_id'       => $row->obsq_id,
                     'fq_redi'       => $cep,
                     'cep'           => $clientCep,
-                    'fecha'         => Carbon::parse($row->rpt_fecha)->format('d.m.Y'),
+                    'fecha'         => Carbon::parse($row->rpt_fecha ?? $row->fecha_venta)->format('d.m.Y'),
                     'deudor'        => $row->IdCliente,
                     'doc_fq_redi'   => $row->IdVenta,
                     'material'      => $row->codigoSKU,
