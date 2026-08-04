@@ -10,10 +10,10 @@ services:
     environment:
       SERVICE_NAME: app
       APP_SERVICE: app
-      DB_HOST: qa-mysql-8.0
-      DB_DATABASE: polar_api
-      DB_USERNAME: netred_docker
-      DB_PASSWORD: netred_docker
+      DB_HOST: db
+      DB_DATABASE: qa_polar_metrics
+      DB_USERNAME: wimi_smartfq_user
+      DB_PASSWORD: "M@r644835+16139"
     working_dir: /var/www/html
     volumes:
       - ./:/var/www/html
