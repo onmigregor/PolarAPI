@@ -18,14 +18,14 @@ class ExportObsequiosCsvAction
         private TenantConnectionService $tenantService
     ) {}
 
-    public function execute(ExportSalesCsvFilterData $filters, string $table = 'company_routes'): array
+    public function execute(ExportSalesCsvFilterData $filters, string $table = 'company_routes', bool $onlyPending = true): array
     {
         $clients = $this->tenantService->resolveClients(null, $table);
         $isRange = !empty($filters->start_date) && !empty($filters->end_date);
         
         $allRows = [];
 
-        $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $isRange) {
+        $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $isRange, $onlyPending) {
             $cep = $client->cep ?? '';
             $routeCode = $client->codigo ?? 'N/A';
             $tenantRows = [];
@@ -64,9 +64,11 @@ class ExportObsequiosCsvAction
             $countBase = (clone $queryBase)->count();
             Log::error("      [DETECTIVE-OBS] Cliente $routeCode - Join Base: $countBase registros.");
 
-            // Obsequios pendientes de envio (excluyendo ventas anteriores al 20-07-2026)
-            $queryBase->whereNull('scp.fecha_envio_sftp')
-                ->where('v.Fecha', '>=', '2026-07-20');
+            // Filtrar pendientes solo si $onlyPending es true
+            if ($onlyPending) {
+                $queryBase->whereNull('scp.fecha_envio_sftp');
+            }
+            $queryBase->where('v.Fecha', '>=', '2026-07-20');
 
             $countFinal = (clone $queryBase)->count();
             Log::error("      [DETECTIVE-OBS] Cliente $routeCode - TRAS FILTRO FECHA: $countFinal registros.");

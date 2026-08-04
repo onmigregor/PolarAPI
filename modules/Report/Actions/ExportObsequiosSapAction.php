@@ -33,14 +33,14 @@ class ExportObsequiosSapAction
     /**
      * Genera las filas del CSV en formato SAP SmartFq (29 columnas).
      */
-    public function execute(ExportSalesCsvFilterData $filters, string $table = 'company_routes'): array
+    public function execute(ExportSalesCsvFilterData $filters, string $table = 'company_routes', bool $onlyPending = true): array
     {
         $clients = $this->tenantService->resolveClients(null, $table);
         $isRange = !empty($filters->start_date) && !empty($filters->end_date);
 
         $allRows = [];
 
-        $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $isRange) {
+        $tenantResults = $this->tenantService->forEachTenant($clients, function ($client) use ($filters, $isRange, $onlyPending) {
             $cep = $client->cep ?? '';
             $routeCode = $client->codigo ?? 'N/A';
             $tenantRows = [];
@@ -75,8 +75,10 @@ class ExportObsequiosSapAction
                 ->where('scp.status', 'entregado');
 
             // Obsequios pendientes de envio (excluyendo ventas anteriores al 20-07-2026)
-            $queryBase->whereNull('scp.fecha_envio_sftp')
-                ->where('v.Fecha', '>=', '2026-07-20');
+            if ($onlyPending) {
+                $queryBase->whereNull('scp.fecha_envio_sftp');
+            }
+            $queryBase->where('v.Fecha', '>=', '2026-07-20');
 
             $results = $queryBase->select(
                 'scp.fecha_entrega_cliente as rpt_fecha',

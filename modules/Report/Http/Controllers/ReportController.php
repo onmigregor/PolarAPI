@@ -30,7 +30,7 @@ class ReportController extends Controller
             $obsqTable = \App\Helpers\ReportRoutesSelector::getTableForProcess('obsequios');
             $obsqSapTable = \App\Helpers\ReportRoutesSelector::getTableForProcess('obsequios_sap');
 
-            $result = $action->execute($filters, $ventasDisk, $obsqDisk, $obsqSapDisk, $ventasTable, $obsqTable, $obsqSapTable);
+            $result = $action->execute($filters, $ventasDisk, $obsqDisk, $obsqSapDisk, $ventasTable, $obsqTable, $obsqSapTable, onlyPending: false);
 
             return response()->json([
                 'success' => true,
