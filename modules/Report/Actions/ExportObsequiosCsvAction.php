@@ -75,6 +75,7 @@ class ExportObsequiosCsvAction
             ->select(
                 'scp.id as obsq_id',
                 'v.IdVenta',
+                'v.Fecha as fecha_venta',
                 'scp.fecha_entrega_cliente as rpt_fecha',
                 'scp.cajas_entregadas as rpt_cantidad',
                 'p.codigoSKU',
@@ -100,7 +101,7 @@ class ExportObsequiosCsvAction
                     'obsq_id'       => $row->obsq_id,
                     'fq_redi'       => $cep,
                     'cep'           => $clientCep,
-                    'fecha'         => Carbon::parse($row->rpt_fecha)->format('d.m.Y'),
+                    'fecha'         => Carbon::parse($row->rpt_fecha ?? $row->fecha_venta)->format('d.m.Y'),
                     'deudor'        => $row->IdCliente,
                     'doc_fq_redi'   => $row->IdVenta,
                     'material'      => $row->codigoSKU,

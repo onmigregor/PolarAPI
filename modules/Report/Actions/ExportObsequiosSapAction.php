@@ -80,6 +80,7 @@ class ExportObsequiosSapAction
 
             $results = $queryBase->select(
                 'scp.fecha_entrega_cliente as rpt_fecha',
+                'v.Fecha as fecha_venta',
                 'scp.cajas_entregadas as rpt_cantidad',
                 'p.codigoSKU',
                 'p.unidadesporcaja',
@@ -100,7 +101,7 @@ class ExportObsequiosSapAction
                 }
 
                 // Fecha en formato SAP (dd.mm.yyyy)
-                $fechaSap = Carbon::parse($row->rpt_fecha)->format('d.m.Y');
+                $fechaSap = Carbon::parse($row->rpt_fecha ?? $row->fecha_venta)->format('d.m.Y');
 
                 // Material (SKU) - si no tiene SKU, saltar este registro
                 $material = $row->codigoSKU;
