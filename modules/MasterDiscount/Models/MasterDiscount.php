@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class MasterDiscount extends Model
 {
-    protected $table = 'discounts';
+    protected $table = 'master_discounts';
     protected $primaryKey = 'dis_code';
     public $incrementing = false;
     protected $keyType = 'string';
