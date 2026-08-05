@@ -35,6 +35,21 @@ class MasterInvoiceController extends Controller
             $now = now();
 
             foreach ($data as $item) {
+                $materialRaw = isset($item['material']) ? trim($item['material']) : null;
+                $materialClean = $materialRaw !== null ? ltrim($materialRaw, '0') : null;
+                if (empty($materialClean) && !empty($materialRaw)) {
+                    $materialClean = $materialRaw; // Preservar si era '0'
+                }
+
+                $cantidad = (float)($item['cantidad'] ?? 0);
+                $precio = (float)($item['precio'] ?? 0);
+
+                // Omitir renglones basura sin material o con cantidad <= 0 y precio <= 0
+                if (empty($materialClean) || ($cantidad <= 0 && $precio <= 0)) {
+                    Log::warning("MasterInvoiceController: Omitiendo renglón inválido o en cero para factura " . ($item['no_factura'] ?? 'N/A') . " Material: $materialRaw");
+                    continue;
+                }
+
                 $upsertData[] = [
                     'fq_redi' => isset($item['fq_redi']) ? trim($item['fq_redi']) : null,
                     'fecha_creacion' => isset($item['fecha_creacion']) ? trim($item['fecha_creacion']) : null,
@@ -43,10 +58,10 @@ class MasterInvoiceController extends Controller
                     'no_factura' => isset($item['no_factura']) ? trim($item['no_factura']) : null,
                     'no_control' => isset($item['no_control']) ? trim($item['no_control']) : null,
                     'zona_venta' => isset($item['zona_venta']) ? trim($item['zona_venta']) : null,
-                    'material' => isset($item['material']) ? trim($item['material']) : null,
-                    'cantidad' => $item['cantidad'] ?? 0,
+                    'material' => $materialClean,
+                    'cantidad' => $cantidad,
                     'um' => $item['um'] ?? null,
-                    'precio' => $item['precio'] ?? 0,
+                    'precio' => $precio,
                     'iva' => $item['iva'] ?? 0,
                     'descuento' => $item['descuento'] ?? 0,
                     'otro_margen' => $item['otro_margen'] ?? 0,
