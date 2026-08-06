@@ -429,6 +429,23 @@ class SyncOfficialCustomersAction
                     }
 
                     // D3. Push to Tenant Clientes
+                    $existingLocalClient = $tenantDb->table('clientes')->where('cep', $paddedCusCode)->first();
+                    
+                    $isLocallyDeleted = false;
+                    if ($existingLocalClient) {
+                        $localRuta = strtoupper((string)($existingLocalClient->Ruta ?? ''));
+                        $localStatus = strtolower((string)($existingLocalClient->status ?? ''));
+                        $localActivo = (int)($existingLocalClient->Activo ?? 1);
+
+                        if (str_contains($localRuta, 'ELIMINADO') || str_contains($localRuta, 'EMILINADO') || $localActivo === 0 || $localStatus === 'inactivo') {
+                            $isLocallyDeleted = true;
+                        }
+                    }
+
+                    $tenantRutaValue   = $isLocallyDeleted ? ($existingLocalClient->Ruta ?? 'ELIMINADO') : strtoupper($companyRoute->route_name);
+                    $tenantStatusValue = $isLocallyDeleted ? ($existingLocalClient->status ?? 'Inactivo') : 'Activo';
+                    $tenantActivoValue = $isLocallyDeleted ? (int)($existingLocalClient->Activo ?? 0) : 1;
+
                     $tenantDb->table('clientes')->updateOrInsert(
                         ['cep' => $paddedCusCode],
                         [
@@ -437,14 +454,14 @@ class SyncOfficialCustomersAction
                             'tp1_code'      => $customer->tp1_code ?? '',
                             'Direccion'     => ($customer->cus_street1 . ' ' . $customer->cus_street2 . ' ' . $customer->cus_street3),
                             'email'         => $customer->cus_email ?? '',
-                            'Ruta'          => strtoupper($companyRoute->route_name),
+                            'Ruta'          => $tenantRutaValue,
                             'latitud'       => $customer->cus_latitude ?? '',
                             'longitud'      => $customer->cus_longitude ?? '',
-                            'status'        => 'Activo',
+                            'status'        => $tenantStatusValue,
                             'DiaDespacho1'  => $activeDays[0] ?? '',
                             'DiaDespacho2'  => $activeDays[1] ?? '',
                             'DiaDespacho3'  => $activeDays[0] ?? '',
-                            'Activo'        => 1,
+                            'Activo'        => $tenantActivoValue,
                             'PersonaContacto' => $customer->cus_contact_person ?? '',
                             'TelefonoContacto' => $customer->cus_phone ?? '',
                             'csp_for_sale'     => $cspFlags ? $cspFlags->csp_for_sale : 0,
