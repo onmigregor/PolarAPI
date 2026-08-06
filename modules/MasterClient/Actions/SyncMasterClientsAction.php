@@ -31,14 +31,13 @@ class SyncMasterClientsAction
 
                 // Asegurar que las columnas requeridas (incluyendo synced_to_master) existen en el tenant
                 $this->ensureClientesColumnsExist('tenant');
-
                 // Seleccionar solo los clientes que no tienen cep (creados en el tenant) y no se han sincronizado
                 $clients = DB::connection('tenant')->table('clientes')
                     ->select('IdCliente', 'cep', 'Cliente', 'cus_business_name', 'Ruta', 'RIF', 'TelefonoContacto', 'email', 'tp1_code', 'TipoCliente', 'segmento')
                     ->whereRaw("UPPER(Ruta) NOT LIKE ?", ['%ELIMINADO%'])
                     ->whereRaw("UPPER(Ruta) NOT LIKE ?", ['%EMILINADO%'])
                     ->where(function($q) {
-                        $q->whereNull('cep')->orWhere('cep', '');
+                        $q->whereNull('cep').orWhere('cep', '');
                     })
                     ->where('synced_to_master', 0)
                     ->get();
@@ -90,7 +89,33 @@ class SyncMasterClientsAction
                     $syncedCount++;
                 }
 
-                unset($clients); // Liberar memoria de la colección de clientes
+                // Sincronizar bajas lógicas del tenant hacia Master Metrics (master_client_polar)
+                $deletedTenantClients = DB::connection('tenant')->table('clientes')
+                    ->select('IdCliente', 'cep', 'RIF', 'Ruta', 'status', 'Activo')
+                    ->where(function($q) {
+                        $q->whereRaw("UPPER(Ruta) LIKE ?", ['%ELIMINADO%'])
+                          ->orWhereRaw("UPPER(Ruta) LIKE ?", ['%EMILINADO%'])
+                          ->orWhere('Activo', 0)
+                          ->orWhereRaw("LOWER(status) = ?", ['inactivo']);
+                    })
+                    ->get();
+
+                foreach ($deletedTenantClients as $delClient) {
+                    $cepPadded = !empty($delClient->cep) ? ltrim((string)$delClient->cep, '0') : null;
+                    $rif = !empty($delClient->RIF) ? trim($delClient->RIF) : null;
+
+                    if ($cepPadded) {
+                        MasterClient::where('cus_code', $cepPadded)
+                            ->where('company_route_id', $companyRoute->id)
+                            ->update(['company_route_id' => null]);
+                    } elseif ($rif) {
+                        MasterClient::where('cus_tax_id1', $rif)
+                            ->where('company_route_id', $companyRoute->id)
+                            ->update(['company_route_id' => null]);
+                    }
+                }
+
+                unset($clients, $deletedTenantClients); // Liberar memoria de las colecciones
 
             } catch (\Exception $e) {
                 Log::error("Error syncing clients for {$companyRoute->name}: " . $e->getMessage());

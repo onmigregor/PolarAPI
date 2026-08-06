@@ -471,9 +471,16 @@ class MasterClientBulkSyncAction
                             })
                             ->first();
 
-                        if ($existingLocalClient && isset($existingLocalClient->Activo) && (int)$existingLocalClient->Activo === 0) {
-                            $clientData['Activo'] = 0;
-                            $clientData['status'] = $existingLocalClient->status ?? 'Inactivo';
+                        if ($existingLocalClient) {
+                            $localRuta = strtoupper((string)($existingLocalClient->Ruta ?? ''));
+                            $localStatus = strtolower((string)($existingLocalClient->status ?? ''));
+                            $localActivo = (int)($existingLocalClient->Activo ?? 1);
+
+                            if (str_contains($localRuta, 'ELIMINADO') || str_contains($localRuta, 'EMILINADO') || $localActivo === 0 || $localStatus === 'inactivo') {
+                                $clientData['Activo'] = 0;
+                                $clientData['status'] = $existingLocalClient->status ?? 'Inactivo';
+                                $clientData['Ruta']   = $existingLocalClient->Ruta ?? 'ELIMINADO';
+                            }
                         }
 
                         $updated = false;
