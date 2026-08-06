@@ -37,7 +37,7 @@ class SyncMasterClientsAction
                     ->whereRaw("UPPER(Ruta) NOT LIKE ?", ['%ELIMINADO%'])
                     ->whereRaw("UPPER(Ruta) NOT LIKE ?", ['%EMILINADO%'])
                     ->where(function($q) {
-                        $q->whereNull('cep').orWhere('cep', '');
+                        $q->whereNull('cep')->orWhere('cep', '');
                     })
                     ->where('synced_to_master', 0)
                     ->get();
@@ -115,7 +115,26 @@ class SyncMasterClientsAction
                     }
                 }
 
-                unset($clients, $deletedTenantClients); // Liberar memoria de las colecciones
+                // Sincronizar reactivaciones de clientes con CEP en tenant hacia Master Metrics
+                $activeTenantClients = DB::connection('tenant')->table('clientes')
+                    ->select('IdCliente', 'cep', 'RIF', 'Ruta', 'status', 'Activo')
+                    ->whereRaw("UPPER(Ruta) NOT LIKE ?", ['%ELIMINADO%'])
+                    ->whereRaw("UPPER(Ruta) NOT LIKE ?", ['%EMILINADO%'])
+                    ->where('Activo', 1)
+                    ->whereNotNull('cep')
+                    ->where('cep', '!=', '')
+                    ->get();
+
+                foreach ($activeTenantClients as $actClient) {
+                    $cepPadded = ltrim((string)$actClient->cep, '0');
+                    if ($cepPadded) {
+                        MasterClient::where('cus_code', $cepPadded)
+                            ->whereNull('company_route_id')
+                            ->update(['company_route_id' => $companyRoute->id]);
+                    }
+                }
+
+                unset($clients, $deletedTenantClients, $activeTenantClients); // Liberar memoria de las colecciones
 
             } catch (\Exception $e) {
                 Log::error("Error syncing clients for {$companyRoute->name}: " . $e->getMessage());
