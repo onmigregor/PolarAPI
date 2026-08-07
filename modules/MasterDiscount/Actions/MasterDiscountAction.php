@@ -35,7 +35,9 @@ class MasterDiscountAction
             if (!empty($discountsData)) {
                 $fillable = (new MasterDiscount())->getFillable();
                 $data = $this->filterAndMap($discountsData, $fillable);
-                MasterDiscount::upsert($data, ['dis_code'], array_diff($fillable, ['dis_code']));
+                foreach (array_chunk($data, 200) as $chunk) {
+                    MasterDiscount::upsert($chunk, ['dis_code'], array_diff($fillable, ['dis_code']));
+                }
                 $results['discounts'] = count($data);
             }
 
@@ -43,7 +45,9 @@ class MasterDiscountAction
             if (!empty($detailsData)) {
                 $fillable = (new MasterDiscountDetail())->getFillable();
                 $data = $this->filterAndMap($detailsData, $fillable);
-                MasterDiscountDetail::upsert($data, ['did_code'], array_diff($fillable, ['did_code', 'dis_code']));
+                foreach (array_chunk($data, 200) as $chunk) {
+                    MasterDiscountDetail::upsert($chunk, ['did_code'], array_diff($fillable, ['did_code', 'dis_code']));
+                }
                 $results['details'] = count($data);
             }
 
@@ -52,7 +56,9 @@ class MasterDiscountAction
                 $fillable = (new MasterDiscountDetailProduct())->getFillable();
                 $data = $this->filterAndMap($productsData, $fillable);
                 if (!empty($data)) {
-                    MasterDiscountDetailProduct::upsert($data, ['dlp_code'], array_diff($fillable, ['dlp_code', 'did_code', 'dis_code']));
+                    foreach (array_chunk($data, 200) as $chunk) {
+                        MasterDiscountDetailProduct::upsert($chunk, ['dlp_code'], array_diff($fillable, ['dlp_code', 'did_code', 'dis_code']));
+                    }
                     $results['products'] = count($data);
                 }
             }
@@ -63,7 +69,9 @@ class MasterDiscountAction
                 if (!empty($mappedRoutes)) {
                     $disCodes = collect($mappedRoutes)->pluck('dis_code')->unique()->toArray();
                     MasterDiscountRoute::whereIn('dis_code', $disCodes)->delete();
-                    MasterDiscountRoute::insert($mappedRoutes);
+                    foreach (array_chunk($mappedRoutes, 200) as $chunk) {
+                        MasterDiscountRoute::insert($chunk);
+                    }
                     $results['routes'] = count($mappedRoutes);
                 }
             }
